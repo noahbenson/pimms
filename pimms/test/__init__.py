@@ -15,9 +15,38 @@
 # not, see <http://www.gnu.org/licenses/>.
 
 '''
-The pimms.test package contains tests for the pimms library as well as examples of the library
+The test_pimms test package contains tests for the pimms library as well as examples of the library
 usage.
 '''
 
+import unittest
+import math
 import pimms
+
+class TestPimms(unittest.TestCase):
+    '''
+    The TestPimms class defines all the tests for the pimms library.
+    '''
+
+    def test_lazy_complex(self):
+        '''
+        test_lazy_complex makes sure that the example in pimms.test.lazy_complex works.
+        '''
+        from .lazy_complex import LazyComplex
+
+        z1 = LazyComplex(0)
+        z2 = LazyComplex((3.0, 4.0))
+        z3 = LazyComplex(0, -1)
+
+        # Test the names:
+        self.assertEqual(z1.abs, 0)
+        self.assertEqual(z1.arg, 0)
+        self.assertEqual(z2.abs, 5.0)
+        self.assertLess(abs(z2.arg - 0.9272952180016122), 1e-9)
+        self.assertEqual(z3.abs, 1)
+        self.assertLess(abs(z3.arg - (-0.5 * math.pi)), 1e-9)
+
+if __name__ == '__main__':
+    unittest.main()
+
 
