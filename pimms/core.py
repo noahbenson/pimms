@@ -291,12 +291,11 @@ def _imm_init_to_trans(imm):
             'Attempted to change non-initializing immutable from initializing to transient')
     if not all(p in dd for p in params.iterkeys()):
         raise RuntimeError('Not all parameters were set prior to accessing values')
-    # Okay, we can run the checks now...
-    _imm_check(imm)
-    # Those passed, so we can actually change the methods now
-    #imm.__dict__['__getattr__'] = _imm_getattr
+    # Okay, we can run the checks now; we need to remove init status, though...
     del dd['_neuropythy_immutable_is_init']
     dd['_neuropythy_immutable_is_trans'] = True
+    _imm_check(imm)
+    # Those passed, so we can actually change the methods now
     return imm
 def _imm_trans_to_persist(imm):
     # changes state from transient to persistent

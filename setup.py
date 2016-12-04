@@ -12,7 +12,7 @@ setup(
     author_email='nben@nyu.edu',
     url='https://github.com/noahbenson/pimms/',
     license='GPLv3',
-    packages=['pimms'],
+    packages=['pimms', 'pimms.test'],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
     install_requires=[])
