@@ -1,0 +1,15 @@
+# Ignore all the compiled files
+*.pyc
+
+# And this particular notebook
+scratch.ipynb
+
+# This is a backup
+*-backup
+.first-commit-backup
+
+# Ignore the meta directories
+build
+dist
+*.egg-info
+.ipynb_checkpoints
