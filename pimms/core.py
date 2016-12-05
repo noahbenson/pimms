@@ -396,7 +396,10 @@ def imm_dict(imm):
     object im. Note that this forces all of the values to be reified, so only use it if you want to
     force execution of all lazy values.
     '''
-    return imm_params(imm).using(**imm_values(imm))
+    immd = dict(**imm_params(imm))
+    for (k,v) in imm_values.iteritems():
+        immd[k] = v
+    return immd
 def imm_is_persistent(imm):
     '''
     imm_is_persistent(imm) yields True if imm is a persistent immutable object, otherwise False.
