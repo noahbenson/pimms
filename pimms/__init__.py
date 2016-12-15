@@ -107,9 +107,9 @@ and all relevant chacks are run prior to the return of the copy function. The co
 be called on transient or persistent immutables, but the return value is always peresistent.
 
 The additional utility functions are provided as part of the pimms package:
-  * isimm(x) yields True if x is an object that is an instance of an immutable class and False
+  * is_imm(x) yields True if x is an object that is an instance of an immutable class and False
     otherwise.
-  * isimmtype(x) yields True if x is a class that is immutable and False otherwise.
+  * is_imm_type(x) yields True if x is a class that is immutable and False otherwise.
   * imm_copy(imm, ...) is identical to imm.copy(...) for an immutable object imm.
   * imm_persist(imm) is identical to imm.persist() for a transient immutable object imm.
   * imm_transient(imm) is identical to imm.transient() for an immutable object imm.
@@ -120,6 +120,7 @@ The additional utility functions are provided as part of the pimms package:
   * imm_is_transient(imm) is identical to imm.is_transient() for an immutable object imm.
 '''
 
-from .core import (immutable, require, value, param, option, isimm, isimmtype, imm_copy,
-                   imm_persist, imm_transient, imm_params, imm_values, imm_dict, imm_is_persistent,
-                   imm_is_transient)
+from .immutable import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
+                        imm_persist, imm_transient, imm_params, imm_values, imm_dict,
+                        imm_is_persistent, imm_is_transient)
+from .calc      import (calc, calc_plan, Calculation, CalcDict)
