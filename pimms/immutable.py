@@ -1,5 +1,5 @@
 ####################################################################################################
-# neuropythy/immutable/core.py
+# pimms/immutable.py
 # Simple class decorator for immutable lazily-loading classes.
 # By Noah C. Benson
 
@@ -31,14 +31,14 @@ import copy, inspect, types
 #     (arg_lists, check_fns)
 #     Where the arg_lists and check_fns are as in params.
 
-def isimm(obj):
+def is_imm(obj):
     '''
-    isimm(obj) yields True if obj is an instance of an immutable class and False otherwise.
+    is_imm(obj) yields True if obj is an instance of an immutable class and False otherwise.
     '''
     return hasattr(type(obj), '_neuropythy_immutable_data_')
-def isimmtype(cls):
+def is_imm_type(cls):
     '''
-    isimmtype(cls) yields True if cls is an immutable class and False otherwise.
+    is_imm_type(cls) yields True if cls is an immutable class and False otherwise.
     '''
     return hasattr(cls, '_neuropythy_immutable_data_')
 def _imm_is_init(imm):
@@ -315,7 +315,7 @@ def imm_transient(imm):
     '''
     imm_transient(imm) yields a duplicate of the given immutable imm that is transient.
     '''
-    if not isimm(imm):
+    if not is_imm(imm):
         raise ValueError('Non-immutable given to imm_transient')
     # make a duplicate immutable that is in the transient state
     dup = copy.copy(imm)
@@ -332,7 +332,7 @@ def imm_persist(imm):
     imm_persist(imm) turns imm from a transient into a persistent immutable and returns imm. If imm
     is already persistent, then it is simply returned.
     '''
-    if not isimm(imm):
+    if not is_imm(imm):
         raise ValueError('imm_persist given non-immutable')
     if not _imm_is_persist(imm):
         _imm_trans_to_persist(imm)
@@ -342,7 +342,7 @@ def imm_copy(imm, **kwargs):
     imm_copy(imm, a=b, c=d...) yields a persisent copy of the immutable object imm that differs from
     imm only in that the parameters a, c, etc. have been changed to have the values b, d, etc.
     '''
-    if not isimm(imm):
+    if not is_imm(imm):
         raise ValueError('Non-immutable given to imm_copy')
     dup = copy.copy(imm)
     dd = object.__getattribute__(dup, '__dict__')
@@ -404,12 +404,12 @@ def imm_is_persistent(imm):
     '''
     imm_is_persistent(imm) yields True if imm is a persistent immutable object, otherwise False.
     '''
-    return isimm(imm) and _imm_is_persist(imm)
+    return is_imm(imm) and _imm_is_persist(imm)
 def imm_is_transient(imm):
     '''
     imm_is_transient(imm) yields True if imm is a transient immutable object, otherwise False.
     '''
-    return isimm(imm) and not _imm_is_persist(imm)
+    return is_imm(imm) and not _imm_is_persist(imm)
 
 def value(f):
     '''
@@ -633,7 +633,7 @@ def _annotate_imm(cls):
     # That grabs all the relevant immutable data; we now have two tasks:
     # (1) merge with parent immutable classes to generate final value/param/check lists
     # --- to do this, we start by getting the class hierarchy
-    mro = [c for c in inspect.getmro(cls) if c is not cls and isimmtype(c)]
+    mro = [c for c in inspect.getmro(cls) if c is not cls and is_imm_type(c)]
     # --- now walk through, merging each
     for parent in mro: _imm_merge_class(cls, parent)
     # (2) resolve dependencies
