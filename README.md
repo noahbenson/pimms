@@ -28,7 +28,9 @@ python setup.py install
 
 ### Dependencies ####################################################################################
 
-The pimms library currently depends on no other libraries.
+The pimms library currently depends on only one library,
+[pysistence](https://pythonhosted.org/pysistence/); pimms is intended as a complement to pysistence
+that adds structured dictionaries and objects that include lazily-generated arbitrariy calculations.
 
 ### Tests ##########################################################################################
 
