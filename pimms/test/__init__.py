@@ -46,7 +46,49 @@ class TestPimms(unittest.TestCase):
         self.assertEqual(z3.abs, 1)
         self.assertLess(abs(z3.arg - (-0.5 * math.pi)), 1e-9)
 
+    def test_normal_calc(self):
+        from .normal_calc import (normal_distribution, pdf)
+        
+        # instantiate a normal distribution object
+        std_norm_dist = normal_distribution(mean=0.0,
+                                            standard_deviation=1.0)
+        #>> Checking standard_deviation...
+        self.assertEqual(std_norm_dist['mean'], 0)
+        self.assertEqual(std_norm_dist['standard_deviation'], 1)
+
+        self.assertEqual(
+            set(std_norm_dist.keys()),
+            set(['mean', 'standard_deviation', 'variance', 'ci95', 'ci99',
+                 'inner_normal_distribution_constant',
+                 'outer_normal_distribution_constant']))
+        
+        self.assertEqual(std_norm_dist['variance'], 1)
+        #>> Calculating variance...
+        
+        # this gets cached after being calculated above
+        self.assertTrue('variance' in std_norm_dist.efferents)
+
+        self.assertLess(abs(pdf(std_norm_dist, 1.0) - 0.241971), 0.001)
+        #>> Calculating outer constant...
+        #>> Calculating inner constant...
+
+        # Make a new normal_distribution object similar to the old
+        new_norm_dist_1 = std_norm_dist.using(mean=10.0)
+        # the standard_deviation check doesn't get rerun because none of
+        # it's parameters have changed
+        self.assertTrue('variance' in new_norm_dist_1.efferents)
+        self.assertEqual(new_norm_dist_1['variance'], 1)
+        
+        self.assertLess(abs(pdf(new_norm_dist_1, 9.0) - 0.241971), 0.001)
+
+        # Here, the calculations get rerun because the standard_deviation
+        # changes
+        new_norm_dist_2 = std_norm_dist.using(standard_deviation=2.0)
+        #>> Checking standard_deviation...
+        self.assertFalse('variance' in new_norm_dist_2.efferents)
+        self.assertEqual(new_norm_dist_2['variance'], 4)
+        #>> Calculating variance...
+
+        
 if __name__ == '__main__':
     unittest.main()
-
-

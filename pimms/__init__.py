@@ -120,7 +120,7 @@ The additional utility functions are provided as part of the pimms package:
   * imm_is_transient(imm) is identical to imm.is_transient() for an immutable object imm.
 '''
 
-from .immutable import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
-                        imm_persist, imm_transient, imm_params, imm_values, imm_dict,
-                        imm_is_persistent, imm_is_transient)
-from .calc      import (calc, calc_plan, Calculation, CalcDict)
+from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
+                          imm_persist, imm_transient, imm_params, imm_values, imm_dict,
+                          imm_is_persistent, imm_is_transient)
+from .calculation import (calc, calc_plan, Calculation, CalcDict)
