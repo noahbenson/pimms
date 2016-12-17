@@ -8,12 +8,10 @@ import pimms
 # as in the output values
 @pimms.calc('variance')
 def variance_from_stddev(standard_deviation):
-    print 'Calculating variance...'
     return standard_deviation ** 2
 
 @pimms.calc('ci95', 'ci99')
 def confidence_intervals(mean, standard_deviation):
-    print 'Calculating confidence intervals...'
     ci95 = tuple(q * standard_deviation + mean for q in [-1.96, 1.96])
     ci99 = tuple(q * standard_deviation + mean for q in [-2.58, 2.58])
     return (ci95, ci99)
@@ -26,7 +24,6 @@ def confidence_intervals(mean, standard_deviation):
 # return anything
 @pimms.calc(None)
 def check_normal_distribution_inputs(standard_deviation):
-    print 'Checking standard_deviation...'
     if standard_deviation <= 0:
         raise ValueError('standard_deviation must be positive')
 
@@ -34,21 +31,19 @@ def check_normal_distribution_inputs(standard_deviation):
 # name of the function
 @pimms.calc
 def outer_normal_distribution_constant(standard_deviation):
-    print 'Calculating outer constant...'
     return 1.0 / (standard_deviation * np.sqrt(np.pi * 2))
 @pimms.calc
 def inner_normal_distribution_constant(standard_deviation):
-    print 'Calculating inner constant...'
     return -0.5 / standard_deviation
 
 # Now we declare the calc plan: it's just the union of all these
 # calc functions, given in any order:
 normal_distribution = pimms.calc_plan(
-    variance_from_stddev,
-    confidence_intervals,
-    check_normal_distribution_inputs,
-    outer_normal_distribution_constant,
-    inner_normal_distribution_constant)
+    variance=variance_from_stddev,
+    cis=confidence_intervals,
+    tests=check_normal_distribution_inputs,
+    outer=outer_normal_distribution_constant,
+    inner=inner_normal_distribution_constant)
 
 # This function accepts a normal_distribution object and returns
 # the probability density at a point

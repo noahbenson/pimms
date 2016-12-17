@@ -47,11 +47,14 @@ class CalcNode(object):
         object.__setattr__(self, 'lazy', lazy)
 
     def __call__(self, *args, **kwargs):
-        arg_list = reversed(args + (kwargs,))
-        result = self.function(*[arg_dict[name]
-                                 for name in self.afferents
-                                 for arg_dict in [
-                                         next(adict for adict in arg_list if name in adict)]])
+        arg_list = tuple(reversed(args + (kwargs,)))
+        try:
+            args = [arg_dict[name]
+                    for name in self.afferents
+                    for arg_dict in [next(adict for adict in arg_list if name in adict)]]
+        except StopIteration:
+            raise ValueError('required argument %s not given' % name)
+        result = self.function(*args)
         if isinstance(result, types.DictType):
             if len(result) != len(self.efferents) or not all(e in result for e in self.efferents):
                 raise ValueError('Return value keys did not match efferents')
@@ -67,6 +70,30 @@ class CalcNode(object):
 
     def __setattr__(self, k, v):
         raise TypeError('CalcNode objects are immutable')
+
+    def tr(self, *args, **kwargs):
+        '''
+        calc_fn.tr(...) yields a copy of calc_fn in which the afferent and efferent values of the
+        function have been translated. The translation is found from merging the list of 0 or more
+        dictionary arguments given left-to-right followed by the keyword arguments. 
+        '''
+        d = merge_args(args, kwargs)
+        # make a copy
+        translation = copy.copy(self)
+        object.__setattr__(translation, 'afferents',
+                           tuple(d[af] if af in d else af for af in self.afferents))
+        object.__setattr__(translation, 'efferents',
+                           tuple(d[ef] if ef in d else ef for ef in self.efferents))
+        fn = self.function
+        def _tr_fn_wrapper(*args, **kwargs):
+            res = fn(*args, **kwargs)
+            if isinstance(res, types.Mapping):
+                return {(d[k] if k in d else k):v for (k,v) in res.iteritems()}
+            else:
+                return res
+        object.__setattr__(translation, 'function',
+                           _tr_fn_wrapper)
+        return translation
 
 def calc(*args, **kwargs):
     '''
@@ -156,6 +183,17 @@ class CalcDict(colls.Mapping):
         else:
             raise ValueError('Key \'%s\' not found in calc-dictionary' % k)
 
+    # We want the representation to look something like a dictionary
+    def __repr__(self):
+        affstr = ', '.join([repr(k) + ': ' + repr(v) for (k,v) in self.afferents.iteritems()])
+        effstr = ', '.join([repr(k) + ': <lazy>' for k in self.calculation.efferents.iterkeys()])
+        if len(self.afferents) == 0:
+            return '<CalcDict{' + effstr + '}>'
+        elif len(self.calculation.efferents) == 0:
+            return '<CalcDict{' + affstr + '}>'
+        else:
+            return '<CalcDict{' + affstr + ', ' + effstr + '}>'
+
     # There are a few other methods we want to be careful of also:
     def __contains__(self, k):
         return (k in self.afferents) or (k in self.calculation.efferents)
@@ -228,23 +266,22 @@ class Calculation(object):
     def __detattr__(self, k):
         raise TypeError('Calculation objects are immutable')
     
-    def __init__(self, *nodes):
+    def __init__(self, **nodes):
         '''
         Calculation(nodes) yields a new Calculation object made out of the given list of CalcNode
         objects. For each element of the nodes list, if the object is not a CalcNode, an attempt is
         made to coerce the object to a CalcNode; if this does not work, an error is raised.
         '''
         object.__setattr__(self, 'nodes',
-                           tuple(node if isinstance(node, CalcNode) else calc(node)
-                                 for nn in nodes
-                                 for node in (nn if hasattr(nn, '__iter__') else (nn,))))
-        if not all(isinstance(n, CalcNode) for n in self.nodes):
+                           make_dict(**{name: (node if isinstance(node, CalcNode) else calc(node))
+                                        for (name,node) in nodes.iteritems()}))
+        if not all(isinstance(n, CalcNode) for n in self.nodes.itervalues()):
             raise ValueError('All arguments given to Calculation must be @calc functions')
         # make the dependency graph
         deps = {}
         affs = set()
         effs = {}
-        for node in self.nodes:
+        for node in self.nodes.itervalues():
             affs = affs.union(node.afferents)
             effs.update({eff:node for eff in node.efferents})
             for eff in node.efferents:
@@ -284,7 +321,7 @@ class Calculation(object):
         # do by walking through nodes and picking out all the fully afferent dependencies of each
         reqs = {}
         zero_reqs = []
-        for node in nodes:
+        for node in nodes.itervalues():
             if node.lazy:            continue               # we only care about non-lazy nodes...
             elif not node.afferents: zero_reqs.append(node) # this node depends on nothing...
             else:                                           # otherwise, find the afferent deps...
@@ -306,7 +343,7 @@ class Calculation(object):
         object.__setattr__(self, 'proactive_dependants', reqs)
         object.__setattr__(self, 'initializers', zero_reqs)
         # That's it; we should be constructed now!
-        
+
     def __call__(self, *args, **kwargs):
         '''
         calcul(args...) runs the given calculation calcul on the given args and returns a
@@ -336,10 +373,31 @@ class Calculation(object):
             calc_dict._run_node(node)
         # That's it!
 
-def calc_plan(*args):
+    def using(self, **kwargs):
+        '''
+        cplan.using(a=b...) yields a new caclulation plan identical to cplan except such that the
+        calculation pieces specified by the arguments have been replaced with the given
+        calculations instead.
+        '''
+        return Calculation(**self.nodes.using(**kwargs))
+
+    def without(self, *args):
+        '''
+        cplan.without(...) yields a new calculation plan identical to cplan except without any of
+        the calculation steps listed in the arguments.
+        '''
+        return Calculation(**self.nodes.without(*args))
+
+def calc_plan(*args, **kwargs):
     '''
-    calc_plan(calcs...) yields a new calculation plan (object of type Calculation) that is itself
-    a constructor for the calculation dictionary that is implied by the list of calculation
-    functions (calcs...) given.
+    calc_plan(name1=calcs1, name2=calc2...) yields a new calculation plan (object of type
+      Calculation) that is itself a constructor for the calculation dictionary that is implied by
+      the given calc functionss given. The names that are given are used as identifiers for
+      updating the calc plan (using the without and using methods).
+    calc_plan(arg1, arg2..., name1=calc1, name2=calc2...) additionally initializes the dictionary
+      of calculations and names with the calculation plans or dictionaries given as arguments. These
+      are collapsed left-to-right.
     '''
-    return Calculation(*args)
+    adict = merge_args(tuple(arg.nodes if isinstance(arg, Calculation) else arg for arg in args),
+                       kwargs)
+    return Calculation(**adict)
