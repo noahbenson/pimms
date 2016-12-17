@@ -3,8 +3,9 @@
 # Decorator and class definition for functional calculations.
 # By Noah C. Benson
 
-import copy, inspect, types, sys
+import copy, inspect, types, sys, threading
 from pysistence import make_dict
+from pysistence.persistent_dict import PDict
 
 # Python3 compatibility check:
 if sys.version_info[0] == 3:
@@ -45,6 +46,7 @@ class CalcNode(object):
         object.__setattr__(self, 'efferents', effs)
         object.__setattr__(self, 'function', f)
         object.__setattr__(self, 'lazy', lazy)
+        object.__setattr__(self, 'meta_data', make_dict())
 
     def __call__(self, *args, **kwargs):
         arg_list = tuple(reversed(args + (kwargs,)))
@@ -70,6 +72,20 @@ class CalcNode(object):
 
     def __setattr__(self, k, v):
         raise TypeError('CalcNode objects are immutable')
+    def __delattr__(self, k):
+        raise TypeError('CalcNode objects are immutable')
+
+    def using_meta(self, meta_data):
+        '''
+        node.using_meta(meta) yields a calculation node identical to the given node except that its
+        meta_data attribute has been set to the given dictionary meta. If meta is not persistent,
+        it is cast to a persistent dictionary first.
+        '''
+        if not (isinstance(meta_data, PDict) or isinstance(meta_data, CalcDict)):
+            meta_data = make_dict(meta_data)
+        new_cnode = copy.copy(self)
+        object.__setattr__(new_cnode, 'meta_data', meta_data)
+        return new_cnode
 
     def tr(self, *args, **kwargs):
         '''
@@ -155,8 +171,9 @@ class CalcDict(colls.Mapping):
         object.__setattr__(self, 'calculation', calc)
         object.__setattr__(self, 'afferents', make_dict(afferents))
         object.__setattr__(self, 'efferents', make_dict({}))
+        object.__setattr__(self, '_lock', threading.Lock())
         # We need to run the checks from the calculation
-        calc.check(self)
+        calc._check(self)
         # otherwise, we're set!
 
     # CalcDict does not allow certain things:
@@ -174,14 +191,19 @@ class CalcDict(colls.Mapping):
     def __getitem__(self, k):
         if k in self.afferents:
             return self.afferents[k]
-        elif k in self.efferents:
-            return self.efferents[k]
-        elif k in self.calculation.efferents:
-            node = self.calculation.efferents[k]
-            self._run_node(node)
-            return self.efferents[k]
-        else:
+        elif k not in self.calculation.efferents:
             raise ValueError('Key \'%s\' not found in calc-dictionary' % k)
+        else:
+            effval = self.efferents.get(k, self)
+            if effval is self:
+                node = self.calculation.efferents[k]
+                self._lock.acquire()
+                if k not in self.efferents:
+                    self._run_node(node)
+                self._lock.release()
+                return self.efferents[k]
+            else:
+                return effval
 
     # We want the representation to look something like a dictionary
     def __repr__(self):
@@ -201,19 +223,24 @@ class CalcDict(colls.Mapping):
         '''
         CalcDict's __delitem__ method allows one to clear the cached value of an efferent.
         '''
-        if k in self.afferents:
-            raise TypeError('Cannot delete a parameter (%s) from a CalcDict' % k)
-        elif k in self.efferents:
-            object.__setattr__(self, 'efferents', self.efferents.without(k))
-        elif k not in self.calculation.efferents:
-            raise TypeError('CalcDict object has no item named \'%s\'' % k)
-        # else we don't worry about it; not yet calculated.
+        self._lock.acquire()
+        try:
+            if k in self.afferents:
+                raise TypeError('Cannot delete a parameter (%s) from a CalcDict' % k)
+            elif k in self.efferents:
+                object.__setattr__(self, 'efferents', self.efferents.without(k))
+            elif k not in self.calculation.efferents:
+                raise TypeError('CalcDict object has no item named \'%s\'' % k)
+            # else we don't worry about it; not yet calculated.
+        finally:
+            self._lock.release()
 
     def _run_node(self, node):
         '''
         calc_dict._run_node(node) calculates the results of the given calculation node in the
         calc_dict's calculation plan and caches the results in the calc_dict. This should only
         be called by calc_dict itself internally.
+        ** _run_node should only be called if the lock for the node is held **
         '''
         res = node(self)
         effs = self.efferents.using(**res)
@@ -241,7 +268,7 @@ class CalcDict(colls.Mapping):
         object.__setattr__(new_calc_dict, 'afferents', new_affs)
         # we need to run checks and delete any cache that has been invalidated.
         # The calculation's check method does this; it raises an exception if there is an error
-        calc.check(new_calc_dict, changes=args)
+        calc._check(new_calc_dict, changes=args)
         return new_calc_dict
     def without(self, *args):
         '''
@@ -351,12 +378,14 @@ class Calculation(object):
         '''
         return CalcDict(self, merge_args(args, kwargs))
 
-    def check(self, calc_dict, changes=None):
+    def _check(self, calc_dict, changes=None):
         '''
-        calc.check(calc_dict) should be called only by the calc_dict object itself.
+        calc._check(calc_dict) should be called only by the calc_dict object itself.
         The check method makes sure that all of the proactive methods on the calc_dict are run; if
         the optional keyword argument changes is given, then checks are only run for the list of
         changes given.
+        ** _check() should only be called if the lock for calc_dict is already held, or the **
+        ** object is strictly thread-local (i.e., from the CalcDict's __init__ function).   **
         '''
         if changes is None:
             changes = self.afferents
@@ -387,6 +416,17 @@ class Calculation(object):
         the calculation steps listed in the arguments.
         '''
         return Calculation(**self.nodes.without(*args))
+
+def calc_tr(calc_fn, *args, **kwargs):
+    '''
+    calc_tr(calc_fn, ...) yields a copy of calc_fn in which the afferent and efferent values of the
+      function have been translated. The translation is found from merging the list of 0 or more
+      dictionary arguments given left-to-right followed by the keyword arguments. If the calc_fn
+      that is given is not a @calc function explicitly, calc_tr will attempt to coerce it to one.
+    '''
+    if not isinstance(calc_fn, CalcNode):
+        calc_fn = calc(calc_fn)
+    return calc_fn.tr(*args, **kwargs)
 
 def calc_plan(*args, **kwargs):
     '''
