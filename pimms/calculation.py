@@ -3,7 +3,7 @@
 # Decorator and class definition for functional calculations.
 # By Noah C. Benson
 
-import copy, inspect, types, sys, threading
+import copy, inspect, types, sys
 from pysistence import make_dict
 from pysistence.persistent_dict import PDict
 
@@ -171,7 +171,6 @@ class CalcDict(colls.Mapping):
         object.__setattr__(self, 'calculation', calc)
         object.__setattr__(self, 'afferents', make_dict(afferents))
         object.__setattr__(self, 'efferents', make_dict({}))
-        object.__setattr__(self, '_lock', threading.Lock())
         # We need to run the checks from the calculation
         calc._check(self)
         # otherwise, we're set!
@@ -194,16 +193,13 @@ class CalcDict(colls.Mapping):
         elif k not in self.calculation.efferents:
             raise ValueError('Key \'%s\' not found in calc-dictionary' % k)
         else:
+            # using get instead of 'if k in efferents: return ...' avoids the race-condition that
+            # would otherwise cause problems when someone deletes an item from the cache using
+            # delitem below
             effval = self.efferents.get(k, self)
             if effval is self:
-                node = self.calculation.efferents[k]
-                self._lock.acquire()
-                if k not in self.efferents:
-                    self._run_node(node)
-                self._lock.release()
-                return self.efferents[k]
-            else:
-                return effval
+                self._run_node(self.calculation.efferents[k])
+            return self.efferents[k]
 
     # We want the representation to look something like a dictionary
     def __repr__(self):
@@ -223,24 +219,19 @@ class CalcDict(colls.Mapping):
         '''
         CalcDict's __delitem__ method allows one to clear the cached value of an efferent.
         '''
-        self._lock.acquire()
-        try:
-            if k in self.afferents:
-                raise TypeError('Cannot delete a parameter (%s) from a CalcDict' % k)
-            elif k in self.efferents:
-                object.__setattr__(self, 'efferents', self.efferents.without(k))
-            elif k not in self.calculation.efferents:
-                raise TypeError('CalcDict object has no item named \'%s\'' % k)
-            # else we don't worry about it; not yet calculated.
-        finally:
-            self._lock.release()
+        if k in self.afferents:
+            raise TypeError('Cannot delete a parameter (%s) from a CalcDict' % k)
+        elif k in self.efferents:
+            object.__setattr__(self, 'efferents', self.efferents.without(k))
+        elif k not in self.calculation.efferents:
+            raise TypeError('CalcDict object has no item named \'%s\'' % k)
+        # else we don't worry about it; not yet calculated.
 
     def _run_node(self, node):
         '''
         calc_dict._run_node(node) calculates the results of the given calculation node in the
         calc_dict's calculation plan and caches the results in the calc_dict. This should only
         be called by calc_dict itself internally.
-        ** _run_node should only be called if the lock for the node is held **
         '''
         res = node(self)
         effs = self.efferents.using(**res)
@@ -384,8 +375,6 @@ class Calculation(object):
         The check method makes sure that all of the proactive methods on the calc_dict are run; if
         the optional keyword argument changes is given, then checks are only run for the list of
         changes given.
-        ** _check() should only be called if the lock for calc_dict is already held, or the **
-        ** object is strictly thread-local (i.e., from the CalcDict's __init__ function).   **
         '''
         if changes is None:
             changes = self.afferents
