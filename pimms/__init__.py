@@ -124,3 +124,14 @@ from .immutable   import (immutable, require, value, param, option, is_imm, is_i
                           imm_persist, imm_transient, imm_params, imm_values, imm_dict,
                           imm_is_persistent, imm_is_transient)
 from .calculation import (calc, calc_plan, Calculation, CalcDict)
+
+
+def reload_pimms():
+    '''
+    reload_pimms() reloads the entire pimms module and returns it.
+    '''
+    import sys
+    reload(sys.modules['pimms.immutable'])
+    reload(sys.modules['pimms.calculation'])
+    reload(sys.modules['pimms'])
+    return sys.modules['pimms']
