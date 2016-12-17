@@ -122,7 +122,8 @@ def _imm_getattribute(self, name):
     else:
         dd = object.__getattribute__(self, '__dict__')
         if name == '__dict__': return dd
-        if name in dd: return dd[name]
+        curval = dd.get(name, dd)
+        if curval is not dd: return dd[name]
         values = _imm_value_data(self)
         if name not in values:
             return object.__getattribute__(self, name)
@@ -130,7 +131,16 @@ def _imm_getattribute(self, name):
         value = memfn(*[getattr(self, arg) for arg in args])
         dd[name] = value
         # if this is a const, it may have checks to run
-        if name in _imm_const_data(self): _imm_check(self, [name])
+        if name in _imm_const_data(self):
+            # #TODO
+            # Note that there's a race condition that eventually needs to be handled here:
+            # If dd[name] is set then a check fails, there may have been something that read the
+            # improper value in the meantime
+            try:
+                _imm_check(self, [name])
+            except:
+                del dd[name]
+                raise
         # if those pass, then we're fine
         return value
 def _imm_init_setattr(self, name, value):
