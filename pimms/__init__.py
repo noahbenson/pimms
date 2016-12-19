@@ -30,7 +30,7 @@ Things that can be delcared normally in an immutable class:
 Things that cannot be declared normally in an immutable class:
   * All member variables of a class instance (usually assigned in __init__)
   * __new__, __setattr__, __getattribute__, __delattr__, __copy__, and __deepcopy__ cannot be
-   overloaded in immutable classes; doing so will result in undefined behavior
+    overloaded in immutable classes; doing so will result in undefined behavior
   * Immutable classes should generally only inherit from object or other immutable classes;
     inheritance with other non-immutable classes is fine in theory, especially if only methods are
     added to the class, but member access from immutable objects to non-immutable class members is
