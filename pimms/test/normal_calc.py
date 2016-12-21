@@ -38,7 +38,7 @@ def inner_normal_distribution_constant(standard_deviation):
 
 # Now we declare the calc plan: it's just the union of all these
 # calc functions, given in any order:
-normal_distribution = pimms.calc_plan(
+normal_distribution = pimms.plan(
     variance=variance_from_stddev,
     cis=confidence_intervals,
     tests=check_normal_distribution_inputs,
