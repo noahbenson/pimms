@@ -1,0 +1,21 @@
+* Introduction
+
+This file, notes.org, is intended as a notebook for ongoing comments about the state of the project,
+as well as TODO lists about pieces of the project that have yet to be written.
+
+** Goals
+*** TODO Add tests for various features of the library
+
++ default arguments in calcs
++ updating calcs/plans/imaps
+
+*** TODO Add support for input/output filters on parameters and values for calc plans
+*** TODO Add support for lazy numpy array generation
+
+This could potentially use NaN's as an indicator that something is yet uncached and slowly fill in
+the matrix as requested.
+
+These arrays should specifically be compatible with pint.
+
+    
+
