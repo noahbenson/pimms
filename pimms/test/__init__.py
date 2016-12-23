@@ -73,7 +73,7 @@ class TestPimms(unittest.TestCase):
         #>> Calculating inner constant...
 
         # Make a new normal_distribution object similar to the old
-        new_norm_dist_1 = std_norm_dist.using(mean=10.0)
+        new_norm_dist_1 = std_norm_dist.set(mean=10.0)
         # the standard_deviation check doesn't get rerun because none of
         # it's parameters have changed
         self.assertTrue('variance' in new_norm_dist_1.efferents)
@@ -83,7 +83,7 @@ class TestPimms(unittest.TestCase):
 
         # Here, the calculations get rerun because the standard_deviation
         # changes
-        new_norm_dist_2 = std_norm_dist.using(standard_deviation=2.0)
+        new_norm_dist_2 = std_norm_dist.set(standard_deviation=2.0)
         #>> Checking standard_deviation...
         self.assertFalse('variance' in new_norm_dist_2.efferents)
         self.assertEqual(new_norm_dist_2['variance'], 4)

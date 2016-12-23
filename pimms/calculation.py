@@ -4,15 +4,11 @@
 # By Noah C. Benson
 
 import copy, inspect, types, sys
-from pysistence import make_dict
-from pysistence.persistent_dict import PDict
-from .util import (merge, is_pdict, is_map)
+import pyrsistent as ps
+from .util import (merge, is_pmap, is_map)
 
-# Python3 compatibility check:
-if sys.version_info[0] == 3:
-    from collections import abc as colls
-else:
-    import collections as colls
+if sys.version_info[0] == 3: from   collections import abc as colls
+else:                        import collections            as colls
 
 ####################################################################################################
 # The Calc, Plan, and IMap classes
@@ -22,7 +18,7 @@ class Calc(object):
     separate set of input data. The input parameters are referred to as afferent values and the
     output variables are referred to as efferent values.
     '''
-    def __init__(self, affs, f, effs, dflts, lazy=True):
+    def __init__(self, affs, f, effs, dflts, lazy=True, meta_data={}):
         ff_set = set(affs)
         ff_set = ff_set.intersection(effs)
         if ff_set: raise ValueError('calc functions may not overwrite their parameters')
@@ -31,7 +27,7 @@ class Calc(object):
         object.__setattr__(self, 'function', f)
         object.__setattr__(self, 'defaults', dflts)
         object.__setattr__(self, 'lazy', lazy)
-        object.__setattr__(self, 'meta_data', make_dict())
+        object.__setattr__(self, 'meta_data', ps.pmap(meta_data))
     def __call__(self, *args, **kwargs):
         opts = merge(self.defaults, args, kwargs)
         args = []
@@ -56,39 +52,49 @@ class Calc(object):
         raise TypeError('Calc objects are immutable')
     def __delattr__(self, k):
         raise TypeError('Calc objects are immutable')
-    def using_meta(self, meta_data):
+    def set_meta(self, meta_data):
         '''
-        node.using_meta(meta) yields a calculation node identical to the given node except that its
+        node.set_meta(meta) yields a calculation node identical to the given node except that its
         meta_data attribute has been set to the given dictionary meta. If meta is not persistent,
         it is cast to a persistent dictionary first.
         '''
-        if not (isinstance(meta_data, PDict) or isinstance(meta_data, IMap)):
-            meta_data = make_dict(meta_data)
+        if not (isinstance(meta_data, ps.PMap) or isinstance(meta_data, IMap)):
+            meta_data = ps.pmap(meta_data)
         new_cnode = copy.copy(self)
         object.__setattr__(new_cnode, 'meta_data', meta_data)
         return new_cnode
-    def using_defaults(self, *args, **kwargs):
+    def set_defaults(self, *args, **kwargs):
         '''
-        node.using_defaults(a=b...) yields a new calculation node identical to the given node except
+        node.set_defaults(a=b...) yields a new calculation node identical to the given node except
         with the default values matching the given key-value pairs. Arguments are collapsed left-to
         right with later arguments overwriting earlier arguments.
         '''
         args = merge(self.defaults, args, kwargs)
         new_cnode = copy.copy(self)
-        object.__setattr__(new_cnode, 'defaults', make_dict(args))
+        object.__setattr__(new_cnode, 'defaults', ps.pmap(args))
         return new_cnode
-    def without_defaults(self, *args):
+    def discard_defaults(self, *args):
         '''
-        node.without_defaults(a, b...) yields a new calculation node identical to the given node
+        node.discard_defaults(a, b...) yields a new calculation node identical to the given node
         except that the default values for the given afferent parameters named by the arguments a,
         b, etc. have been removed. In the new node that is returned, these parameters will be
         required.
         '''
         rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, basestring) else aa))
-        new_defaults = make_dict({k:v for (k,v) in args.iteritems() if k not in rms})
+        new_defaults = ps.pmap({k:v for (k,v) in args.iteritems() if k not in rms})
         new_cnode = copy.copy(self)
         object.__setattr__(new_cnode, 'defaults', new_defaults)
         return new_cnode
+    def remove_defaults(self, *args):
+        '''
+        node.remove_defaults(a, b...) is identical to node.discard_defaults(a, b...) except that
+        it raises a KeyError if any of the given arguments are not already defaults.
+        '''
+        rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, basestring) else aa))
+        for arg in rms:
+            if arg not in self.defaults:
+                raise KeyError('{0}'.format(arg))
+        return self.discard_defaults(*args)
     def tr(self, *args, **kwargs):
         '''
         calc_fn.tr(...) yields a copy of calc_fn in which the afferent and efferent values of the
@@ -135,8 +141,8 @@ class Plan(object):
         made to coerce the object to a Calc; if this does not work, an error is raised. Arguments
         are merged left-to-right.
         '''
-        nodes = make_dict({name: (node if isinstance(node, Calc) else calc(node))
-                           for (name,node) in merge(args, kwargs).iteritems()})
+        nodes = ps.pmap({name: (node if isinstance(node, Calc) else calc(node))
+                         for (name,node) in merge(args, kwargs).iteritems()})
         if not all(isinstance(n, Calc) for n in nodes.itervalues()):
             raise ValueError('All arguments given to Plan must be @calc functions')
         object.__setattr__(self, 'nodes', nodes)
@@ -152,7 +158,7 @@ class Plan(object):
                 else:
                     defaults[k] = v
         # no error yet, so we seem to have agreeing default values at least; note them
-        defaults = make_dict(defaults)
+        defaults = ps.pmap(defaults)
         object.__setattr__(self, 'defaults', defaults)
         # okay, make the dependency graph
         deps = {}
@@ -179,11 +185,11 @@ class Plan(object):
                 if new_set != v:
                     changed = True
                     deps[k] = new_set
-        deps = make_dict({k:tuple(v) for (k,v) in deps.iteritems()})
+        deps = ps.pmap({k:tuple(v) for (k,v) in deps.iteritems()})
         # alright, deps is now the transitive closure; those afferents that have no dependencies are
         # the calculation's afferent parameters and the efferents are the output values
         object.__setattr__(self, 'afferents', tuple(aff for aff in affs if len(deps[aff]) == 0))
-        object.__setattr__(self, 'efferents', make_dict(effs))
+        object.__setattr__(self, 'efferents', ps.pmap(effs))
         object.__setattr__(self, 'dependencies', deps)
         # we also want to reverse the dependencies so that when an afferent value is edited, we can
         # invalidate the relevant efferent values
@@ -192,7 +198,7 @@ class Plan(object):
             for u in v:
                 if u in dpts: dpts[u].add(k)
                 else:         dpts[u] = set([k])
-        dpts = make_dict({k:tuple(v) for (k,v) in dpts.iteritems()})
+        dpts = ps.pmap({k:tuple(v) for (k,v) in dpts.iteritems()})
         object.__setattr__(self, 'dependants', dpts)
         # finally, we need to make sure that we know when to call the non-lazy functions; this we
         # do by walking through nodes and picking out all the fully afferent dependencies of each
@@ -215,7 +221,7 @@ class Plan(object):
         for aff in self.afferents:
             if aff not in reqs:
                 reqs[aff] = []
-        reqs = make_dict({k:tuple(v) for (k,v) in reqs.iteritems()})
+        reqs = ps.pmap({k:tuple(v) for (k,v) in reqs.iteritems()})
         zero_reqs = tuple(zero_reqs)
         object.__setattr__(self, 'proactive_dependants', reqs)
         object.__setattr__(self, 'initializers', zero_reqs)
@@ -247,40 +253,57 @@ class Plan(object):
         for node in proactives:
             calc_dict._run_node(node)
         # That's it!
-    def using(self, **kwargs):
+    def set(self, **kwargs):
         '''
-        cplan.using(a=b...) yields a new caclulation plan identical to cplan except such that the
+        cplan.set(a=b...) yields a new caclulation plan identical to cplan except such that the
         calculation pieces specified by the arguments have been replaced with the given
         calculations instead.
         '''
-        return Plan(**self.nodes.using(**kwargs))
-    def without(self, *args):
+        return Plan(reduce(lambda m,(k,v): m.set(k,v), kwargs.iteritems(), self.nodes))
+    def discard(self, *args):
         '''
-        cplan.without(...) yields a new calculation plan identical to cplan except without any of
+        cplan.discard(...) yields a new calculation plan identical to cplan except without any of
         the calculation steps listed in the arguments.
         '''
-        return Plan(**self.nodes.without(*args))
-    def using_defaults(self, *args, **kwargs):
+        return Plan(reduce(lambda m,k: m.discard(k), args, self.nodes))
+    def remove(self, *args):
         '''
-        cplan.using_defaults(a=b...) yields a new caclulation plan identical to cplan except such
+        cplan.remove(...) yields a new calculation plan identical to cplan except without any of
+        the calculation steps listed in the arguments. An exception is raised if any keys are not
+        found in the calc-plan.
+        '''
+        return Plan(reduce(lambda m,k: m.remove(k), args, self.nodes))
+    def set_defaults(self, *args, **kwargs):
+        '''
+        cplan.set_defaults(a=b...) yields a new caclulation plan identical to cplan except such
         that the calculation default values specified by the arguments have been replaced with the
-        given values instead. E.g., cplan.using_defaults(a=1) would return a new plan with a default
+        given values instead. E.g., cplan.set_defaults(a=1) would return a new plan with a default
         value for a=1.
         '''
         d = merge(args, kwargs)
         # make a copy of this object's nodes with translations...
-        nodes = make_dict({k:v.using_defaults(d) for (k,v) in self.nodes.iteritems()})
+        nodes = ps.pmap({k:v.set_defaults(d) for (k,v) in self.nodes.iteritems()})
         # make a new plan with that!
         return Plan(nodes)
-    def without_defaults(self, *args):
+    def discard_defaults(self, *args):
         '''
-        cplan.without_defaults(a, b...) yields a new caclulation plan identical to cplan except 
+        cplan.discard_defaults(a, b...) yields a new caclulation plan identical to cplan except 
         without default values for any of the given parameter names.
         '''
         # make a copy of this object's nodes with translations...
-        nodes = make_dict({k:v.without_defaults(*args) for (k,v) in self.nodes.iteritems()})
+        nodes = ps.pmap({k:v.discard_defaults(*args) for (k,v) in self.nodes.iteritems()})
         # make a new plan with that!
         return Plan(nodes)        
+    def remove_defaults(self, *args):
+        '''
+        cplan.remove_defaults(a, b...) yields a new caclulation plan identical to cplan except 
+        without default values for any of the given parameter names. An exception is raised if any
+        default value given is not found in cplan.
+        '''
+        for arg in args:
+            if arg not in self.defaults:
+                raise KeyError('{0}'.format(arg))
+        return self.discard_defaults(*args)
     def tr(self, *args, **kwargs):
         '''
         p.tr(...) yields a copy of plan p in which the afferent and efferent values of all of the
@@ -290,7 +313,7 @@ class Plan(object):
         '''
         d = merge(args, kwargs)
         # make a copy of this object's nodes with translations...
-        nodes = make_dict({k:v.tr(d) for (k,v) in self.nodes.iteritems()})
+        nodes = ps.pmap({k:v.tr(d) for (k,v) in self.nodes.iteritems()})
         # make a new plan with that!
         return Plan(nodes)
 class IMap(colls.Mapping):
@@ -302,8 +325,8 @@ class IMap(colls.Mapping):
     '''
     def __init__(self, plan, afferents):
         object.__setattr__(self, 'plan', plan)
-        object.__setattr__(self, 'afferents', make_dict(afferents))
-        object.__setattr__(self, 'efferents', make_dict({}))
+        object.__setattr__(self, 'afferents', ps.pmap(afferents))
+        object.__setattr__(self, 'efferents', ps.m())
         # We need to run the checks from the calculation
         plan._check(self)
         # otherwise, we're set!
@@ -333,16 +356,17 @@ class IMap(colls.Mapping):
             if effval is self:
                 self._run_node(self.plan.efferents[k])
             return self.efferents[k]
+    get = colls.Mapping.get
     # We want the representation to look something like a dictionary
     def __repr__(self):
         affstr = ', '.join([repr(k) + ': ' + repr(v) for (k,v) in self.afferents.iteritems()])
         effstr = ', '.join([repr(k) + ': <lazy>' for k in self.plan.efferents.iterkeys()])
         if len(self.afferents) == 0:
-            return '<IMap{' + effstr + '}>'
+            return 'imap({' + effstr + '})'
         elif len(self.plan.efferents) == 0:
-            return '<IMap{' + affstr + '}>'
+            return 'imap({' + affstr + '})'
         else:
-            return '<IMap{' + affstr + ', ' + effstr + '}>'
+            return 'imap({' + affstr + ', ' + effstr + '})'
     # There are a few other methods we want to be careful of also:
     def __contains__(self, k):
         return (k in self.afferents) or (k in self.plan.efferents)
@@ -353,7 +377,7 @@ class IMap(colls.Mapping):
         if k in self.afferents:
             raise TypeError('Cannot delete a parameter (%s) from a IMap' % k)
         elif k in self.efferents:
-            object.__setattr__(self, 'efferents', self.efferents.without(k))
+            object.__setattr__(self, 'efferents', self.efferents.discard(k))
         elif k not in self.plan.efferents:
             raise TypeError('IMap object has no item named \'%s\'' % k)
         # else we don't worry about it; not yet calculated.
@@ -364,12 +388,12 @@ class IMap(colls.Mapping):
         be called by calc_dict itself internally.
         '''
         res = node(self)
-        effs = self.efferents.using(**res)
+        effs = reduce(lambda m,(k,v): m.set(k,v), res.iteritems(), self.efferents)
         object.__setattr__(self, 'efferents', effs)
     # Also, since we're a persistent object, we should follow the conventions for copying
-    def using(self, *args, **kwargs):
+    def set(self, *args, **kwargs):
         '''
-        d.using(...) yields a copy of the IMap object d; the ... may be replaced with either
+        d.set(...) yields a copy of the IMap object d; the ... may be replaced with either
         nothing (in which case d is returned) or a list of 0 or more dictionaries followed by a lsit
         of zero or more keyword arguments. These dictionaries and keywords arguments are merged
         left-to-right; the result may contain only afferent parameters of d and replaces the values
@@ -385,19 +409,12 @@ class IMap(colls.Mapping):
                 'The given key \'%s\' is not an afferent parameter of IMap object')
         # okay, we can make the change...
         new_calc_dict = copy.copy(self)
-        new_affs = affs.using(**args)
+        new_affs = reduce(lambda m,(k,v): m.set(k,v), args.iteritems(), affs)
         object.__setattr__(new_calc_dict, 'afferents', new_affs)
         # we need to run checks and delete any cache that has been invalidated.
         # The calculation's check method does this; it raises an exception if there is an error
         pln._check(new_calc_dict, changes=args)
         return new_calc_dict
-    def without(self, *args):
-        '''
-        The without method of IMap is implemented only so that an intelligent error is
-        raised when a user mistakenly believes that a IMap is the same as a PDict object.
-        '''
-        raise TypeError(
-            'IMap objects, unlike PDict objects, do not support the without method')
     def tr(self, *args, **kwargs):
         '''
         imap.tr(...) yields a copy of the immutable map imap in which both the plan and the keys of
@@ -427,15 +444,9 @@ def is_plan(arg):
     return isinstance(arg, Plan)
 def is_imap(arg):
     '''
-    is_imap(x) yields True if x is an IMap object and False otherwise.
+    is_imap(x) yields True if x is an IMap object or a pyrsistent.PMap object and False otherwise.
     '''
-    return isinstance(arg, IMap)
-def is_pmap(arg):
-    '''
-    is_pmap(x) yields True if x is an IMap object or a pysistence PDict object and False
-    otherwise; pmap is short for persistent_map.
-    '''
-    return isinstance(arg, IMap) or isinstance(arg, PDict)
+    return isinstance(arg, IMap) or isinstance(arg. ps.PMap)
     
 ####################################################################################################
 # Creation function for Calc, Plan, and IMap objects
@@ -455,7 +466,8 @@ def calc(*args, **kwargs):
     '''
     # parse out the only accepted keywords args:
     lazy = kwargs.get('lazy', True)
-    if len(kwargs) > 1 or (len(kwargs) == 1 and 'lazy' not in kwargs):
+    meta = kwargs.get('meta', {})
+    if len(kwargs) != ('lazy' in kwargs) + ('meta' in kwargs):
         raise ValueError('calc accepts only the lazy option')
     if len(args) == 1 and not isinstance(args[0], basestring):
         if isinstance(args[0], types.FunctionType):
@@ -465,9 +477,9 @@ def calc(*args, **kwargs):
             if varargs or kwargs:
                 raise ValueError('@calc functions may not accept variadic arguments')
             affs = tuple(affs)
-            dflts = make_dict({} if dflts is None else
-                              {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
-            return Calc(affs, f, effs, dflts, lazy=lazy)
+            dflts = ps.pmap({} if dflts is None else
+                            {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
+            return Calc(affs, f, effs, dflts, lazy=lazy, meta_data=meta)
         elif args[0] is None:
             effs = ()
             def _calc_req(f):
@@ -475,9 +487,9 @@ def calc(*args, **kwargs):
                 if varargs or kwargs:
                     raise ValueError('@calc functions may only accept simple parameters')
                 affs = tuple(affs)
-                dflts = make_dict({} if dflts is None else
-                                  {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
-                return Calc(affs, f, effs, dflts, lazy=False)
+                dflts = ps.pmap({} if dflts is None else
+                                {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
+                return Calc(affs, f, effs, dflts, lazy=False, meta_data=meta)
             return _calc_req
         else:
             raise ValueError('calc only accepts strings, None, or no argument')
@@ -492,9 +504,9 @@ def calc(*args, **kwargs):
             if varargs or kwargs:
                 raise ValueError('@calc functions may only accept simple parameters')
             affs = tuple(affs)
-            dflts = make_dict({} if dflts is None else
-                              {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
-            return Calc(affs, f, effs, dflts, lazy=lazy)
+            dflts = ps.pmap({} if dflts is None else
+                            {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
+            return Calc(affs, f, effs, dflts, lazy=lazy, meta_data=meta)
         return _calc
 def plan(*args, **kwargs):
     '''

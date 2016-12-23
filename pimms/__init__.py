@@ -120,14 +120,15 @@ The additional utility functions are provided as part of the pimms package:
   * imm_is_transient(imm) is identical to imm.is_transient() for an immutable object imm.
 '''
 
-from .util        import (is_map, is_pdict, merge)
+from .util        import (lazy_map, is_lazy_map, LazyPMap, is_map, is_pmap, merge,
+                          is_quantity, is_unit)
 from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
                           imm_persist, imm_transient, imm_params, imm_values, imm_dict,
                           imm_is_persistent, imm_is_transient)
 from .calculation import (calc,    plan,    imap,
                           Calc,    Plan,    IMap,
-                          is_calc, is_plan, is_imap,
-                          is_pmap)
+                          is_calc, is_plan, is_imap)
+from .table       import (itable, is_itable, ITable)
 
 
 def reload_pimms():
@@ -136,6 +137,7 @@ def reload_pimms():
     '''
     import sys
     reload(sys.modules['pimms.util'])
+    reload(sys.modules['pimms.table'])
     reload(sys.modules['pimms.immutable'])
     reload(sys.modules['pimms.calculation'])
     reload(sys.modules['pimms'])
