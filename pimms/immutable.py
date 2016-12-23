@@ -351,9 +351,14 @@ def imm_copy(imm, **kwargs):
     '''
     imm_copy(imm, a=b, c=d...) yields a persisent copy of the immutable object imm that differs from
     imm only in that the parameters a, c, etc. have been changed to have the values b, d, etc.
+    If the object imm is persistent and no changes are made, imm is returned. If imm is transient,
+    a persistent copy of imm is always made.
     '''
     if not is_imm(imm):
         raise ValueError('Non-immutable given to imm_copy')
+    if imm_is_persistent(imm) and len(kwargs) == 0:
+        # no changes and copy risk
+        return imm
     dup = copy.copy(imm)
     dd = object.__getattribute__(dup, '__dict__')
     if _imm_is_persist(dup):
