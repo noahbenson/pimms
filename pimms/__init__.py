@@ -142,3 +142,6 @@ def reload_pimms():
     reload(sys.modules['pimms.calculation'])
     reload(sys.modules['pimms'])
     return sys.modules['pimms']
+
+__version__ = '0.1.3'
+description = 'Lazy immutable library for Python built on top of pyrsistent'
