@@ -15,4 +15,7 @@ setup(
     packages=['pimms', 'pimms.test'],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
-    install_requires=['pysistence>=0.4'])
+    install_requires=['pyrsistent>=0.11',
+                      'six>=1.10',
+                      'numpy>=1.2',
+                      'pint>=0.7'])
