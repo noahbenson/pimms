@@ -3,7 +3,7 @@
 # Decorator and class definition for functional calculations.
 # By Noah C. Benson
 
-import copy, inspect, types, sys
+import copy, inspect, types, sys, re, itertools, warnings
 import pyrsistent as ps
 from .util import (merge, is_pmap, is_map)
 
@@ -18,6 +18,45 @@ class Calc(object):
     separate set of input data. The input parameters are referred to as afferent values and the
     output variables are referred to as efferent values.
     '''
+    # This is a helper function used in __init__
+    @staticmethod
+    def _parse_doc(f, affs, effs):
+        # pull out the documentation, make it into a map of parameter data for both afferent and
+        # efferent values
+        res = {'afferent': {}, 'efferent': {}}
+        try:
+            s = f.__doc__
+            assert(isinstance(s, basestring))
+        except:
+            return res
+        lines = s.split('\n')
+        marks = [re.search('^\s*@\s*([a-zA-Z_]\w*)\s+(.*)$', ln) for ln in lines]
+        marks = [None if m is None else (m.group(1), m.group(2)) for m in marks]
+        ltype = ['@' if m is not None else 'x' if l == '' else 'c' for (l,m) in zip(lines, marks)]
+        dat = [(t,m,l) for (t,m,l) in zip(ltype, marks, lines)]
+        while len(dat) > 0:
+            pdoc0 = next((i for (i,r) in enumerate(dat) if r[0] == '@'), None)
+            if pdoc0 == None: return res
+            # okay, there's at least one comment
+            pdoc1 = next((i+pdoc0+1 for (i,r) in enumerate(dat[(pdoc0+1):]) if r[0] != 'c'),
+                         len(dat))
+            # pop the lines
+            lns = dat[pdoc0:pdoc1]
+            dat = dat[pdoc1:]
+            pname = lns[0][1][0]
+            txt = pname + ': ' + lns[0][1][1]
+            for (_,_,l) in lns[1:]: txt += '\n' + l
+            # add this to the appropriate document
+            if pname in affs:   (dest, dnm) = (affs, 'afferent')
+            elif pname in effs: (dest, dnm) = (effs, 'efferent')
+            else:
+                warnings.warn('document for unrecognized value %s' % pname)
+                continue
+            if pname in res[dnm]: res[dnm][pname] += '\n\n' + txt
+            else:                 res[dnm][pname] = txt
+        # That's it; we can return what's been collected
+        return res
+            
     def __init__(self, affs, f, effs, dflts, lazy=True, meta_data={}):
         ff_set = set(affs)
         ff_set = ff_set.intersection(effs)
@@ -28,6 +67,10 @@ class Calc(object):
         object.__setattr__(self, 'defaults', dflts)
         object.__setattr__(self, 'lazy', lazy)
         object.__setattr__(self, 'meta_data', ps.pmap(meta_data))
+        pdoc = Calc._parse_doc(f, affs, effs)
+        pdoc = {k:ps.pmap(v) for (k,v) in pdoc.iteritems()}
+        object.__setattr__(self, 'afferent_docs', pdoc['afferent'])
+        object.__setattr__(self, 'efferent_docs', pdoc['efferent'])
     def __call__(self, *args, **kwargs):
         opts = merge(self.defaults, args, kwargs)
         args = []
@@ -108,6 +151,10 @@ class Calc(object):
                            tuple(d[af] if af in d else af for af in self.afferents))
         object.__setattr__(translation, 'efferents',
                            tuple(d[ef] if ef in d else ef for ef in self.efferents))
+        object.__setattr__(translation, 'value_docs',
+                           ps.pmap({kk:ps.pmap({(d[k] if k in d else k):v
+                                                for (k,v) in vv.iteritems()})
+                                    for (kk,vv) in self.value_docs.iteritems()}))
         fn = self.function
         def _tr_fn_wrapper(*args, **kwargs):
             res = fn(*args, **kwargs)
@@ -188,7 +235,8 @@ class Plan(object):
         deps = ps.pmap({k:tuple(v) for (k,v) in deps.iteritems()})
         # alright, deps is now the transitive closure; those afferents that have no dependencies are
         # the calculation's afferent parameters and the efferents are the output values
-        object.__setattr__(self, 'afferents', tuple(aff for aff in affs if len(deps[aff]) == 0))
+        affs = tuple(aff for aff in affs if len(deps[aff]) == 0)
+        object.__setattr__(self, 'afferents', affs)
         object.__setattr__(self, 'efferents', ps.pmap(effs))
         object.__setattr__(self, 'dependencies', deps)
         # we also want to reverse the dependencies so that when an afferent value is edited, we can
@@ -225,16 +273,37 @@ class Plan(object):
         zero_reqs = tuple(zero_reqs)
         object.__setattr__(self, 'proactive_dependants', reqs)
         object.__setattr__(self, 'initializers', zero_reqs)
+        # Okay, now that we have everything else organized, lets build the documentation for the
+        # afferent and efferent data
+        # Afferent docs first:
+        adocs = {}
+        for aff in affs:
+            txt = aff
+            if aff in defaults: txt += ' (default: %s)' % defaults[aff]
+            for (nnm, node) in nodes.iteritems():
+                if aff not in node.afferent_docs: continue
+                txt += ('\n\n(%s) ' % nnm) + node.afferent_docs[aff]
+            adocs[aff] = txt
+        # Then efferents:
+        edocs = {}
+        for eff in effs:
+            txt = eff
+            for (nnm, node) in nodes.iteritems():
+                if eff not in node.efferent_docs: continue
+                txt += ('\n\n(%s) ' % nnm) + node.efferent_docs[eff]
+            edocs[eff] = txt
+        object.__setattr__(self, 'afferent_docs', ps.pmap(adocs))
+        object.__setattr__(self, 'efferent_docs', ps.pmap(edocs))
         # That's it; we should be constructed now!
     def __call__(self, *args, **kwargs):
         '''
-        calcul(args...) runs the given calculation calcul on the given args and returns a
+        cplan(args...) runs the given calculation plan cplan on the given args and returns a
         dictionary of the yielded values.
         '''
         return IMap(self, merge(self.defaults, args, kwargs))
     def _check(self, calc_dict, changes=None):
         '''
-        calc._check(calc_dict) should be called only by the calc_dict object itself.
+        cplan._check(calc_dict) should be called only by the calc_dict object itself.
         The check method makes sure that all of the proactive methods on the calc_dict are run; if
         the optional keyword argument changes is given, then checks are only run for the list of
         changes given.
@@ -444,9 +513,9 @@ def is_plan(arg):
     return isinstance(arg, Plan)
 def is_imap(arg):
     '''
-    is_imap(x) yields True if x is an IMap object or a pyrsistent.PMap object and False otherwise.
+    is_imap(x) yields True if x is an IMap object and False otherwise.
     '''
-    return isinstance(arg, IMap) or isinstance(arg. ps.PMap)
+    return isinstance(arg, IMap)
     
 ####################################################################################################
 # Creation function for Calc, Plan, and IMap objects
@@ -474,8 +543,7 @@ def calc(*args, **kwargs):
             f = args[0]
             effs = (f.__name__,)
             (affs, varargs, kwargs, dflts) = inspect.getargspec(f)
-            if varargs or kwargs:
-                raise ValueError('@calc functions may not accept variadic arguments')
+            if varargs or kwargs: raise ValueError('@calc functions may not accept variadic args')
             affs = tuple(affs)
             dflts = ps.pmap({} if dflts is None else
                             {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
@@ -484,8 +552,7 @@ def calc(*args, **kwargs):
             effs = ()
             def _calc_req(f):
                 (affs, varargs, kwargs, dflts) = inspect.getargspec(f)
-                if varargs or kwargs:
-                    raise ValueError('@calc functions may only accept simple parameters')
+                if varargs or kwargs: raise ValueError('@calc functions only accept simple params')
                 affs = tuple(affs)
                 dflts = ps.pmap({} if dflts is None else
                                 {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
