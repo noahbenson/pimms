@@ -259,11 +259,11 @@ def _imm_repr(self):
             + ('(' if _imm_is_persist(self) else '*(')
             + ', '.join([k + '=' + str(v) for (k,v) in imm_params(self).iteritems()])
             + ')')
-def _imm_new(cls, *args, **kwargs):
+def _imm_new(cls):
     '''
     All immutable new classes use a hack to make sure the post-init cleanup occurs.
     '''
-    imm = object.__new__(cls, *args, **kwargs)
+    imm = object.__new__(cls)
     # Note that right now imm has a normal setattr method;
     # Give any parameter that has one a default value
     params = cls._neuropythy_immutable_data_['params']
@@ -696,8 +696,7 @@ def immutable(cls):
     for (name, fn) in auto_members: setattr(cls, name, types.MethodType(fn, None, cls))
     # __new__ is special...
     @staticmethod
-    def _custom_new(c, *args, **kwargs):
-        return _imm_new(c, *args, **kwargs)
+    def _custom_new(c, *args, **kwargs): return _imm_new(c)
     setattr(cls, '__new__', _custom_new)
     # and the attributes we set only if they haven't been specified
     optl_members = (('is_persistent',    _imm_is_persist),
