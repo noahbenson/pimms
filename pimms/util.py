@@ -6,6 +6,9 @@
 import copy, inspect, types, sys, six, pint
 import pyrsistent as ps
 
+units = pint.UnitRegistry()
+units.define('pixel = [image_length] = px')
+
 if sys.version_info[0] == 3: from   collections import abc as colls
 else:                        import collections            as colls
 
@@ -21,6 +24,36 @@ def is_unit(q):
     '''
     cls = type(q)
     return cls.__module__ == 'pint.unit' and cls.__name__ == 'Unit'
+def quant(val, unit):
+    '''
+    quant(value, unit) returns a quantity with the given unit; if value is not currently a quantity,
+      then value * unit is returned; if value is a quantity, then it is coerced into the given unit;
+      this may raise an error if the units are not compatible.
+    '''
+    return val.to(unit) if is_quantity(val) else units.Quantity(val, unit)
+def mag(val, unit=Ellipsis):
+    '''
+    mag(value) returns the magnitide of the given value; if value is not a quantity, then value is
+      returned; if value is a quantity, then its magnitude is returned. If the option unit is given
+      then, if the val is quantity, it is cast to the given unit before being the magnitude is
+      returned, otherwise it is returned alone
+    '''
+    return (val   if not is_quantity(val) else 
+            val.m if unit is Ellipsis     else
+            val.to(unit).m)
+def like_units(a, b):
+    '''
+    like_units(a,b) yields True if a and b can be cast to each other in terms of units and False
+      otherwise. Non-united units are considered dimensionless units.
+    '''
+    a = quant(a, 'dimensionless') if not is_quantity(a) else a
+    b = quant(b, 'dimensionless') if not is_quantity(b) else b
+    if a.u == b.u: return True
+    try:
+        c = a.to(b.u)
+        return True
+    except:
+        return False
 def is_map(arg):
     '''
     is_map(x) yields True if x implements Python's builtin Mapping class.
