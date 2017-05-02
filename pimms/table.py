@@ -7,7 +7,7 @@ import copy, inspect, types, sys, pint
 import numpy                      as     np
 import pyrsistent                 as     ps
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
-                                          is_quantity, is_unit)
+                                          is_quantity, is_unit, qhash)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -19,7 +19,7 @@ def _ndarray_assoc(arr, k, v):
     '_ndarray_assoc(arr, k, v) duplicates arr to a writeable array, sets arr2[k]=v, returns arr2'
     arr = np.array(arr)
     arr[k] = v
-    arr.setflags(write=Falgs)
+    arr.setflags(write=False)
     return arr    
 
 @immutable
@@ -30,6 +30,20 @@ class ITable(colls.Mapping):
     def __init__(self, data, n=None):
         self.data = data
         self._row_count = n
+    def __hash__(self):
+        # we want to make sure arrays are 
+        return qhash(self.data)
+    def __getstate__(self):
+        d = self.__dict__.copy()
+        d['data'] = {k:(v.m, str(v.u)) if is_quantity(v) else (v, None)
+                     for (k,v) in self.data.iteritems()}
+        return d
+    def __setstate__(self, d):
+        dat = d['data']
+        for (k,(v,u)) in dat.iteritems():
+            if u is not None: v = quant(v, u)
+            v.setflats(write=False)
+        object.__setattr__(self, 'data', dat)
     @staticmethod
     def _filter_col(vec):
         '_filter_col(vec) yields an read-only numpy array version of the given column vector'
