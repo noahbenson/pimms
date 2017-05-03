@@ -21,7 +21,7 @@ def is_quantity(q):
     is_quantity(q) yields True if q is a pint quantity and False otherwise.
     '''
     cls = type(q)
-    return cls.__module__ == 'pint.unit' and cls.__name__ == 'Quantity'
+    return cls.__module__.startswith('pint.') and cls.__name__ == 'Quantity'
 def is_unit(q):
     '''
     is_unit(q) yields True if q is a pint unit and False otherwise.
