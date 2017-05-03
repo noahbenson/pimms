@@ -93,7 +93,8 @@ class Calc(object):
         elif not self.efferents and not result:
             result = {}
         else:
-            raise ValueError('Illegal return value from function call: did not match efferents')
+            raise ValueError(
+                'Illegal return value from function call (%s): did not match efferents' % self.name)
         return result
     def __setattr__(self, k, v):
         raise TypeError('Calc objects are immutable')
