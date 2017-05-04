@@ -3,8 +3,15 @@
 # Utility classes for functional programming with pimms!
 # By Noah C. Benson
 
-import copy, inspect, types, sys, six, pint
-import pyrsistent as ps
+import copy, inspect, types, sys, six, pint, os
+import numpy as np, pyrsistent as ps
+try:    import cStringIO as strio
+except: import StringIO  as strio
+try:    import cPickle   as pickle
+except: import pickle
+
+units = pint.UnitRegistry()
+units.define('pixel = [image_length] = px')
 
 if sys.version_info[0] == 3: from   collections import abc as colls
 else:                        import collections            as colls
@@ -14,13 +21,163 @@ def is_quantity(q):
     is_quantity(q) yields True if q is a pint quantity and False otherwise.
     '''
     cls = type(q)
-    return cls.__module__ == 'pint.unit' and cls.__name__ == 'Quantity'
+    return cls.__module__.startswith('pint.') and cls.__name__ == 'Quantity'
 def is_unit(q):
     '''
     is_unit(q) yields True if q is a pint unit and False otherwise.
     '''
     cls = type(q)
     return cls.__module__ == 'pint.unit' and cls.__name__ == 'Unit'
+def quant(val, unit):
+    '''
+    quant(value, unit) returns a quantity with the given unit; if value is not currently a quantity,
+      then value * unit is returned; if value is a quantity, then it is coerced into the given unit;
+      this may raise an error if the units are not compatible.
+    '''
+    return val.to(unit) if is_quantity(val) else units.Quantity(val, unit)
+def mag(val, unit=Ellipsis):
+    '''
+    mag(value) returns the magnitide of the given value; if value is not a quantity, then value is
+      returned; if value is a quantity, then its magnitude is returned. If the option unit is given
+      then, if the val is quantity, it is cast to the given unit before being the magnitude is
+      returned, otherwise it is returned alone
+    '''
+    return (val   if not is_quantity(val) else 
+            val.m if unit is Ellipsis     else
+            val.to(unit).m)
+def like_units(a, b):
+    '''
+    like_units(a,b) yields True if a and b can be cast to each other in terms of units and False
+      otherwise. Non-united units are considered dimensionless units.
+    '''
+    a = quant(a, 'dimensionless') if not is_quantity(a) else a
+    b = quant(b, 'dimensionless') if not is_quantity(b) else b
+    if a.u == b.u: return True
+    try:
+        c = a.to(b.u)
+        return True
+    except:
+        return False
+def qhashform(o):
+    '''
+    qhashform(o) yields a version of o, if possible, that yields a hash that can be reproduced
+      across instances. This correctly handles quantities and numpy arrays, among other things.
+    '''
+    if is_quantity(o): return ('__#quant', qhashform(mag(o)), str(o.u))
+    elif isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.number):
+        return ('__#ndarray', o.tobytes())
+    elif isinstance(o, (set, frozenset)): return ('__#set', tuple([qhashform(x) for x in o]))
+    elif is_map(o): return ps.pmap({qhashform(k):qhashform(v) for (k,v) in o.iteritems()})
+    elif hasattr(o, '__iter__'): return tuple([qhashform(u) for u in o])
+    else: return o
+def qhash(o):
+    '''
+    qhash(o) is a hash function that operates like hash(o) but attempts to, where possible, hash
+      quantities in a useful way. It also correctly handles numpy arrays and various other normally
+      mutable and/or unhashable objects.
+    '''
+    return hash(qhashform(o))
+io_formats = colls.OrderedDict(
+    [('numpy', {
+        'match': lambda o:   isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.number),
+        'write': lambda s,o: np.save(s, o),
+        'read':  lambda s:   np.load(s)}),
+     ('pickle', {
+        'match': lambda o:   True,
+        'write': lambda s,o: pickle.dump(o, s),
+        'read':  lambda s:   pickle.load(s)})])
+def _check_io_format(obj, fmt):
+    try:    return io_formats[fmt]['match'](obj)
+    except: return False
+def _save_stream_format(stream, obj, fmt):
+    fdat = io_formats[fmt]
+    fdat['write'](stream, obj)
+def _load_stream_format(stream, fmt):
+    fdat = io_formats[fmt]
+    return fdat['read'](stream)
+def _save_stream(stream, obj):
+    for (fmt,fdat) in io_formats.iteritems():
+        if not _check_io_format(obj, fmt): continue
+        s = strio.StringIO()
+        try:
+            _save_stream_format(s, obj, fmt)
+            pickle.dump(fmt, stream)
+            stream.write(s.getvalue())
+        except:  continue
+        else:    return stream
+        finally: s.close()
+    raise ValueError('unsavable object: did not match any exporters')
+def _load_stream(stream):
+    try:    fmt = pickle.load(stream)
+    except: raise ValueError('could not unpickle format; probably not a pimms save file')
+    if not isinstance(fmt, basestring):
+        raise ValueError('file format object is not a string; probably not a pimms save file')
+    if fmt not in io_formats:
+        raise ValueError('file has unrecognized format \'%s\'' % fmt)
+    return _load_stream_format(stream, fmt)
+def save(filename, obj, overwrite=False, create_directories=False):
+    '''
+    pimms.save(filename, obj) attempts to pickle the given object obj in the filename (or stream,
+      if given). An error is raised when this cannot be accomplished; the first argument is always
+      returned; though if the argument is a filename, it may be a differet string that refers to
+      the same file.
+
+    The save/load protocol uses pickle for all saving/loading except when the object is a numpy
+    object, in which case it is written using obj.tofile(). The save function writes meta-data
+    into the file so cannot simply be unpickled, but must be loaded using the pimms.load()
+    function. Fundamentally, however, if an object can be picled, it can be saved/loaded.
+
+    Options:
+      * overwrite (False) The optional parameter overwrite indicates whether an error should be
+        raised before opening the file if the file already exists.
+      * create_directories (False) The optional parameter create_directories indicates whether the
+        function should attempt to create the directories in which the filename exists if they do
+        not already exist.
+    '''
+    if isinstance(filename, basestring):
+        filename = os.path.expanduser(filename)
+        if not overwrite and os.path.exists(filename):
+            raise ValueError('save would overwrite file %s' % filename)
+        if create_directories:
+            dname = os.path.dirname(os.path.realpath(filename))
+            if not os.path.isdir(dname): os.makedirs(dname)
+        with open(filename, 'w') as f:
+            _save_stream(f, obj)
+    else:
+        _save_stream(filename, obj)
+    return filename
+def load(filename, ureg='pimms'):
+    '''
+    pimms.load(filename) loads a pimms-formatted save-file from the given filename, which may
+      optionaly be a string. By default, this function forces all quantities (via the pint
+      module) to be loaded using the pimms.units unit registry; the option ureg can change
+      this.
+
+    If the filename is not a correctly formatted pimms save-file, an error is raised.
+
+    Options:
+      * ureg ('pimms') specifies the unit-registry to use for ping module units that are loaded
+        from the files; 'pimms' is equivalent to pimms.units. None is equivalent to using the
+        pint._APP_REGISTRY unit registry.
+    '''
+    if ureg is not None:
+        if ureg == 'pimms': ureg = units
+        orig_app_ureg = pint._APP_REGISTRY
+        orig_dfl_ureg = pint._DEFAULT_REGISTRY
+        pint._APP_REGISTRY = ureg
+        pint._DEFAULT_REGISTRY = ureg
+        try:    return load(filename, ureg=None)
+        except: raise
+        finally:
+            pint._APP_REGISTRY     = orig_app_ureg
+            pint._DEFAULT_REGISTRY = orig_dfl_ureg
+    if isinstance(filename, basestring):
+        filename = os.path.expanduser(filename)
+        with open(filename, 'r') as f:
+            return _load_stream(f)
+    else:
+        return _load_stream(filename)
+
 def is_map(arg):
     '''
     is_map(x) yields True if x implements Python's builtin Mapping class.

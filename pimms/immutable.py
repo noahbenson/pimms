@@ -4,6 +4,7 @@
 # By Noah C. Benson
 
 import copy, inspect, types
+from .util import qhash
 
 # An immutable has three important values in the _neuropythy_immutable_data_ attribute of its class:
 # (1) params
@@ -87,6 +88,9 @@ def _imm_check(imm, names=Ellipsis):
             raise RuntimeError('Failed parameter-check on values % of func %s' % (args, check_fn))
     # All checks passed!
     return imm
+def _imm_hash(imm):
+    c = imm.__class__
+    return qhash((c.__module__, c.__name__, imm_params(imm)))
 def _imm_default_init(self, *args, **kwargs):
     '''
     An immutable's defalt initialization function is to accept any number of dictionaries followed
@@ -259,11 +263,11 @@ def _imm_repr(self):
             + ('(' if _imm_is_persist(self) else '*(')
             + ', '.join([k + '=' + str(v) for (k,v) in imm_params(self).iteritems()])
             + ')')
-def _imm_new(cls, *args, **kwargs):
+def _imm_new(cls):
     '''
     All immutable new classes use a hack to make sure the post-init cleanup occurs.
     '''
-    imm = object.__new__(cls, *args, **kwargs)
+    imm = object.__new__(cls)
     # Note that right now imm has a normal setattr method;
     # Give any parameter that has one a default value
     params = cls._neuropythy_immutable_data_['params']
@@ -412,7 +416,7 @@ def imm_dict(imm):
     force execution of all lazy values.
     '''
     immd = dict(**imm_params(imm))
-    for (k,v) in imm_values.iteritems():
+    for (k,v) in imm_values(imm).iteritems():
         immd[k] = v
     return immd
 def imm_is_persistent(imm):
@@ -696,8 +700,7 @@ def immutable(cls):
     for (name, fn) in auto_members: setattr(cls, name, types.MethodType(fn, None, cls))
     # __new__ is special...
     @staticmethod
-    def _custom_new(c, *args, **kwargs):
-        return _imm_new(c, *args, **kwargs)
+    def _custom_new(c, *args, **kwargs): return _imm_new(c)
     setattr(cls, '__new__', _custom_new)
     # and the attributes we set only if they haven't been specified
     optl_members = (('is_persistent',    _imm_is_persist),
@@ -712,7 +715,7 @@ def immutable(cls):
         if not hasattr(cls, name):
             setattr(cls, name, types.MethodType(fn, None, cls))
     # and the attributes we set if they're not overloaded from object
-    initfn = _imm_default_init if not hasattr(cls, '__init__') else cls.__init__
+    initfn = _imm_default_init if cls.__init__ is object.__init__ else cls.__init__
     def _imm_init_wrapper(imm, *args, **kwargs):
         # call the init normally...
         initfn(imm, *args, **kwargs)
@@ -721,9 +724,10 @@ def immutable(cls):
         # Okay, all checks passed!
     setattr(cls, '__init__', types.MethodType(_imm_init_wrapper, None, cls))
     dflt_members = (('__dir__',          _imm_is_persist),
-                    ('__repr__',         _imm_repr))
+                    ('__repr__',         _imm_repr),
+                    ('__hash__',         _imm_hash))
     for (name, fn) in dflt_members:
-        if not hasattr(cls, name) or getattr(cls, name) == getattr(object, name):
+        if not hasattr(cls, name) or getattr(cls, name) is getattr(object, name):
             setattr(cls, name, types.MethodType(fn, None, cls))
     # Done!
     return cls
