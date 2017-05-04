@@ -24,9 +24,9 @@ class Calc(object):
         if ff_set: raise ValueError('calc functions may not overwrite their parameters')
         object.__setattr__(self, 'afferents', affs)
         object.__setattr__(self, 'efferents', effs)
-        object.__setattr__(self, 'function', f)
-        object.__setattr__(self, 'defaults', dflts)
-        object.__setattr__(self, 'lazy', lazy)
+        object.__setattr__(self, 'function',  f)
+        object.__setattr__(self, 'defaults',  dflts)
+        object.__setattr__(self, 'lazy',      lazy)
         object.__setattr__(self, 'meta_data', ps.pmap(meta_data))
     def __call__(self, *args, **kwargs):
         opts = merge(self.defaults, args, kwargs)
@@ -558,6 +558,10 @@ def plan_tr(p, *args, **kwargs):
     return p.tr(*args, **kwargs)
 def imap_tr(imap, *args, **kwargs):
     '''
+    imap_tr(m, ...) yields a copy of the immutable map m in which the keywords have been translated
+      according to the given arguments. Arguments may be any number of dictionaries followed by any
+      number of keyword arguments, all of which are merged left-to-right then used as the
+      translation.
     '''
     if not is_imap(imap):
         raise TypeError('IMap object required of imap_tr')
