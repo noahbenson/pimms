@@ -26,7 +26,10 @@ python setup.py install
 
 ```
 
-### Dependencies ####################################################################################
+### Current Version ################################################################################
+The current stable version of pimms is 0.2.0, which is also permanently stored on PyPI.
+
+### Dependencies ###################################################################################
 
 The pimms library currently depends on only one library,
 [pysistence](https://pythonhosted.org/pysistence/); pimms is intended as a complement to pysistence
@@ -40,19 +43,23 @@ Tests have been placed in the `pimms.test` package and can be run via the comman
 
 ## Documentation ###################################################################################
 
-The pimms library is an immutable data-structure toolkit. It works primarily by decorators applied
-to classes and their members to declare how an immutable data-structure's members are related.
-Taken together, these decorators form a DSL-like system for declaring immutable data-structures with
-full inheritance support.
+The pimms library is an immutable data-structure and lazy calculation toolkit. It can be broken down
+into four components, each of which is described below.
+
+### Immutable Classes ##############################################################################
+The pimms package allows one to construct a kind of immutable class. This mechanism works primarily
+by decorators applied to classes and their members to declare how an immutable data-structure's
+members are related. Taken together, these decorators form a DSL-like system for declaring immutable
+data-structures with most inheritance support.
 
 An immutable data-structure is simply a class that has been modified by the @immutable decorator.
 Inside an immutable class, a few things can be declared normally while others must be declared via
 the special immutable syntax.
 
 Things that can be delcared normally in an immutable class:
-* Instance methods of the class (def some_method(self, arg): ...)
-* Static methods of the class (using @staticmethod)
-* Static members of the class (some_class_member = 10)
+* Instance methods of the class (`def some_method(self, arg): ...`)
+* Static methods of the class (`using @staticmethod`)
+* Static members of the class (`some_class_member = 10`)
 
 Things that cannot be declared normally in an immutable class:
 * All member variables of a class instance (usually assigned in `__init__`).
@@ -117,16 +124,16 @@ class, that parameter must be given, either in a child class's `__init__` method
 explicit (required or optional) parameter.
 
 When an immutable object is constructed, it begins its life in a special 'init' state; this state is
-unique in that no requirement checks are run until either the `__init__` method returns or a value is
-requested of the object; at that point, all non-optional parameters must be specified or an
+unique in that no requirement checks are run until either the `__init__` method returns or a value
+is requested of the object; at that point, all non-optional parameters must be specified or an
 exception is raised. If all parameters were set, then all requirement checks are run and the
 object's state shifts to 'transient'. An immutable object imm can be tested for transience by using
-the method `imm.is_transient()`. A transient object allows its parameters (but never its values) to be
-set using normal setattr (`imm.x = y`) syntax. Requirement checks that are related to a parameter are
-changed every time that parameter is set, after the translation function for that parameter is used.
-An immutable object remains in the transient state until it is persisted via the `imm.persist()`
-method. Once an object is persistent, it cannot be updated via setattr mechanisms and should be
-considered permanent. A new transient duplicate of the object may be created using the
+the method `imm.is_transient()`. A transient object allows its parameters (but never its values) to
+be set using normal setattr (`imm.x = y`) syntax. Requirement checks that are related to a parameter
+are changed every time that parameter is set, after the translation function for that parameter is
+used. An immutable object remains in the transient state until it is persisted via the 
+`imm.persist()` method. Once an object is persistent, it cannot be updated via setattr mechanisms
+and should be considered permanent. A new transient duplicate of the object may be created using the
 `imm.transient()` method (this may also be used while the object is still transient). To update the
 values of an immutable object, the `imm.copy(param1=val1, param2=val2, ...)` method should be used.
 This method returns a persistent duplicate of the immutable object imm with the given parameters
@@ -147,6 +154,154 @@ The additional utility functions are provided as part of the pimms package:
 * `imm_is_persistent(imm)` is identical to `imm.is_persistent()` for an immutable object imm.
 * `imm_is_transient(imm)` is identical to `imm.is_transient()` for an immutable object imm.
 
+### Lazy Calculations ##############################################################################
+The pimms lazy calculation system allows you to declare a set of independent calculation units, each
+of which requiers a specific set of input parameters and generates a specific set of output values,
+then to put them together into a calculation plan. A calculation plan can then be given the set of
+input parameters not provided by the ouputs of other calculation units in order to obtain a lazy map
+of all the output variables; values get calculated only the first time they are requested from this
+output map.
+
+A calculation unit is declared by the decorator `@calc(...)` where the ... should be a list of
+output value names. The decorated function must yield either a tuple of these outputs in order or a
+dict-like object whose keys correspond to these output values; if there is only one output and it is
+neither a dict nor a tuple, then it can be returned alone. The input parameters for the calculation
+unit are the parameters of the function (default values are allowed, and any plan that includes the
+calculation unit will inherit this default, if appropriate). Other functionality details can be
+found via `help(pimms.calc)`.
+
+Once a set of calculation units has been defined, they may be grouped together in a calculation
+plan. To do this, they are passed to the function `plan()`. The `plan()` function accepts any number
+of dict-like objects followed by any number of keyword arguments, all of which are merged into a
+single dict from left to right (i.e., later dictionaries overwrite earlier dictionaries, and keyword
+arguments overwrite all dictionaries). This final dict contains key-value pairs where the keys are
+arbitrary (string) names of each calculation step and the values are the calculation units for that
+step. To change one of the calculation units, the method `set` can be used (see also,
+`pimms.Plan.discard`, `pimms.Plan.remove`, `pimms.Plan.discard_defaults`, and
+`pimms.Plan.remove_defaults`).
+
+Plans can be queried in a number of ways; primarily, a plan keeps track of the afferent (input)
+parameters that it requires as well as the efferent (output) values it produces in sum; if one of
+the calculation units provides an efferent value that is an afferent input of another calculation
+unit in the plan, then this value would be an efferent value of the plan, but not an afferent
+parameter. These data can be accessed via `p.afferents` and `p.efferents`; the `p.defaults` member
+additionally gives a dict of the default values for any afferent parameter that has one.
+Documentation about each parameter (if the author of the calculation unit included documentation
+in the unit's doc-string) can also be found in the `p.afferent_docs` and `p.efferent_docs` dicts.
+
+To invoke a plan, it must be caled using all of its afferent parameters; those parameters with
+default values may be provided but do not need to be. When a plan `p` is called, it accepts any
+number of dict-like objects followed by any number of keyword arguments as input; these are merged
+left-to-right and used as a dictionary of the afferent parameters. If all afferent parameters are
+provided, then the plan returns an immutable mapping (a persistent dict-like object) immediately.
+The return value is immediate because no calculation is actually performed until it is required;
+the keys of the map are the names of both the afferent parameters and efferent values, all of which
+can be obtained via a normal getitem lookup.
+
+#### Example
+
+An example of a lazy calculation plan is shown here (see also `pimms.test.tri_calc`):
+
+```python
+# Usage example: calculating the area of a triangle
+import pimms
+
+# We make a lazy calculation plan to calculate the area of a triangle; first it calculates the base
+# and height, then the area.
+
+# First calc unit: calculate the base and the height
+@pimms.calc('base', 'height')
+def calc_triangle_dims(a, b, c):
+    '''
+    calc_triangle_dims computes the base/width (x-span) and height (y-span) of the triangle a-b-c.
+    
+    Afferent parameters:
+     @ a Must be the (x,y) coordinate of point a in triangle a-b-c.
+     @ b Must be the (x,y) coordinate of point b in triangle a-b-c.
+     @ c Must be the (x,y) coordinate of point c in triangle a-b-c.
+
+    Efferent values:
+     @ base Will be the base, or width, of the triangle a-b-c.
+     @ height Will be the height of the triangle a-b-c.
+    '''
+    print 'Calculating base...'
+    xs = [a[0], b[0], c[0]]
+    xmin = min(xs)
+    xmax = max(xs)
+    print 'Calculating height...'
+    ys = [a[1], b[1], c[1]]
+    ymin = min(ys)
+    ymax = max(ys)
+    return (xmax - xmin, ymax - ymin)
+
+# Second calc unit: calculate the area
+@pimms.calc('area')
+def calc_triangle_area(base, height):
+    '''
+    calc_triangle_are computes the area of a triangle with a given base and height.
+    
+    Efferent values:
+     @ area Will be the area of the triangle with the given base and height.
+    '''
+    print 'Calculating area...'
+    return {'area': base * height * 0.5}
+
+# Make a calculation plan out of these:
+area_plan = pimms.plan(tri_dims=calc_triangle_dims, tri_area=calc_triangle_area)
+
+# What afferent parameters does it require?
+area_plan.afferents
+# >> ('a', 'c', 'b')
+
+# Do any of these have defaults?
+area_plan.defaults
+# >> pmap({})
+
+# What about the efferent values?
+area_plan.efferents
+# >> pmap({'height': <pimms.calculation.Calc object at 0x106ee9910>,
+           'base': <pimms.calculation.Calc object at 0x106ee9910>,
+           'area': <pimms.calculation.Calc object at 0x106ee9990>})
+
+# Documentation on parameter b?
+print area_plan.afferent_docs['b']
+# >> (tri_dims) b: Must be the (x,y) coordinate of point b in triangle a-b-c.
+
+# Go ahead and execute the plan; note that the latter c overwrites the former
+data = area_plan({'a':(0,0), 'b':(0,1), 'c':(1,0)}, c=(2,1))
+data.keys()
+# >> ['b', 'a', 'c', 'base', 'area', 'height']
+
+# What's the base?
+data['base']
+# >> Calculating base...
+# >> Calculating height...
+# >> 2
+
+# What's the height? Note that this doesn't get recalculated...
+data['height']
+# >> 1
+
+# What's the area?
+data['area']
+# >> Calculating area...
+# >> 1.0
+
+# How about we update the c value? We can't change data directly because its an
+# immutable mapping, but we can re-bind a copy of it with new parameters...
+new_data = data.set(c=(1,0))
+
+# The old data remains unchanged, but new_data has the new value of c:
+(data['c'], new_data['c'])
+# >> ((2, 1), (1, 0))
+
+# What's the area of the new triange?
+new_data['area']
+# >> Calculating base...
+# >> Calculating height...
+# >> Calculating area...
+# >> 0.5
+```
 
 ## License #########################################################################################
 
