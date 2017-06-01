@@ -260,8 +260,8 @@ area_plan.defaults
 # What about the efferent values?
 area_plan.efferents
 # >> pmap({'height': <pimms.calculation.Calc object at 0x106ee9910>,
-           'base': <pimms.calculation.Calc object at 0x106ee9910>,
-           'area': <pimms.calculation.Calc object at 0x106ee9990>})
+# >>       'base': <pimms.calculation.Calc object at 0x106ee9910>,
+# >>       'area': <pimms.calculation.Calc object at 0x106ee9990>})
 
 # Documentation on parameter b?
 print area_plan.afferent_docs['b']
