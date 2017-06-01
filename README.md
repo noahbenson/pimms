@@ -27,7 +27,7 @@ python setup.py install
 ```
 
 ### Current Version ################################################################################
-The current stable version of pimms is 0.2.0, which is also permanently stored on PyPI.
+The current stable version of pimms is 0.1.8.
 
 ### Dependencies ###################################################################################
 
@@ -287,8 +287,8 @@ data['area']
 # >> Calculating area...
 # >> 1.0
 
-# How about we update the c value? We can't change data directly because its an
-# immutable mapping, but we can re-bind a copy of it with new parameters...
+# How about we update the c value? We can't change data directly because it's
+# immutable, but we can re-bind a copy of it with new parameters...
 new_data = data.set(c=(1,0))
 
 # The old data remains unchanged, but new_data has the new value of c:
