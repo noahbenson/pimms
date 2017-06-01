@@ -46,7 +46,7 @@ class ITable(colls.Mapping):
         object.__setattr__(self, 'data', dat)
     @staticmethod
     def _filter_col(vec):
-        '_filter_col(vec) yields an read-only numpy array version of the given column vector'
+        '_filter_col(vec) yields a read-only numpy array version of the given column vector'
         if (isinstance(vec, types.TupleType) and len(vec) == 2) or is_quantity(vec):
             (mag, unit) = (vec.magnitude, vec.units) if is_quantity(vec) else vec
             if isinstance(unit, basestring):
@@ -102,7 +102,7 @@ class ITable(colls.Mapping):
             raise ValueError('data keys must be strings')
         return True
     @require
-    def validate__row_count(_row_count):
+    def validate_row_count(_row_count):
         '''
         ITable _row_count must be a non-negative integer or None.
         '''
@@ -296,13 +296,19 @@ class ITable(colls.Mapping):
             return ITable(
                 lazy_map({k:_make_lambda(k) for k in dat.iterkeys()}),
                 n=len(keepers))
+    def merge(self, *args, **kwargs):
+        '''
+        itbl.merge(...) yields a copy of the ITable object itbl that has been merged left-to-right
+          with the given arguments.
+        '''
+        return itable(self.data, *args, **kwargs).persist()
     def __getitem__(self, rows, cols=Ellipsis):
         '''
         itbl[row_number] yields the map associated with the given row in the ITable object itbl; the
           row_number may alternately be a slice.
         itbl[[r1, r2...]] yields a duplicate itable containing only the given rows of itbl.
         itbl[column_name] yields the numpy array associated with the given column name.
-        itbl[[c1, c2...]] yields a duplicate itable containing only the given columns if itbl.
+        itbl[[c1, c2...]] yields a duplicate itable containing only the given columns of itbl.
         itbl[rows, cols] is equivalent to itbl[rows][cols] (in fact, rows and cols may be given in
           any order).
         '''
