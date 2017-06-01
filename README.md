@@ -303,6 +303,43 @@ new_data['area']
 # >> 0.5
 ```
 
+### Immutable Tables ###############################################################################
+An immutable table is a read-only data structure consisting of a matrix of named columns. The
+`pimms.itable` function is used to construct such a table by passing it dictionaries and/or keyword
+arguments, all values for which are the same length. Immutable tables support lazy operations in
+that if one of the values given to it is a lambda function requiring no arguments, then that lambda
+function is stored and called when the column is first needed; the function's output must be an
+appropriately-sized column of values. The columns of an itable themselves are stored as numpy arrays
+and the itable toolkit supports unit types for the columns via the library
+(pint)[https://github.com/hgrecco/pint]. In fact, pimms keeps track of its own pint unit registry in
+`pimms.units` (which may be changed if you manage your units separately).
+
+The immutable table class (pimms.ITable) is decorated with pimms's own immutable toolkit, so its
+members follow that paradigm. Overall the class is fairly simple, but some of its features are documented here:
+ * `tab.data` gives the dict-like object of columns of table;
+ * `tab.column_names` gives a tuple of the names of the columns in the table;
+ * `tab.columns` gives a tuple of the columns themselves in the same order as `column_names`;
+ * `tab.row_count` gives the number of rows in the table;
+ * `tab.rows` gives a tuple of maps, one per row, each of which contains a key for each column in
+   the table.
+
+### Utilities ######################################################################################
+The pimms library includes a number of utility functions, all of which are documented in Python
+via normal doc-strings. They are listed here:
+ * `pimms.lazy_map`
+ * `pimms.is_lazy_map`
+ * `pimms.is_map`
+ * `pimms.is_pmap`
+ * `pimms.merge`
+ * `pimms.is_quantity`
+ * `pimms.is_unit`
+ * `pimms.quant`
+ * `pimms.mag`
+ * `pimms.like_units`
+ * `pimms.units`
+ * `pimms.save`
+ * `pimms.load`
+
 ## License #########################################################################################
 
 This README file is part of the pimms library.
