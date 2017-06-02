@@ -27,7 +27,7 @@ python setup.py install
 ```
 
 ### Current Version ################################################################################
-The current stable version of pimms is 0.1.8.
+The current stable version of pimms is 0.1.9.
 
 ### Dependencies ###################################################################################
 
