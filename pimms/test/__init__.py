@@ -169,7 +169,12 @@ class TestPimms(unittest.TestCase):
         norm_ks = set(m.keys())
         lazy_ks = set([])
         d_ord = ord('a') - ord('A')
-        def _make_lazy_lambda(v): return lambda:v
+        def _make_lazy_lambda(v):
+            def _fn():
+                _make_lazy_lambda.counter += 1
+                return v
+            return _fn
+        _make_lazy_lambda.counter = 0
         for (v,k) in enumerate(map(chr, range(ord('A'), ord('Z') + 1))):
             m[k] = v
             lm = lm.set(k, _make_lazy_lambda(v))
@@ -180,6 +185,9 @@ class TestPimms(unittest.TestCase):
                 del m[kl]
                 norm_ks.remove(kl)
         _test_lm(lm, m, lazy_ks, norm_ks)
+        self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
+        remem = [v for (k,v) in lm.iteritems()]
+        self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
         
 if __name__ == '__main__':
     unittest.main()
