@@ -80,12 +80,12 @@ class Calc(object):
         args = []
         for name in self.afferents:
             if name not in opts:
-                raise ValueError('required parameter %s not given' % name)
+                raise ValueError('required parameter %s not given to %s' % (name, self.name))
             args.append(opts[name])
         result = self.function(*args)
         if is_map(result):
             if len(result) != len(self.efferents) or not all(e in result for e in self.efferents):
-                raise ValueError('Return value keys did not match efferents')
+                raise ValueError('keys returned by %s did not match calc declaration' % self.name)
         elif isinstance(result, types.TupleType):
             result = {k:v for (k,v) in zip(self.efferents, result)}
         elif len(self.efferents) == 1:
@@ -233,7 +233,7 @@ class Plan(object):
         while changed:
             changed = False
             for (k,v) in deps.iteritems():
-                if k in v: raise ValueError('self-loop detected in dependency graph')
+                if k in v: raise ValueError('self-loop detected in dependency graph (%s)' % k)
                 new_set = v.union([depdep for dep in v for depdep in deps[dep] if depdep not in v])
                 if new_set != v:
                     changed = True
@@ -653,6 +653,7 @@ def calc(*args, **kwargs):
             affs = tuple(affs)
             dflts = ps.pmap({} if dflts is None else
                             {k:v for (k,v) in zip(affs[-len(dflts):], dflts)})
+            kwargs = {} if not kwargs else kwargs
             return Calc(affs, f, effs, dflts, **kwargs)
         elif args[0] is None:
             effs = ()

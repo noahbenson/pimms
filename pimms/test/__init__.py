@@ -118,9 +118,68 @@ class TestPimms(unittest.TestCase):
         # Now a lazy map
         (c, lmap) = self._make_test_counter_map()
         lmap = pimms.lazy_map(lmap)
-        print lmap
         self._assertEquivMaps(lmap, TestPimms._test_map_af)
         self.assertEqual(set(c), set(TestPimms._test_map_af.values()))
+
+    ################################################################################################
+    # Test the pimms utilities
+    def test_lazy_map(self):
+        # We setup a map-testing function that takes a few args and asserts everything is as it
+        # should be:
+        def _test_lm(lm, m, lazy_ks, norm_ks):
+            self.assertTrue(isinstance(lm, pimms.LazyPMap))
+            self.assertEqual(len(lm), len(m))
+            for k in m.iterkeys(): self.assertTrue(k in lm)
+            # the normal keys should just be normal:
+            for k in norm_ks:
+                self.assertEqual(m[k], lm[k])
+                self.assertTrue(lm.is_normal(k))
+                self.assertFalse(lm.is_lazy(k))
+                self.assertFalse(lm.is_memoized(k))
+            # these tests should not memoize any keys:
+            for k in lm.iterkeys():
+                self.assertTrue(k in m and k in lm)
+            for k in lm.iternormal():
+                self.assertTrue(k in m and k in norm_ks)
+                self.assertEqual(lm[k], m[k])
+            self.assertEqual(len(set(lm.itermemoized())), 0)
+            self.assertEqual(len(set(lm.iterlazy())), len(lazy_ks))
+            # now check the lazy keys (should still all be lazy):
+            for k in lazy_ks:
+                self.assertFalse(lm.is_normal(k))
+                self.assertTrue(lm.is_lazy(k))
+                self.assertFalse(lm.is_memoized(k))
+                self.assertEqual(m[k], lm[k]) # here the memoization should happen
+                self.assertTrue(lm.is_memoized(k))
+                self.assertFalse(lm.is_lazy(k))
+                self.assertFalse(lm.is_normal(k))
+            # everything should be memoized now:
+            self.assertEqual(len(set(lm.itermemoized())), len(lazy_ks))
+            self.assertEqual(len(set(lm.iterlazy())), 0)
+            # it should be an error to delete anything or set anything
+            for k in (lm.keys() + ['random_key1', 'random_key2']):
+                with self.assertRaises(TypeError): lm[k] = 10
+                with self.assertRaises(TypeError): del lm[k]
+        # Okay, we can test a few lazy maps now:
+        # (1) lazy maps with normal values are just normal maps:
+        m = {k:v for (v,k) in enumerate(map(chr, range(ord('a'), ord('z')+1)))}
+        lm = pimms.lazy_map(m)
+        _test_lm(lm, m, [], m.keys())
+        # (2) lazy maps should be build-able...
+        norm_ks = set(m.keys())
+        lazy_ks = set([])
+        d_ord = ord('a') - ord('A')
+        def _make_lazy_lambda(v): return lambda:v
+        for (v,k) in enumerate(map(chr, range(ord('A'), ord('Z') + 1))):
+            m[k] = v
+            lm = lm.set(k, _make_lazy_lambda(v))
+            lazy_ks.add(k)
+            if ord(k) % 2 == 0:
+                kl = chr(ord(k) + d_ord)
+                lm = lm.remove(kl)
+                del m[kl]
+                norm_ks.remove(kl)
+        _test_lm(lm, m, lazy_ks, norm_ks)
         
 if __name__ == '__main__':
     unittest.main()

@@ -287,7 +287,7 @@ class LazyPMap(ps.PMap):
         if not isinstance(v, types.FunctionType):
             return False
         else:
-            return id(v) not in self._memoized
+            return id(v) in self._memoized
     def is_normal(self, k):
         '''
         lmap.is_normal(k) yields True if k is a key in the given lazy map lmap that is neither lazy
