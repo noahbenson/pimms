@@ -21,7 +21,6 @@ usage.
 
 import unittest, math, sys, six, pimms
 import numpy as np
-#from ..immutable import TestPimmsImmutables
 
 if sys.version_info[0] == 3: from   collections import abc as colls
 else:                        import collections            as colls
