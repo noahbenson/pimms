@@ -19,7 +19,7 @@ The pimms.test test package contains tests for the pimms library as well as exam
 usage.
 '''
 
-import unittest, math, sys, pimms
+import unittest, math, sys, six, pimms
 import numpy as np
 #from ..immutable import TestPimmsImmutables
 
@@ -120,14 +120,14 @@ class TestPimms(unittest.TestCase):
             return arg
         def _make_counter(arg):
             return lambda:_counter(arg)
-        return (count, {k: _make_counter(v) for (k,v) in TestPimms._test_map_af.iteritems()})
+        return (count, {k: _make_counter(v) for (k,v) in six.iteritems(TestPimms._test_map_af)})
 
     def _assertEquivMaps(self, a, b):
         self.assertTrue(isinstance(a, colls.Mapping))
         self.assertTrue(isinstance(b, colls.Mapping))
         self.assertEqual(len(a), len(b))
         for (f,s) in [(a,b), (b,a)]:
-            for (k,v) in f.iteritems():
+            for (k,v) in six.iteritems(f):
                 self.assertTrue(k in s)
                 self.assertEqual(v, s[k])
     
@@ -149,7 +149,7 @@ class TestPimms(unittest.TestCase):
         def _test_lm(lm, m, lazy_ks, norm_ks):
             self.assertTrue(isinstance(lm, pimms.LazyPMap))
             self.assertEqual(len(lm), len(m))
-            for k in m.iterkeys(): self.assertTrue(k in lm)
+            for k in six.iterkeys(m): self.assertTrue(k in lm)
             # the normal keys should just be normal:
             for k in norm_ks:
                 self.assertEqual(m[k], lm[k])
@@ -157,7 +157,7 @@ class TestPimms(unittest.TestCase):
                 self.assertFalse(lm.is_lazy(k))
                 self.assertFalse(lm.is_memoized(k))
             # these tests should not memoize any keys:
-            for k in lm.iterkeys():
+            for k in six.iterkeys(lm):
                 self.assertTrue(k in m and k in lm)
             for k in lm.iternormal():
                 self.assertTrue(k in m and k in norm_ks)
@@ -206,7 +206,7 @@ class TestPimms(unittest.TestCase):
                 norm_ks.remove(kl)
         _test_lm(lm, m, lazy_ks, norm_ks)
         self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
-        remem = [v for (k,v) in lm.iteritems()]
+        remem = [v for (k,v) in six.iteritems(lm)]
         self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
         
 if __name__ == '__main__':

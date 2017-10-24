@@ -72,7 +72,7 @@ class Calc(object):
         object.__setattr__(self, 'memoize', memoize)
         object.__setattr__(self, 'name', f.__module__ + '.' + f.__name__)
         pdoc = Calc._parse_doc(f, affs, effs)
-        pdoc = {k:ps.pmap(v) for (k,v) in pdoc.iteritems()}
+        pdoc = {k:ps.pmap(v) for (k,v) in six.iteritems(pdoc)}
         object.__setattr__(self, 'afferent_docs', pdoc['afferent'])
         object.__setattr__(self, 'efferent_docs', pdoc['efferent'])
     def __call__(self, *args, **kwargs):
@@ -129,7 +129,7 @@ class Calc(object):
         required.
         '''
         rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, six.string_types) else aa))
-        new_defaults = ps.pmap({k:v for (k,v) in args.iteritems() if k not in rms})
+        new_defaults = ps.pmap({k:v for (k,v) in six.iteritems(args) if k not in rms})
         new_cnode = copy.copy(self)
         object.__setattr__(new_cnode, 'defaults', new_defaults)
         return new_cnode
@@ -158,13 +158,13 @@ class Calc(object):
                            tuple(d[ef] if ef in d else ef for ef in self.efferents))
         object.__setattr__(translation, 'value_docs',
                            ps.pmap({kk:ps.pmap({(d[k] if k in d else k):v
-                                                for (k,v) in vv.iteritems()})
-                                    for (kk,vv) in self.value_docs.iteritems()}))
+                                                for (k,v) in six.iteritems(vv)})
+                                    for (kk,vv) in six.iteritems(self.value_docs)}))
         fn = self.function
         def _tr_fn_wrapper(*args, **kwargs):
             res = fn(*args, **kwargs)
             if isinstance(res, colls.Mapping):
-                return {(d[k] if k in d else k):v for (k,v) in res.iteritems()}
+                return {(d[k] if k in d else k):v for (k,v) in six.iteritems(res)}
             else:
                 return res
         object.__setattr__(translation, 'function', _tr_fn_wrapper)
@@ -194,14 +194,14 @@ class Plan(object):
         are merged left-to-right.
         '''
         nodes = ps.pmap({name: (node if isinstance(node, Calc) else calc(node))
-                         for (name,node) in merge(args, kwargs).iteritems()})
-        if not all(isinstance(n, Calc) for n in nodes.itervalues()):
+                         for (name,node) in six.iteritems(merge(args, kwargs))})
+        if not all(isinstance(n, Calc) for n in six.itervalues(nodes)):
             raise ValueError('All arguments given to Plan must be @calc functions')
         object.__setattr__(self, 'nodes', nodes)
         # let's get the default-value arguments and make sure they all match!
         defaults = {}
-        for node in nodes.itervalues():
-            for (k,v) in node.defaults.iteritems():
+        for node in six.itervalues(nodes):
+            for (k,v) in six.iteritems(node.defaults):
                 if k in defaults:
                     if defaults[k] != v:
                         raise ValueError(
@@ -216,7 +216,7 @@ class Plan(object):
         deps = {}
         affs = set()
         effs = {}
-        for node in self.nodes.itervalues():
+        for node in six.itervalues(self.nodes):
             affs = affs.union(node.afferents)
             effs.update({eff:node for eff in node.efferents})
             for eff in node.efferents:
@@ -228,17 +228,17 @@ class Plan(object):
             if aff not in deps:
                 deps[aff] = set([])
         # okay, now find its transitive closure...
-        deps0 = ps.pmap({k:tuple(v) for (k,v) in deps.iteritems()})
+        deps0 = ps.pmap({k:tuple(v) for (k,v) in six.iteritems(deps)})
         changed = True
         while changed:
             changed = False
-            for (k,v) in deps.iteritems():
+            for (k,v) in six.iteritems(deps):
                 if k in v: raise ValueError('self-loop detected in dependency graph (%s)' % k)
                 new_set = v.union([depdep for dep in v for depdep in deps[dep] if depdep not in v])
                 if new_set != v:
                     changed = True
                     deps[k] = new_set
-        deps = ps.pmap({k:tuple(v) for (k,v) in deps.iteritems()})
+        deps = ps.pmap({k:tuple(v) for (k,v) in six.iteritems(deps)})
         # alright, deps is now the transitive closure; those afferents that have no dependencies are
         # the calculation's afferent parameters and the efferents are the output values
         affs = tuple(aff for aff in affs if len(deps[aff]) == 0)
@@ -257,17 +257,17 @@ class Plan(object):
         # we also want to reverse the dependencies so that when an afferent value is edited, we can
         # invalidate the relevant efferent values
         dpts = {}
-        for (k,v) in deps.iteritems():
+        for (k,v) in six.iteritems(deps):
             for u in v:
                 if u in dpts: dpts[u].add(k)
                 else:         dpts[u] = set([k])
-        dpts = ps.pmap({k:tuple(v) for (k,v) in dpts.iteritems()})
+        dpts = ps.pmap({k:tuple(v) for (k,v) in six.iteritems(dpts)})
         object.__setattr__(self, 'dependants', dpts)
         # finally, we need to make sure that we know when to call the non-lazy functions; this we
         # do by walking through nodes and picking out all the fully afferent dependencies of each
         reqs = {}
         zero_reqs = []
-        for node in nodes.itervalues():
+        for node in six.itervalues(nodes):
             if node.lazy:            continue               # we only care about non-lazy nodes...
             elif not node.afferents: zero_reqs.append(node) # this node depends on nothing...
             else:                                           # otherwise, find the afferent deps...
@@ -284,7 +284,7 @@ class Plan(object):
         for aff in self.afferents:
             if aff not in reqs:
                 reqs[aff] = []
-        reqs = ps.pmap({k:tuple(v) for (k,v) in reqs.iteritems()})
+        reqs = ps.pmap({k:tuple(v) for (k,v) in six.iteritems(reqs)})
         zero_reqs = tuple(zero_reqs)
         object.__setattr__(self, 'proactive_dependants', reqs)
         object.__setattr__(self, 'initializers', zero_reqs)
@@ -295,7 +295,7 @@ class Plan(object):
         for aff in affs:
             txt = aff
             if aff in defaults: txt += ' (default: %s)' % defaults[aff]
-            for (nnm, node) in nodes.iteritems():
+            for (nnm, node) in six.iteritems(nodes):
                 if aff not in node.afferent_docs: continue
                 txt += ('\n\n(%s) ' % nnm) + node.afferent_docs[aff]
             adocs[aff] = txt
@@ -303,7 +303,7 @@ class Plan(object):
         edocs = {}
         for eff in effs:
             txt = eff
-            for (nnm, node) in nodes.iteritems():
+            for (nnm, node) in six.iteritems(nodes):
                 if eff not in node.efferent_docs: continue
                 txt += ('\n\n(%s) ' % nnm) + node.efferent_docs[eff]
             edocs[eff] = txt
@@ -345,7 +345,7 @@ class Plan(object):
         calculation pieces specified by the arguments have been replaced with the given
         calculations instead.
         '''
-        return Plan(reduce(lambda m,(k,v): m.set(k,v), kwargs.iteritems(), self.nodes))
+        return Plan(reduce(lambda m,(k,v): m.set(k,v), six.iteritems(kwargs), self.nodes))
     def discard(self, *args):
         '''
         cplan.discard(...) yields a new calculation plan identical to cplan except without any of
@@ -368,7 +368,7 @@ class Plan(object):
         '''
         d = merge(args, kwargs)
         # make a copy of this object's nodes with translations...
-        nodes = ps.pmap({k:v.set_defaults(d) for (k,v) in self.nodes.iteritems()})
+        nodes = ps.pmap({k:v.set_defaults(d) for (k,v) in six.iteritems(self.nodes)})
         # make a new plan with that!
         return Plan(nodes)
     def discard_defaults(self, *args):
@@ -377,7 +377,7 @@ class Plan(object):
         without default values for any of the given parameter names.
         '''
         # make a copy of this object's nodes with translations...
-        nodes = ps.pmap({k:v.discard_defaults(*args) for (k,v) in self.nodes.iteritems()})
+        nodes = ps.pmap({k:v.discard_defaults(*args) for (k,v) in six.iteritems(self.nodes)})
         # make a new plan with that!
         return Plan(nodes)        
     def remove_defaults(self, *args):
@@ -399,7 +399,7 @@ class Plan(object):
         '''
         d = merge(args, kwargs)
         # make a copy of this object's nodes with translations...
-        nodes = ps.pmap({k:v.tr(d) for (k,v) in self.nodes.iteritems()})
+        nodes = ps.pmap({k:v.tr(d) for (k,v) in six.iteritems(self.nodes)})
         # make a new plan with that!
         return Plan(nodes)
     def forget(self, node=None, cache_directory=None):
@@ -438,9 +438,9 @@ class IMap(colls.Mapping):
     def __len__(self):
         return len(self.afferents) + len(self.plan.efferents)
     def __iter__(self):
-        for k in self.afferents.iterkeys():
+        for k in six.iterkeys(self.afferents):
             yield k
-        for k in self.plan.efferents.iterkeys():
+        for k in six.iterkeys(self.plan.efferents):
             yield k
     def __getitem__(self, k):
         if k in self.afferents:
@@ -460,8 +460,8 @@ class IMap(colls.Mapping):
     get = colls.Mapping.get
     # We want the representation to look something like a dictionary
     def __repr__(self):
-        affstr = ', '.join([repr(k) + ': ' + repr(v) for (k,v) in self.afferents.iteritems()])
-        effstr = ', '.join([repr(k) + ': <lazy>' for k in self.plan.efferents.iterkeys()])
+        affstr = ', '.join([repr(k) + ': ' + repr(v) for (k,v) in six.iteritems(self.afferents)])
+        effstr = ', '.join([repr(k) + ': <lazy>' for k in six.iterkeys(self.plan.efferents)])
         if len(self.afferents) == 0:
             return 'imap({' + effstr + '})'
         elif len(self.plan.efferents) == 0:
@@ -489,7 +489,7 @@ class IMap(colls.Mapping):
           cache files in the given cpath directory.
         '''
         if not os.path.isdir(cpath): os.makedirs(cpath)
-        for (k,v) in arg.iteritems():
+        for (k,v) in six.iteritems(arg):
             save(os.path.join(cpath, k + '.pp'), v, create_directories=True, overwrite=True)
         return True
     def _uncache(self, cpath, node, ureg):
@@ -551,7 +551,7 @@ class IMap(colls.Mapping):
         # ensure we have a result
         if res is None: res = node(self)
         # process the result:
-        effs = reduce(lambda m,(k,v): m.set(k,v), res.iteritems(), self.efferents)
+        effs = reduce(lambda m,(k,v): m.set(k,v), six.iteritems(res), self.efferents)
         object.__setattr__(self, 'efferents', effs)
         # Handle the caching if needed:
         if h is not None:
@@ -578,12 +578,12 @@ class IMap(colls.Mapping):
         affs = self.afferents
         pln = self.plan
         # make sure these are all valid parameters
-        if any(k not in affs for k in args.iterkeys()):
+        if any(k not in affs for k in six.iterkeys(args)):
             raise TypeError(
                 'The given key \'%s\' is not an afferent parameter of IMap object')
         # okay, we can make the change...
         new_calc_dict = copy.copy(self)
-        new_affs = reduce(lambda m,(k,v): m.set(k,v), args.iteritems(), affs)
+        new_affs = reduce(lambda m,(k,v): m.set(k,v), six.iteritems(args), affs)
         object.__setattr__(new_calc_dict, 'afferents', new_affs)
         # we need to run checks and delete any cache that has been invalidated.
         # The calculation's check method does this; it raises an exception if there is an error
@@ -600,7 +600,7 @@ class IMap(colls.Mapping):
         # make a copy of the plan first:
         new_plan = self.plan.tr(d)
         # now use that plan to re-initialize ourself
-        return new_plan(**{(d[k] if k in d else k):v for (k,v) in self.afferents.iteritems()})
+        return new_plan(**{(d[k] if k in d else k):v for (k,v) in six.iteritems(self.afferents)})
 
 ####################################################################################################
 # Identification functions for these types

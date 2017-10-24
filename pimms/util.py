@@ -141,7 +141,7 @@ def qhashform(o):
     elif isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.number):
         return ('__#ndarray', o.tobytes())
     elif isinstance(o, (set, frozenset)): return ('__#set', tuple([qhashform(x) for x in o]))
-    elif is_map(o): return ps.pmap({qhashform(k):qhashform(v) for (k,v) in o.iteritems()})
+    elif is_map(o): return ps.pmap({qhashform(k):qhashform(v) for (k,v) in six.iteritems(o)})
     elif hasattr(o, '__iter__'): return tuple([qhashform(u) for u in o])
     else: return o
 def qhash(o):
@@ -170,7 +170,7 @@ def _load_stream_format(stream, fmt):
     fdat = io_formats[fmt]
     return fdat['read'](stream)
 def _save_stream(stream, obj):
-    for (fmt,fdat) in io_formats.iteritems():
+    for (fmt,fdat) in six.iteritems(io_formats):
         if not _check_io_format(obj, fmt): continue
         s = strio.StringIO()
         try:
@@ -624,10 +624,10 @@ def merge(*args, **kwargs):
     args = tuple(arg for arg0 in args for arg in ([arg0] if is_map(arg0) else arg0))
     if not all(is_map(arg) for arg in args):
         raise ValueError('marge requires Mapping collections')
-    all_keys = reduce(lambda r,s: r|s, [set(m.iterkeys()) for m in args])
+    all_keys = reduce(lambda r,s: r|s, [set(six.iterkeys(m)) for m in args])
     choose_fn = None
     if 'choose' in kwargs: choose_fn = kwargs['choose']
-    kwargs = set(kwargs.iterkeys()) - set(['choose'])
+    kwargs = set(six.iterkeys(kwargs)) - set(['choose'])
     if len(kwargs) != 0:
         raise ValueError('Unidentified options given to merge: %s' (list(kwargs),))
     if choose_fn is None: choose_fn = _choose_last

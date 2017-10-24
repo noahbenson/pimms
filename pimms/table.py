@@ -35,13 +35,13 @@ class ITable(colls.Mapping):
     def __getstate__(self):
         d = self.__dict__.copy()
         d['data'] = {k:(mag(v), unit(v)) if is_quantity(v) else (v, None)
-                     for (k,v) in self.data.iteritems()}
+                     for (k,v) in six.iteritems(self.data)}
         return d
     def __setstate__(self, d):
         dat = d['data']
         object.__setattr__(self, 'data',
                            ps.pmap({k:(imm_array(v) if u is None else iquant(v, u))
-                                    for (k,(u,v)) in dat.iteritems()}))
+                                    for (k,(u,v)) in six.iteritems(dat)}))
     @staticmethod
     def _filter_col(vec):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
@@ -65,9 +65,9 @@ class ITable(colls.Mapping):
             def _make_lambda(k): return (lambda:ITable._filter_col(d[k]))
             return lazy_map(
                 {k:_make_lambda(k) if d.is_lazy(k) else ITable._filter_col(d[k])
-                 for k in d.iterkeys()})
+                 for k in six.iterkeys(d)})
         elif isinstance(d, colls.Mapping):
-            return lazy_map({k:ITable._filter_col(v) for (k,v) in d.iteritems()})
+            return lazy_map({k:ITable._filter_col(v) for (k,v) in six.iteritems(d)})
         else:
             raise ValueError('Unable to interpret data argument; must be a mapping')
     @param
@@ -84,7 +84,7 @@ class ITable(colls.Mapping):
         '''
         if not isinstance(data, ps.PMap):
             raise ValueError('data is required to be a persistent map')
-        if not all(isinstance(k, six.string_types) for k in data.iterkeys()):
+        if not all(isinstance(k, six.string_types) for k in six.iterkeys(data)):
             raise ValueError('data keys must be strings')
         return True
     @require
@@ -99,7 +99,7 @@ class ITable(colls.Mapping):
         '''
         itbl.column_names is a tuple of the names of the columns of the data table.
         '''
-        return tuple(data.iterkeys())
+        return tuple(six.iterkeys(data))
     @value
     def row_count(data, _row_count):
         '''
@@ -109,19 +109,21 @@ class ITable(colls.Mapping):
             return 0
         elif _row_count:
             return _row_count
-        else:
+        elif is_lazy_map(data):
             # if data is a lazy map, we look first for a column that isn't lazy:
             k = next(data.iternormal(), None)
             k = k if k else next(data.itermemoized(), None)
             k = k if k else next(data.iterkeys())
             return len(data[k])
+        else:
+            return len(next(six.itervalues(data), []))
     @value
     def columns(data, row_count):
         '''
         itbl.columns is a tuple of the columns in the given datatable itbl. Anything that depends on
         columns includes a de-facto check that all columns are the same length.
         '''
-        cols = tuple(v for v in data.itervalues())
+        cols = tuple(v for v in six.itervalues(data))
         if not all(len(c) == row_count for c in cols):
             raise ValueError('itable columns do not all have identical lengths!')
         return cols
@@ -154,9 +156,9 @@ class ITable(colls.Mapping):
             # This is an awful slow way to do things
             def _make_lambda(k):
                 return lambda:_ndarray_assoc(dat[k], k, v[k]) if k in v else dat[k]
-            new_map = {k:_make_lambda(k) for k in dat.iterkeys()}
+            new_map = {k:_make_lambda(k) for k in six.iterkeys(dat)}
             nones = np.full((self.row_count,), None)
-            for (vk,v) in v.iteritems():
+            for (vk,v) in six.iteritems(v):
                 if vk not in new_map:
                     new_map[vk] = _ndarray_assoc(nones, k, v)
             return ITable(lazy_map(new_map), n=self.row_count)
@@ -172,7 +174,7 @@ class ITable(colls.Mapping):
                 v = np.asarray(v)
                 if len(v) == self.row_count and v.shape[1] == len(k): v = v.T
                 v = {kk:self._filter_col(vv) for (kk,vv) in zip(k,v)}
-            for kk in v.iterkeys():
+            for kk in six.iterkeys(v):
                 def _make_lambda(k): return (lambda:self._filter_col(v[kk]))
                 newdat = newdat.set(kk, _make_lambda(kk) if kk in v else nones)
             return ITable(newdat, n=self.row_count)
@@ -189,11 +191,11 @@ class ITable(colls.Mapping):
                         vals[k] if k in vals else knones)
                 dat = reduce(
                     lambda m,k: m.set(k, _make_lambda(k)),
-                    (vals.data if isinstance(vals, ITable) else vals).iterkeys(),
+                    six.iteritems(vals.data if isinstance(vals, ITable) else vals),
                     dat)
             else:
                 def _make_lambda(k): return lambda:np.asarray([v[k] for v in vals])
-                cols = lazy_map({k:_make_lambda(k) for k in vals[0].iterkeys()})
+                cols = lazy_map({k:_make_lambda(k) for k in six.iterkeys(vals[0])})
                 def _make_lambda(k):
                     return lambda:_ndarray_assoc(
                         dat[k] if k in dat else nones,
@@ -201,7 +203,7 @@ class ITable(colls.Mapping):
                         cols[k])
                 dat = reduce(
                     lambda m,k: m.set(k, _make_lambda(k)),
-                    vals[0].iterkeys(),
+                    six.iterkeys(vals[0]),
                     dat)
             return ITable(dat, n=self.row_count)
     def discard(self, cols):
@@ -215,12 +217,12 @@ class ITable(colls.Mapping):
         if isinstance(cols, (slice, six.integer_types)) or \
            (iterq and isinstance(cols[0], six.integer_types)):
             def _make_lambda(k): return lambda:np.delete(dat[k], cols, 0)
-            newdat = lazy_map({k:_make_lambda(k) for k in dat.iterkeys()})
+            newdat = lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)})
             return ITable(newdat, n=len(np.delete(np.ones((self.row_count,)), cols, 0)))
         elif isinstance(cols, six.string_types) or (iterq and isinstance(cols[0], six.string_types)):
             cols = set(cols if iterq else [cols])
             def _make_lambda(k): return lambda:dat[k]
-            return ITable(lazy_map({k:_make_lambda(k) for k in dat.iterkeys() if k not in cols}),
+            return ITable(lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat) if k not in cols}),
                           n=self.row_count)
         else:
             raise ValueError('ITable.discard requires integers or strings')
@@ -278,7 +280,7 @@ class ITable(colls.Mapping):
             dat = self.data
             def _make_lambda(k): return lambda:dat[k][arg]
             return ITable(
-                lazy_map({k:_make_lambda(k) for k in dat.iterkeys()}),
+                lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)}),
                 n=len(keepers))
     def merge(self, *args, **kwargs):
         '''
@@ -309,18 +311,18 @@ class ITable(colls.Mapping):
             dat = self.data
             def _make_lambda(k): return lambda:dat[k][rows]
             return ITable(
-                lazy_map({k:_make_lambda(k) for k in dat.iterkeys()}),
+                lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)}),
                 n=n)
         else:
             rows = set(rows)
             dat = self.data
             return ITable(
-                reduce(lambda m,k: m if k in rows else m.remove(k), dat.iterkeys(), dat),
+                reduce(lambda m,k: m if k in rows else m.remove(k), six.iterkeys(dat), dat),
                 n=self.row_count)
     def __repr__(self):
         return 'itable(%s, <%d rows>)' % (self.column_names, self.row_count)
     def __iter__(self):
-        return self.data.iterkeys()
+        return six.iterkeys(self.data)
     def __len__(self):
         return len(self.data)
     def __contains__(self, k):
@@ -348,13 +350,13 @@ def itable(*args, **kwargs):
     elif len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], ITable):
         return args[0]
     # see if we can deduce the row size from a non-lazy argument:
-    v = next((m[k] for m in args for k in m.iterkeys()
+    v = next((m[k] for m in args for k in six.iterkeys(m)
               if ((is_lazy_map(m) and not m.is_lazy(k))
                   or
                   (not is_lazy_map(m) and not isinstance(m[k], types.FunctionType)))),
               None)
     if v is None:
-        v = next((v for v in kwargs.itervalues() if not isinstance(v, types.FunctionType)), None)
+        v = next((v for v in six.itervalues(kwargs) if not isinstance(v, types.FunctionType)), None)
     return ITable(ps.pmap(merge(args, kwargs)), n=(None if v is None else len(v)))
 def is_itable(arg):
     '''

@@ -3,7 +3,7 @@
 # Simple class decorator for immutable lazily-loading classes.
 # By Noah C. Benson
 
-import copy, inspect, types
+import copy, inspect, types, six
 from .util import qhash
 
 # An immutable has three important values in the _neuropythy_immutable_data_ attribute of its class:
@@ -61,7 +61,7 @@ def _imm_const_data(imm):
     return type(imm)._neuropythy_immutable_data_['consts']
 def _imm_clear(imm):
     dd = object.__getattribute__(imm, '__dict__')
-    for val in _imm_value_data(imm).iterkeys():
+    for val in six.iterkeys(_imm_value_data(imm)):
         if val in dd:
             del dd[val]
     return imm
@@ -97,7 +97,7 @@ def _imm_default_init(self, *args, **kwargs):
     by any number of keyword args and to turn them all into the parameters of the immutable that is
     being created.
     '''
-    for (k,v) in {k:v for dct in (args + (kwargs,)) for (k,v) in dct}.iteritems():
+    for (k,v) in six.iteritems({k:v for dct in (args + (kwargs,)) for (k,v) in dct}):
         setattr(self, k, v)
 def _imm_init_getattribute(self, name):
     '''
@@ -193,7 +193,7 @@ def _imm_trans_setattr(self, name, value):
             if old_deps:
                 # in this case, something didn't check-out, so we return the old deps and let the
                 # exception ride; we also return the original value of the edited param
-                for (dep,val) in old_deps.iteritems():
+                for (dep,val) in six.iteritems(old_deps):
                     dd[dep] = val
                 dd[name] = orig_value
     else:
@@ -251,7 +251,7 @@ def _imm_dir(self):
     '''
     dir0 = object.__dir__(self)
     values = _imm_value_data(self)
-    for val in values.iterkeys():
+    for val in six.iterkeys(values):
         if val not in dir0:
             dir0.append(val)
     return dir0
@@ -261,7 +261,7 @@ def _imm_repr(self):
     '''
     return (type(self).__name__
             + ('(' if _imm_is_persist(self) else '*(')
-            + ', '.join([k + '=' + str(v) for (k,v) in imm_params(self).iteritems()])
+            + ', '.join([k + '=' + str(v) for (k,v) in six.iteritems(imm_params(self))])
             + ')')
 def _imm_new(cls):
     '''
@@ -271,7 +271,7 @@ def _imm_new(cls):
     # Note that right now imm has a normal setattr method;
     # Give any parameter that has one a default value
     params = cls._neuropythy_immutable_data_['params']
-    for (p,dat) in params.iteritems():
+    for (p,dat) in six.iteritems(params):
         dat = dat[0]
         if dat: object.__setattr__(imm, p, dat[0])
     # Clear any values; they are not allowed yet
@@ -291,7 +291,7 @@ def _imm__copy__(self):
     sd = object.__getattribute__(self, '__dict__')
     dd = object.__getattribute__(dup,  '__dict__')
     del dd['_neuropythy_immutable_is_init']
-    for (k,v) in sd.iteritems():
+    for (k,v) in six.iteritems(sd):
         dd[k] = v
     return dup
     
@@ -303,7 +303,7 @@ def _imm_init_to_trans(imm):
     if not _imm_is_init(imm):
         raise RuntimeError(
             'Attempted to change non-initializing immutable from initializing to transient')
-    if not all(p in dd for p in params.iterkeys()):
+    if not all(p in dd for p in six.iterkeys(params)):
         raise RuntimeError('Not all parameters were set prior to accessing values')
     # Okay, we can run the checks now; we need to remove init status, though...
     del dd['_neuropythy_immutable_is_init']
@@ -370,7 +370,7 @@ def imm_copy(imm, **kwargs):
         all_checks = set([])
         all_deps = set([])
         params = _imm_param_data(imm)
-        for (p,v) in kwargs.iteritems():
+        for (p,v) in six.iteritems(kwargs):
             if p not in params:
                 raise ValueError('attempt to set non-parameter \'%s\' in imm_copy()' % p)
             (_, tx_fn, arg_lists, check_fns, deps) = params[p]
@@ -389,11 +389,11 @@ def imm_copy(imm, **kwargs):
                     'Requirement \'%s%s\' failed when copying immutable' % (check_fn, arg_list))
     elif _imm_is_trans(dup):
         # we set values then want it persisted...
-        for (p,v) in kwargs.iteritems(): setattr(dup, p, v)
+        for (p,v) in six.iteritems(kwargs): setattr(dup, p, v)
         _imm_trans_to_persist(dup)
     else:
         # this is an initial-state immutable...
-        for (p,v) in kwargs.iteritems(): setattr(dup, p, v)
+        for (p,v) in six.iteritems(kwargs): setattr(dup, p, v)
         _imm_init_to_trans(dup)
         _imm_trans_to_persist(dup)
     return dup
@@ -401,14 +401,14 @@ def imm_params(imm):
     '''
     imm_params(imm) yields a dictionary of the parameters of the immutable object imm.
     '''
-    return {p: getattr(imm, p) for p in _imm_param_data(imm).iterkeys()}
+    return {p: getattr(imm, p) for p in six.iterkeys(_imm_param_data(imm))}
 def imm_values(imm):
     '''
     imm_values(imm) yields a dictionary of the values of the immutable object imm. Note that this
     forces all of the values to be reified, so only use it if you want to force execution of all
     lazy values.
     '''
-    return {p: getattr(imm, p) for p in _imm_value_data(imm).iterkeys()}
+    return {p: getattr(imm, p) for p in six.iterkeys(_imm_value_data(imm))}
 def imm_dict(imm):
     '''
     imm_dict(imm) yields a persistent dictionary of the params and values of the immutable
@@ -416,7 +416,7 @@ def imm_dict(imm):
     force execution of all lazy values.
     '''
     immd = dict(**imm_params(imm))
-    for (k,v) in imm_values(imm).iteritems():
+    for (k,v) in six.iteritems(imm_values(imm)):
         immd[k] = v
     return immd
 def imm_is_persistent(imm):
@@ -505,13 +505,13 @@ def require(f):
 def _imm_trans_clos(edges):
     closure = {k: set([]) for e in edges for k in e}
     for (src,dst) in edges:   closure[src].add(dst)
-    for (src,dst) in closure.iteritems():
+    for (src,dst) in six.iteritems(closure):
         if len(dst) == 0:
             closure[src] = []
     running = True
     while running:
         running = False
-        for (src,dsts) in closure.iteritems():
+        for (src,dsts) in six.iteritems(closure):
             if isinstance(dsts, list): continue
             new_dsts = dsts.copy()
             for dst in dsts:
@@ -522,7 +522,7 @@ def _imm_trans_clos(edges):
                     new_dsts |= further_dsts
                     running = True
             closure[src] = list(dsts) if new_dsts == dsts else new_dsts
-    return set([(src,dst) for (src,dsts) in closure.iteritems() for dst in dsts])
+    return set([(src,dst) for (src,dsts) in six.iteritems(closure) for dst in dsts])
 def _imm_resolve_deps(cls):
     '''
     _imm_resolve_deps(imm_class) resolves the dependencies of the given immutable class imm_class
@@ -536,7 +536,7 @@ def _imm_resolve_deps(cls):
     members = params.keys() + values.keys()
     mem_ids = {k:i for (i,k) in enumerate(members)}
     # make sure that every input that's not already a value or param becomes a param:
-    all_inputs = [v[0] for v in values.itervalues()] + [c[0] for c in checks.itervalues()]
+    all_inputs = [v[0] for v in six.itervalues(values)] + [c[0] for c in six.itervalues(checks)]
     all_inputs = set([i for inp in all_inputs for i in inp])
     extra_inputs = [i for i in all_inputs if i not in mem_ids]
     for i in extra_inputs:
@@ -545,7 +545,7 @@ def _imm_resolve_deps(cls):
         members.append(i)
     # create a graph of the dependencies:
     dep_edges = set([])
-    for (v,(inputs,_,_)) in values.iteritems():
+    for (v,(inputs,_,_)) in six.iteritems(values):
         for i in inputs:
             dep_edges.add((mem_ids[v], mem_ids[i]))
     # get the transitive closure...
@@ -560,16 +560,16 @@ def _imm_resolve_deps(cls):
         elif mdpcy in values:
             values[mdpcy][2].append(mdpdt)
     # last major task is to setup the checks
-    deps2params = {v: set([]) for v in values.iterkeys()}
-    for (p,pd) in params.iteritems():
+    deps2params = {v: set([]) for v in six.iterkeys(values)}
+    for (p,pd) in six.iteritems(params):
         for v in pd[4]:
             deps2params[v].add(p)
-    deps2consts = {v: set([]) for v in values.iterkeys()}
-    for c in consts.iterkeys():
+    deps2consts = {v: set([]) for v in six.iterkeys(values)}
+    for c in six.iterkeys(consts):
         deps = values[c][2]
         for v in deps:
             deps2consts[v].add(c)
-    for (c,(arg_list,check_fn)) in checks.iteritems():
+    for (c,(arg_list,check_fn)) in six.iteritems(checks):
         param_list = set([])
         const_list = set([])
         for a in arg_list:
@@ -602,18 +602,18 @@ def _imm_merge_class(cls, parent):
     pdat = parent._neuropythy_immutable_data_
     # for params, values, and checks, we add them to cls only if they do not already exist in cls
     cparams = cdat['params']
-    for (param, (dflt, tx_fn, arg_lists, check_fns, deps)) in pdat['params'].iteritems():
+    for (param, (dflt, tx_fn, arg_lists, check_fns, deps)) in six.iteritems(pdat['params']):
         if param not in cparams:
             cparams[param] = (dflt, tx_fn, [], [], [])
     cvalues = cdat['values']
     cconsts = cdat['consts']
-    for (value, (arg_list, calc_fn, deps)) in pdat['values'].iteritems():
+    for (value, (arg_list, calc_fn, deps)) in six.iteritems(pdat['values']):
         if value not in cvalues:
             cvalues[value] = (arg_list, calc_fn, [])
             if len(arg_list) == 0:
                 cconsts[value] = ([], [])
     cchecks = cdat['checks']
-    for (check, (arg_list, check_fn)) in pdat['checks'].iteritems():
+    for (check, (arg_list, check_fn)) in six.iteritems(pdat['checks']):
         if check not in cchecks:
             cchecks[check] = (arg_list, check_fn)
     # That's it for now
