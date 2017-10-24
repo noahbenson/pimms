@@ -5,6 +5,7 @@
 
 import copy, inspect, types, os, sys, re, warnings, pickle, pint, six
 import pyrsistent as ps, numpy as np
+from functools import reduce
 from .util  import (merge, is_pmap, is_map, is_lazy_map, is_quantity, quant, mag, units, qhash,
                     save, load)
 from .table import (itable, is_itable)

@@ -6,6 +6,7 @@
 import copy, inspect, types, sys, pint, six
 import numpy                      as     np
 import pyrsistent                 as     ps
+from   functools                  import reduce
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
                                           is_quantity, is_unit, quant, iquant, mag, unit, qhash,
                                           units, imm_array)

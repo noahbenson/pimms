@@ -5,6 +5,7 @@
 
 import inspect, types, sys, six, pint, os, numbers
 import numpy as np, pyrsistent as ps
+from functools import reduce
 try:    import cStringIO as strio
 except: import StringIO  as strio
 try:    import cPickle   as pickle
