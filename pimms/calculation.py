@@ -3,7 +3,7 @@
 # Decorator and class definition for functional calculations.
 # By Noah C. Benson
 
-import copy, inspect, types, os, sys, re, itertools, warnings, pickle, shutil, pint
+import copy, inspect, types, os, sys, re, warnings, pickle, pint, six
 import pyrsistent as ps, numpy as np
 from .util  import (merge, is_pmap, is_map, is_lazy_map, is_quantity, quant, mag, units, qhash,
                     save, load)
@@ -28,7 +28,7 @@ class Calc(object):
         res = {'afferent': {}, 'efferent': {}}
         try:
             s = f.__doc__
-            assert(isinstance(s, basestring))
+            assert(isinstance(s, six.string_types))
         except:
             return res
         lines = s.split('\n')
@@ -128,7 +128,7 @@ class Calc(object):
         b, etc. have been removed. In the new node that is returned, these parameters will be
         required.
         '''
-        rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, basestring) else aa))
+        rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, six.string_types) else aa))
         new_defaults = ps.pmap({k:v for (k,v) in args.iteritems() if k not in rms})
         new_cnode = copy.copy(self)
         object.__setattr__(new_cnode, 'defaults', new_defaults)
@@ -138,7 +138,7 @@ class Calc(object):
         node.remove_defaults(a, b...) is identical to node.discard_defaults(a, b...) except that
         it raises a KeyError if any of the given arguments are not already defaults.
         '''
-        rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, basestring) else aa))
+        rms = set(arg for aa in args for arg in ([aa] if isinstance(aa, six.string_types) else aa))
         for arg in rms:
             if arg not in self.defaults:
                 raise KeyError('{0}'.format(arg))
@@ -163,7 +163,7 @@ class Calc(object):
         fn = self.function
         def _tr_fn_wrapper(*args, **kwargs):
             res = fn(*args, **kwargs)
-            if isinstance(res, types.Mapping):
+            if isinstance(res, colls.Mapping):
                 return {(d[k] if k in d else k):v for (k,v) in res.iteritems()}
             else:
                 return res
@@ -644,7 +644,7 @@ def calc(*args, **kwargs):
     (lazy, meta, cache, mem) = [kwargs.get(nm,df) for (nm,df) in zip(opt_names, opt_dflts)]
     if len(kwargs) != len([k for k in opt_names if k in kwargs]):
         raise ValueError('calc accepts only the options lazy, meta, and cache')
-    if len(args) == 1 and not isinstance(args[0], basestring):
+    if len(args) == 1 and not isinstance(args[0], six.string_types):
         if isinstance(args[0], types.FunctionType):
             f = args[0]
             effs = (f.__name__,)
@@ -670,7 +670,7 @@ def calc(*args, **kwargs):
             raise ValueError('calc only accepts strings, None, or no argument')
     elif len(args) < 1:
         raise ValueError('calc should be used as a function decorator')
-    elif not all(isinstance(arg, basestring) for arg in args):
+    elif not all(isinstance(arg, six.string_types) for arg in args):
         raise ValueError('@calc(...) requires that all arguments be keyword strings')
     else:
         effs = tuple(args)

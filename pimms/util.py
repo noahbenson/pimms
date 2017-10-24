@@ -3,7 +3,7 @@
 # Utility classes for functional programming with pimms!
 # By Noah C. Benson
 
-import copy, inspect, types, sys, six, pint, os
+import inspect, types, sys, six, pint, os, numbers
 import numpy as np, pyrsistent as ps
 try:    import cStringIO as strio
 except: import StringIO  as strio
@@ -16,35 +16,109 @@ units.define('pixel = [image_length] = px')
 if sys.version_info[0] == 3: from   collections import abc as colls
 else:                        import collections            as colls
 
-def is_quantity(q):
-    '''
-    is_quantity(q) yields True if q is a pint quantity and False otherwise.
-    '''
-    cls = type(q)
-    return cls.__module__.startswith('pint.') and cls.__name__ == 'Quantity'
+
 def is_unit(q):
     '''
-    is_unit(q) yields True if q is a pint unit and False otherwise.
+    is_unit(q) yields True if q is a pint unit or a string that names a pint unit and False
+      otherwise.
     '''
-    cls = type(q)
-    return cls.__module__ == 'pint.unit' and cls.__name__ == 'Unit'
-def quant(val, unit):
+    if isinstance(q, six.string_types):
+        return hasattr(units, q)
+    else:
+        cls = type(q)
+        return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
+def is_quantity(q):
     '''
-    quant(value, unit) returns a quantity with the given unit; if value is not currently a quantity,
-      then value * unit is returned; if value is a quantity, then it is coerced into the given unit;
-      this may raise an error if the units are not compatible.
+    is_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) and False otherwise.
     '''
-    return val.to(unit) if is_quantity(val) else units.Quantity(val, unit)
-def mag(val, unit=Ellipsis):
+    if isinstance(q, tuple):
+        return len(q) == 2 and is_unit(q[1])
+    else:
+        cls = type(q)
+        return cls.__module__.startswith('pint.') and cls.__name__ == 'Quantity'
+def unit(u):
     '''
-    mag(value) returns the magnitide of the given value; if value is not a quantity, then value is
-      returned; if value is a quantity, then its magnitude is returned. If the option unit is given
-      then, if the val is quantity, it is cast to the given unit before being the magnitude is
-      returned, otherwise it is returned alone
+    unit(u) yields the pimms-library unit object for the given unit object u (which may be from a
+      separate pint.UnitRegistry instance).
+    unit(uname) yields the unit object for the given unit name uname.
+    unit(None) yields None.
+    unit(q) yields the unit of the given quantity q.
     '''
-    return (val   if not is_quantity(val) else 
-            val.m if unit is Ellipsis     else
-            val.to(unit).m)
+    if u is None:    return None
+    elif is_unit(u): return getattr(units, str(u))
+    elif is_quantity(u):
+        if isinstance(u, tuple): return getattr(units, str(u[1]))
+        else: return getattr(units, str(u.u))
+    else:
+        raise ValueError('unrecotnized unit argument')
+def mag(val, u=Ellipsis):
+    '''
+    mag(scalar) yields scalar for the given scalar (numeric value without a unit).
+    mag(quant) yields the scalar magnitude of the quantity quant.
+    mag(scalar, u=u) yields scalar.
+    mag(quant, u=u) yields the given magnitude of the given quant after being translated into the
+      given unit u.
+
+    The quant arguments in the above list may be replaced with (scalar, unit) as in (10, 'degrees')
+    or (14, 'mm'). Note that mag always translates all lists and tuples into numpy ndarrays.
+    '''
+    if not is_quantity(val): return val
+    if isinstance(val, tuple):
+        val = units.Quantity(val[0], val[1])
+    return val.m if u is Ellipsis else val.to(unit(u)).m
+def imm_array(q):
+    '''
+    imm_array(val) yields a version of val that is wrapped in numpy's ndarray class. If val is a
+      read-only numpy array, then it is returned as-is; if it is not, then it is cast copied to a
+      numpy array, duplicated, the read-only flag is set on the new object, and then it is returned.
+    '''
+    if is_quantity(q):
+        m = mag(q)
+        mm = imm_array(m)
+        return q if mm is m else units.Quantity(mm, unit(q))
+    elif not isinstance(q, np.ndarray) or q.flags['WRITEABLE']:
+        q = np.array(q)
+        q.setflags(write=False)
+    return q
+def quant(val, u=Ellipsis):
+    '''
+    quant(scalar) yields a dimensionless quantity with the magnitude given by scalar.
+    quant(q) yields q for any quantity q; if q is not part of the pimms units registry, then a
+      version of q registered to pimms.units is yielded. Note that q is a quantity if
+      pimms.is_quantity(q) is True.
+    quant(x, u) yields the given scalar or quantity x converted to the given unit u; if x is a scalar
+      or a dimensionless quantity, then the unit u is given to the new quantity with no conversion;
+      otherwise, x must be a quantity whose unit can be converted into the unit u.
+    '''
+    if is_quantity(val):
+        if isinstance(val, tuple) or val._REGISTRY is not units:
+            val = units.Quantity(mag(val), unit(val))
+        return val if u is Ellipsis else val.to(unit(u))
+    else:
+        return units.Quantity(val, units.dimensionless if u is Ellipsis else unit(u))
+def iquant(val, u=Ellipsis):
+    '''
+    iquant(...) is equivalent to quant(...) except that the magnitude of the return value is always
+      a read-only numpy array object.
+    '''
+    if u is not Ellipsis: u = unit(u)
+    if is_quantity(val):
+        uu = unit(val)
+        if u is Ellipsis or u == uu:
+            # no conversion necessary; might be able to reuse old array
+            m  = mag(val)
+            mm = imm_array(m)
+            if m is not mm or isinstance(val, tuple) or val._REGISTRY is not units:
+                val = units.Quantity(mm, uu)
+            return val
+        else:
+            # we convert to another type first, then make an imm array
+            if isinstance(val, tuple) or val._REGISTRY is not units:
+                val = units.Quantity(mag(val), uu)
+            v = val.to(u)
+            return units.Quantity(imm_array(v.m), v.u)
+    else:
+        return units.Quantity(imm_array(val), units.dimensionless if u is Ellipsis else unit(u))
 def like_units(a, b):
     '''
     like_units(a,b) yields True if a and b can be cast to each other in terms of units and False
@@ -110,7 +184,7 @@ def _save_stream(stream, obj):
 def _load_stream(stream):
     try:    fmt = pickle.load(stream)
     except: raise ValueError('could not unpickle format; probably not a pimms save file')
-    if not isinstance(fmt, basestring):
+    if not isinstance(fmt, six.string_types):
         raise ValueError('file format object is not a string; probably not a pimms save file')
     if fmt not in io_formats:
         raise ValueError('file has unrecognized format \'%s\'' % fmt)
@@ -134,7 +208,7 @@ def save(filename, obj, overwrite=False, create_directories=False):
         function should attempt to create the directories in which the filename exists if they do
         not already exist.
     '''
-    if isinstance(filename, basestring):
+    if isinstance(filename, six.string_types):
         filename = os.path.expanduser(filename)
         if not overwrite and os.path.exists(filename):
             raise ValueError('save would overwrite file %s' % filename)
@@ -171,13 +245,214 @@ def load(filename, ureg='pimms'):
         finally:
             pint._APP_REGISTRY     = orig_app_ureg
             pint._DEFAULT_REGISTRY = orig_dfl_ureg
-    if isinstance(filename, basestring):
+    if isinstance(filename, six.string_types):
         filename = os.path.expanduser(filename)
         with open(filename, 'r') as f:
             return _load_stream(f)
     else:
         return _load_stream(filename)
 
+def is_str(arg):
+    '''
+    is_str(x) yields True if x is a string object and False otherwise.
+    '''
+    return isinstance(arg, six.string_types)
+def is_class(arg):
+    '''
+    is_class(x) yields True if x is a class object and False otherwise.
+    '''
+    return isinstance(arg, six.class_types)
+
+# type translations:
+_numpy_type_names = {'int':     np.integer,
+                     'float':   np.floating,
+                     'inexact': np.inexact,
+                     'complex': np.complexfloating,
+                     'real':    (np.integer, np.floating),
+                     'number':  np.number,
+                     'bool':    np.bool_,
+                     'any':     np.generic}
+def numpy_type(type_id):
+    '''
+    numpy_type(type) yields a valid numpy type for the given type argument. The type argument may be
+      a numpy type such as numpy.bool, or it may be a string that labels a numpy type.
+
+    Valid numpy type strings include:
+      * 'int'
+      * 'float'
+      * 'real'
+      * 'complex'
+      * 'number'
+      * 'bool'
+      * 'any'
+    '''
+    if is_str(type_id):                                    return _numpy_type_names[type_id.lower()]
+    elif np.issubdtype(type_id, np.generic):               return type_id
+    elif type_id in six.integer_types:                     return _numpy_type_names['int']
+    elif type_id is float:                                 return _numpy_type_names['float']
+    elif type_id is numbers.Real:                          return _numpy_type_names['real']
+    elif type_id is complex or type_id is numbers.Complex: return _numpy_type_names['complex']
+    elif type_id is bool:                                  return _numpy_type_names['bool']
+    elif type_id is None:                                  return _numpy_type_names['any']
+    else: raise ValueError('Could not deduce numpy type for %s' % type_id)
+
+def is_nparray(u, dtype=None, dims=None):
+    '''
+    is_nparray(u) yields True if u is an instance of a numpy array and False otherwise.
+    is_nparray(u, dtype) yields True if is_array(u) and the dtype of u is a sub-dtype of the given
+      dtype.
+    is_nparray(u, dtype, dims) yields True if is_array(u, dtype) and the number of dimensions is
+      equal to dims (note that dtype may be set to None for no dtype requirement).
+    
+    Note that either dims or dtype may be None to indicate no requirement; additionally, either may
+    be a tuple to indicate that the dtype or dims may be any of the given values.
+
+    See also: is_npscalar, is_npvector, is_npmatrix, is_array, is_scalar, is_vector, is_matrix
+    '''
+    if   is_quantity(u):                return is_array(mag(u), dtype=dtype, dims=dims)
+    elif not isinstance(u, np.ndarray): return False
+    # it's an array... check dtype
+    if dtype is not None:
+        if is_str(dtype): dtype = numpy_type(dtype)
+        if isinstance(dtype, types.TupleType):
+            if not any(np.issubdtype(u.dtype, d) for d in dtype):
+                return False
+        elif not np.issubdtype(u.dtype, dtype):
+            return False
+    # okay, the dtype is fine; check the dims
+    if dims is None: return True
+    if isinstance(dims, types.TupleType):
+        return len(u.shape) in dims
+    else:
+        return len(u.shape) == dims
+def is_npscalar(u, dtype=None):
+    '''
+    is_npscalar(u) yields True if u is an instance of a numpy array with 0 shape dimensions.
+    is_npscalar(u, dtype) additionally requires that u have a dtype that is a sub-dtype of the given
+      dtype.
+
+    See also: is_nparray, is_npvector, is_npmatrix, is_array, is_scalar, is_vector, is_matrix
+    '''
+    return is_nparray(u, dtype=dtype, dims=0)
+def is_npvector(u, dtype=None):
+    '''
+    is_npvector(u) yields True if u is an instance of a numpy array with one shape dimension.
+    is_npvector(u, dtype) additionally requires that u have a dtype that is a sub-dtype of the given
+      dtype.
+
+    See also: is_nparray, is_npscalar, is_npmatrix, is_array, is_scalar, is_vector, is_matrix
+    '''
+    return is_nparray(u, dtype=dtype, dims=1)
+def is_npmatrix(u, dtype=None):
+    '''
+    is_npmatrix(u) yields True if u is an instance of a numpy array with two shape dimensions.
+    is_npmatrix(u, dtype) additionally requires that u have a dtype that is a sub-dtype of the given
+      dtype.
+
+    See also: is_nparray, is_npscalar, is_npvector, is_array, is_scalar, is_vector, is_matrix
+    '''
+    return is_array(u, dtype=dtype, dims=2)
+def is_npgeneric(u, dtype=None):
+    '''
+    is_npgeneric(u) yields True if u is a numpy generic type object.
+    is_npgeneric(u, dtype) yields True if u is a numpy generic type object and u's type is a subdtype
+      of the given dtype.
+    '''
+    if is_str(dtype): dtype = numpy_type(dtype)
+    return np.issubdtype(type(u), np.generic if dtype is None else dtype)
+
+def is_array(u, dtype=None, dims=None):
+    '''
+    is_array(u) is equivalent to is_nparray(np.asarray(u)), meaning is_array(u) will always yield
+      True, but is_array(u, dtype, dims) may not.
+
+    See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_scalar, is_vector, is_matrix
+    '''
+    if is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
+    else:              return is_nparray(np.asarray(u), dtype=dtype, dims=dims)
+def is_scalar(u, dtype=None):
+    '''
+    is_scalar(u) is equivalent to is_npscalar(np.asarray(u)).
+    is_scalar(u, dtype) is equivalent to is_npscalar(np.asarray(u), dtype).
+
+    See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_array, is_vector, is_matrix
+    '''
+    return is_array(u, dtype=dtype, dims=0)
+def is_vector(u, dtype=None):
+    '''
+    is_vector(u) is equivalent to is_npvector(np.asarray(u)).
+    is_vector(u, dtype) is equivalent to is_npvector(np.asarray(u), dtype).
+
+    See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_array, is_scalar, is_matrix
+    '''
+    return is_array(u, dtype=dtype, dims=1)
+def is_matrix(u, dtype=None):
+    '''
+    is_matrix(u) is equivalent to is_npmatrix(np.asarray(u)).
+    is_matrix(u, dtype) is equivalent to is_npmatrix(np.asarray(u), dtype).
+
+    See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_array, is_scalar, is_vector
+    '''
+    return is_array(u, dtype=dtype, dims=2)
+    
+def is_int(arg):
+    '''
+    is_int(x) yields True if x is an integer object and False otherwise; integer objects include the
+      standard Python integer types as well as numpy single integer arrays (i.e., where
+      x.shape == ()) and quantities with integer magnitudes.
+    '''
+    return (is_int(mag(arg)) if is_quantity(arg)                   else
+            True             if isinstance(arg, six.integer_types) else
+            is_npscalar(arg, np.int) or is_npgeneric(arg, np.int))
+def is_float(arg):
+    '''
+    is_float(x) yields True if x is an floating-point object and False otherwise; floating-point
+      objects include the standard Python float types as well as numpy single floating-point arrays
+      (i.e., where x.shape == ()) and quantities with floating-point magnitudes.
+
+    Note that is_float(x) will yield False if x is an integer or a complex number; to check for real
+    (integer or floating-point) values, use is_real(); to check for inexact (floating-point or
+    complex) values, use is_inexact().
+    '''
+    return (is_float(mag(arg)) if is_quantity(arg)       else
+            True               if isinstance(arg, float) else
+            is_npscalar(arg, np.floating) or is_npgeneric(arg, np.floating))
+def is_inexact(arg):
+    '''
+    is_inexact(x) yields True if x is a number represented by floating-point data (i.e., either a
+      non-integer real number or a complex number) and False otherwise.
+
+    Note that is_float(x) will yield False if x is an integer but True if x is a complex number; to
+    check for real (integer or floating-point) values, use is_real(); to check for real
+    floating-point values only, use is_float().
+    '''
+    return (is_inexact(mag(arg)) if is_quantity(arg)                          else
+            True                 if isinstance(arg, (float, numbers.Complex)) else
+            is_npscalar(u, np.inexact))
+def is_real(arg):
+    '''
+    is_real(x) yields True if x is a non-complex numeric object and False otherwise.
+
+    Note that is_real(i) will yield True for an integer i; to check for floating-point
+    representations of numbers, use is_float().
+    '''
+    return (is_real(mag(arg)) if is_quantity(arg)              else
+            True              if isinstance(arg, numbers.Real) else
+            is_npscalar(arg,(np.integer,np.floating)) or is_npgeneric(arg,(np.integer,np.floating)))
+def is_complex(arg):
+    '''
+    is_complex(x) yields True if x is a complex numeric object and False otherwise.
+    '''
+    return (is_complex(mag(arg)) if is_quantity(arg)                 else
+            True                 if isinstance(arg, numbers.Complex) else
+            is_npscalar(arg, np.complexfloating) or is_npgeneric(arg, np.complexfloating))
+def is_number(arg):
+    '''
+    is_number(x) yields True if x is a numeric object and False otherwise.
+    '''
+    return (is_numeric(mag(arg)) if is_quantity(arg)              else
+            True                 if isinstance(arg, numbers.Real) else
+            is_npscalar(u, np.number) or is_npgeneric(u, np.number))
 def is_map(arg):
     '''
     is_map(x) yields True if x implements Python's builtin Mapping class.

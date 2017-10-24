@@ -3,17 +3,16 @@
 # Classes for storing immutable data tables.
 # By Noah C. Benson
 
-import copy, inspect, types, sys, pint
+import copy, inspect, types, sys, pint, six
 import numpy                      as     np
 import pyrsistent                 as     ps
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
-                                          is_quantity, is_unit, qhash)
+                                          is_quantity, is_unit, quant, iquant, mag, unit, qhash,
+                                          units, imm_array)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
 else:                        import collections            as colls
-
-_ureg = pint.UnitRegistry()
 
 def _ndarray_assoc(arr, k, v):
     '_ndarray_assoc(arr, k, v) duplicates arr to a writeable array, sets arr2[k]=v, returns arr2'
@@ -31,42 +30,29 @@ class ITable(colls.Mapping):
         self.data = data
         self._row_count = n
     def __hash__(self):
-        # we want to make sure arrays are 
+        # we want to make sure arrays are immutable
         return qhash(self.data)
     def __getstate__(self):
         d = self.__dict__.copy()
-        d['data'] = {k:(v.m, str(v.u)) if is_quantity(v) else (v, None)
+        d['data'] = {k:(mag(v), unit(v)) if is_quantity(v) else (v, None)
                      for (k,v) in self.data.iteritems()}
         return d
     def __setstate__(self, d):
         dat = d['data']
-        for (k,(v,u)) in dat.iteritems():
-            if u is not None: v = quant(v, u)
-            v.setflats(write=False)
-        object.__setattr__(self, 'data', dat)
+        object.__setattr__(self, 'data',
+                           ps.pmap({k:(imm_array(v) if u is None else iquant(v, u))
+                                    for (k,(u,v)) in dat.iteritems()}))
     @staticmethod
     def _filter_col(vec):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
-        if (isinstance(vec, types.TupleType) and len(vec) == 2) or is_quantity(vec):
-            (mag, unit) = (vec.magnitude, vec.units) if is_quantity(vec) else vec
-            if isinstance(unit, basestring):
-                unit = _ureg.parse_string(unit)
-            if unit and not is_unit(unit):
-                vec = np.asarray(vec)
-                vec.setflags(write=False)
-                return vec
-            else:
-                vec = ITable._filter_col(mag)
-                if unit: vec = vec * unit
-                return vec
-        elif isinstance(vec, np.ndarray) and not vec.flags['WRITEABLE']:
-            return vec
-        elif isinstance(vec, types.FunctionType) and inspect.getargspec(vec) == ([],None,None,None):
-            return lambda:ITable._filter_col(vec())
+        if isinstance(vec, types.FunctionType) and inspect.getargspec(vec) == ([],None,None,None):
+            return lambda:imm_array(vec())
+        elif is_quantity(vec):
+            m = mag(vec)
+            mm = ITable._filter_col(mm)
+            return vec if m is mm else quant(mm, unit(vec))
         else:
-            vec = np.array(vec)
-            vec.setflags(write=False)
-            return vec
+            return imm_array(vec)
     @param
     def data(d):
         '''
@@ -76,7 +62,7 @@ class ITable(colls.Mapping):
         # we want to check these values and clean them up as we go, but if this is a lazy map, we
         # want to do that lazily...
         if isinstance(d, LazyPMap):
-            def _make_lambda(k): return ((lambda:ITable._filter_col(d[k])))
+            def _make_lambda(k): return (lambda:ITable._filter_col(d[k]))
             return lazy_map(
                 {k:_make_lambda(k) if d.is_lazy(k) else ITable._filter_col(d[k])
                  for k in d.iterkeys()})
@@ -98,7 +84,7 @@ class ITable(colls.Mapping):
         '''
         if not isinstance(data, ps.PMap):
             raise ValueError('data is required to be a persistent map')
-        if not all(isinstance(k, basestring) for k in data.iterkeys()):
+        if not all(isinstance(k, six.string_types) for k in data.iterkeys()):
             raise ValueError('data keys must be strings')
         return True
     @require
@@ -107,7 +93,7 @@ class ITable(colls.Mapping):
         ITable _row_count must be a non-negative integer or None.
         '''
         if _row_count is None: return True
-        else: return isinstance(_row_count, types.IntType) and _row_count >= 0
+        else: return isinstance(_row_count, six.integer_types) and _row_count >= 0
     @value
     def column_names(data):
         '''
@@ -140,13 +126,11 @@ class ITable(colls.Mapping):
             raise ValueError('itable columns do not all have identical lengths!')
         return cols
     @value
-    def rows(data, column_names, row_count):
+    def rows(data, column_names, columns):
         '''
         itbl.rows is a tuple of all the persistent maps that makeup the rows of the data table.
         '''
-        def _make_lambda(k, i):
-            return lambda:data[k][i]
-        return tuple([lazy_map({k:_make_lambda(k,i) for k in column_names})
+        return tuple([ps.pmap({k:c[i] for (k,c) in zip(column_names, columns)})
                       for i in range(row_count)])
     # Methods
     def set(self, k, v):
@@ -161,12 +145,12 @@ class ITable(colls.Mapping):
           column names may again be added.
         '''
         dat = self.data
-        if isinstance(k, basestring):
+        if isinstance(k, six.string_types):
             if isinstance(v, (ITable, colls.Mapping)): v = v[k]
             v = self._filter_col(v)
             new_data = self.data.set(k, v)
             return ITable(new_data, n=len(v))
-        elif isinstance(k, types.IntType):
+        elif isinstance(k, six.integer_types):
             # This is an awful slow way to do things
             def _make_lambda(k):
                 return lambda:_ndarray_assoc(dat[k], k, v[k]) if k in v else dat[k]
@@ -178,7 +162,7 @@ class ITable(colls.Mapping):
             return ITable(lazy_map(new_map), n=self.row_count)
         elif not k:
             return self
-        elif isinstance(k[0], basestring):
+        elif isinstance(k[0], six.string_types):
             nones = np.full((self.row_count,), None)
             newdat = self.data
             if isinstance(v, ITable):
@@ -228,12 +212,12 @@ class ITable(colls.Mapping):
         if not cols: return self
         dat = self.data
         iterq = hasattr(cols, '__iter__')
-        if isinstance(cols, (slice, types.IntType)) or \
-           (iterq and isinstance(cols[0], types.IntType)):
+        if isinstance(cols, (slice, six.integer_types)) or \
+           (iterq and isinstance(cols[0], six.integer_types)):
             def _make_lambda(k): return lambda:np.delete(dat[k], cols, 0)
             newdat = lazy_map({k:_make_lambda(k) for k in dat.iterkeys()})
             return ITable(newdat, n=len(np.delete(np.ones((self.row_count,)), cols, 0)))
-        elif isinstance(cols, basestring) or (iterq and isinstance(cols[0], basestring)):
+        elif isinstance(cols, six.string_types) or (iterq and isinstance(cols[0], six.string_types)):
             cols = set(cols if iterq else [cols])
             def _make_lambda(k): return lambda:dat[k]
             return ITable(lazy_map({k:_make_lambda(k) for k in dat.iterkeys() if k not in cols}),
@@ -258,7 +242,7 @@ class ITable(colls.Mapping):
              default values, these defaults are used to fill in the appropriate values.
          (5) If f accepts additional named values, they are given the value None.
         '''
-        if isinstance(f, basestring) and f in self.data: return self.data[f]
+        if isinstance(f, six.string_types) and f in self.data: return self.data[f]
         (args, vargs, kwargs, dflts) = inspect.getargspec(f)
         dflts = dflts if dflts else ()
         dflts = tuple([None for _ in range(len(args) - len(dflts))]) + dflts
@@ -313,13 +297,13 @@ class ITable(colls.Mapping):
           any order).
         '''
         if cols is not Ellipsis: return self[rows][cols]
-        if isinstance(rows, types.IntType):
+        if isinstance(rows, six.integer_types):
             return self.rows[rows]
-        elif isinstance(rows, basestring):
+        elif isinstance(rows, six.string_types):
             return self.data[rows]
         elif not rows:
             return ITable(ps.m(), n=0)
-        elif isinstance(rows, slice) or isinstance(rows[0], types.IntType):
+        elif isinstance(rows, slice) or isinstance(rows[0], six.integer_types):
             n = len(range(rows.start, rows.stop, rows.step)) if isinstance(rows, slice) else \
                 len(rows)
             dat = self.data
@@ -340,8 +324,8 @@ class ITable(colls.Mapping):
     def __len__(self):
         return len(self.data)
     def __contains__(self, k):
-        return ((0 <= k < self.row_count) if isinstance(k, types.IntType)  else
-                (k in self.data)          if isinstance(k, basestring)     else
+        return ((0 <= k < self.row_count) if isinstance(k, six.integer_types)  else
+                (k in self.data)          if isinstance(k, six.string_types)   else
                 False)
     def iterrows(self):
         '''

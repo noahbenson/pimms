@@ -70,8 +70,8 @@ def _imm_check(imm, names=Ellipsis):
     all_checks = set([])
     params = _imm_param_data(imm)
     consts = _imm_const_data(imm)
-    names = params.keys() + consts.keys() if names is Ellipsis             else \
-            [names]                       if isinstance(names, basestring) else \
+    names = params.keys() + consts.keys() if names is Ellipsis                   else \
+            [names]                       if isinstance(names, six.string_types) else \
             names
     for name in names:
         if name in params:

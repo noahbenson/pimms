@@ -121,8 +121,12 @@ The additional utility functions are provided as part of the pimms package:
 '''
 
 from .util        import (lazy_map, is_lazy_map, LazyPMap, is_map, is_pmap, merge,
-                          is_quantity, is_unit, quant, mag, like_units, units, qhashform, qhash,
-                          save, load, io_formats)
+                          is_map, is_pmap, is_str, is_class,
+                          is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npgeneric,
+                          is_array, is_scalar, is_vector, is_matrix,
+                          is_int, is_float, is_real, is_complex, is_number,
+                          is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
+                          imm_array, qhashform, qhash, save, load, io_formats)
 from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
                           imm_persist, imm_transient, imm_params, imm_values, imm_dict,
                           imm_is_persistent, imm_is_transient)
@@ -144,5 +148,5 @@ def reload_pimms():
     reload(sys.modules['pimms'])
     return sys.modules['pimms']
 
-__version__ = '0.1.9'
+__version__ = '0.2.0'
 description = 'Lazy immutable library for Python built on top of pyrsistent'

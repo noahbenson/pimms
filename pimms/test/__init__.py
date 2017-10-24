@@ -20,6 +20,7 @@ usage.
 '''
 
 import unittest, math, sys, pimms
+import numpy as np
 #from ..immutable import TestPimmsImmutables
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -29,6 +30,25 @@ class TestPimms(unittest.TestCase):
     '''
     The TestPimms class defines all the tests for the pimms library.
     '''
+
+    def test_units(self):
+        '''
+        test_units ensures that the various pimms functions related to pint integration work
+        correctly; these functions include pimms.unit, .mag, .quant, .is_quantity, etc.
+        '''
+        # make a few pieces of data with types
+        x = np.asarray([1.0, 2.0, 3.0, 4.0]) * pimms.units.mm
+        y = pimms.quant([2, 4, 6, 8], 'sec')
+        self.assertTrue(all(pimms.is_quantity(u) for u in [x,y]))
+        self.assertTrue(pimms.like_units(pimms.unit(x), pimms.unit('millimeters')))
+        self.assertTrue(pimms.like_units(pimms.unit(y), pimms.unit('seconds')))
+        z = x / y
+        self.assertTrue(pimms.is_vector(x, 'real'))
+        self.assertTrue(pimms.is_vector(y, 'real'))
+        self.assertFalse(pimms.is_vector(x, 'int'))
+        self.assertTrue(pimms.is_vector(y, 'int'))
+        self.assertFalse(pimms.is_vector(y, 'float'))
+        self.assertTrue(pimms.is_vector(z, 'real'))
 
     def test_lazy_complex(self):
         '''
