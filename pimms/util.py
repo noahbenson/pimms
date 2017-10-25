@@ -451,8 +451,8 @@ def is_number(arg):
     '''
     is_number(x) yields True if x is a numeric object and False otherwise.
     '''
-    return (is_numeric(mag(arg)) if is_quantity(arg)              else
-            True                 if isinstance(arg, numbers.Real) else
+    return (is_number(mag(arg)) if is_quantity(arg)              else
+            True                if isinstance(arg, numbers.Real) else
             is_npscalar(u, np.number) or is_npgeneric(u, np.number))
 def is_map(arg):
     '''
