@@ -125,9 +125,9 @@ def like_units(a, b):
     like_units(a,b) yields True if a and b can be cast to each other in terms of units and False
       otherwise. Non-united units are considered dimensionless units.
     '''
-    a = quant(a, 'dimensionless') if not is_quantity(a) else a
-    b = quant(b, 'dimensionless') if not is_quantity(b) else b
-    if a.u == b.u: return True
+    a = quant(0.0, a) if is_unit(a) else a if is_quantity(a) else quant(a, units.dimensionless)
+    b = quant(0.0, b) if is_unit(b) else b if is_quantity(b) else quant(b, units.dimensionless)
+    if a == b: return True
     try:
         c = a.to(b.u)
         return True
