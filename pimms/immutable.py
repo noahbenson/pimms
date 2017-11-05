@@ -83,7 +83,7 @@ def _imm_check(imm, names=Ellipsis):
         for (arg_list, check_fn) in zip(arg_lists, check_fns):
             all_checks.add((tuple(arg_list), check_fn))
     # Run the checks; if anything fails, we let the exception rise
-    for (arg_list, check_fn) in zip(arg_lists, check_fns):
+    for (arg_list, check_fn) in all_checks:
         if not check_fn(*[getattr(imm, arg) for arg in arg_list]):
             raise RuntimeError('Failed parameter-check on values % of func %s' % (args, check_fn))
     # All checks passed!
@@ -302,7 +302,8 @@ def _imm_init_to_trans(imm):
         raise RuntimeError(
             'Attempted to change non-initializing immutable from initializing to transient')
     if not all(p in dd for p in six.iterkeys(params)):
-        raise RuntimeError('Not all parameters were set prior to accessing values')
+        diffs = [p for p in six.iterkeys(params) if p not in dd]
+        raise RuntimeError('Not all parameters were set prior to accessing values: %s' % (diffs,))
     # Okay, we can run the checks now; we need to remove init status, though...
     del dd['_pimms_immutable_is_init']
     dd['_pimms_immutable_is_trans'] = True
@@ -600,12 +601,14 @@ def _imm_merge_class(cls, parent):
     pdat = parent._pimms_immutable_data_
     # for params, values, and checks, we add them to cls only if they do not already exist in cls
     cparams = cdat['params']
-    for (param, (dflt, tx_fn, arg_lists, check_fns, deps)) in six.iteritems(pdat['params']):
-        if param not in cparams:
-            cparams[param] = (dflt, tx_fn, [], [], [])
     cvalues = cdat['values']
     cconsts = cdat['consts']
+    for (param, (dflt, tx_fn, arg_lists, check_fns, deps)) in six.iteritems(pdat['params']):
+        if param not in cparams and param not in cvalues:
+            cparams[param] = (dflt, tx_fn, [], [], [])
     for (value, (arg_list, calc_fn, deps)) in six.iteritems(pdat['values']):
+        if value in cparams:
+            raise ValueError('cannot convert value into parameter: %s' % value)
         if value not in cvalues:
             cvalues[value] = (arg_list, calc_fn, [])
             if len(arg_list) == 0:
