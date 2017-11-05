@@ -6,7 +6,7 @@
 import copy, inspect, types, six
 from .util import qhash
 
-# An immutable has three important values in the _neuropythy_immutable_data_ attribute of its class:
+# An immutable has three important values in the _pimms_immutable_data_ attribute of its class:
 # (1) params
 #     A hash from param-name to a tuple:
 #     (default, transform_fn, arg_lists, check_fns, deps)
@@ -36,29 +36,29 @@ def is_imm(obj):
     '''
     is_imm(obj) yields True if obj is an instance of an immutable class and False otherwise.
     '''
-    return hasattr(type(obj), '_neuropythy_immutable_data_')
+    return hasattr(type(obj), '_pimms_immutable_data_')
 def is_imm_type(cls):
     '''
     is_imm_type(cls) yields True if cls is an immutable class and False otherwise.
     '''
-    return hasattr(cls, '_neuropythy_immutable_data_')
+    return hasattr(cls, '_pimms_immutable_data_')
 def _imm_is_init(imm):
     dd = object.__getattribute__(imm, '__dict__')
-    return '_neuropythy_immutable_is_init' in dd
+    return '_pimms_immutable_is_init' in dd
 def _imm_is_trans(imm):
     dd = object.__getattribute__(imm, '__dict__')
-    return '_neuropythy_immutable_is_trans' in dd
+    return '_pimms_immutable_is_trans' in dd
 def _imm_is_persist(imm):
     dd = object.__getattribute__(imm, '__dict__')
-    return '_neuropythy_immutable_is_init' not in dd and '_neuropythy_immutable_is_trans' not in dd
+    return '_pimms_immutable_is_init' not in dd and '_pimms_immutable_is_trans' not in dd
 def _imm_param_data(imm):
-    return type(imm)._neuropythy_immutable_data_['params']
+    return type(imm)._pimms_immutable_data_['params']
 def _imm_value_data(imm):
-    return type(imm)._neuropythy_immutable_data_['values']
+    return type(imm)._pimms_immutable_data_['values']
 def _imm_check_data(imm):
-    return type(imm)._neuropythy_immutable_data_['checks']
+    return type(imm)._pimms_immutable_data_['checks']
 def _imm_const_data(imm):
-    return type(imm)._neuropythy_immutable_data_['consts']
+    return type(imm)._pimms_immutable_data_['consts']
 def _imm_clear(imm):
     dd = object.__getattribute__(imm, '__dict__')
     for val in six.iterkeys(_imm_value_data(imm)):
@@ -83,7 +83,7 @@ def _imm_check(imm, names=Ellipsis):
         for (arg_list, check_fn) in zip(arg_lists, check_fns):
             all_checks.add((tuple(arg_list), check_fn))
     # Run the checks; if anything fails, we let the exception rise
-    for (arg_list, check_fn) in zip(arg_lists, check_fns):
+    for (arg_list, check_fn) in all_checks:
         if not check_fn(*[getattr(imm, arg) for arg in arg_list]):
             raise RuntimeError('Failed parameter-check on values % of func %s' % (args, check_fn))
     # All checks passed!
@@ -249,12 +249,10 @@ def _imm_dir(self):
     An immutable object's dir function should list not only its attributes, but also its un-cached
     lazy values.
     '''
-    dir0 = object.__dir__(self)
-    values = _imm_value_data(self)
-    for val in six.iterkeys(values):
-        if val not in dir0:
-            dir0.append(val)
-    return dir0
+    dir0 = set(dir(self.__class__))
+    dir0.update(self.__dict__.keys())
+    dir0.update(six.iterkeys(_imm_value_data(self)))
+    return sorted(list(dir0))
 def _imm_repr(self):
     '''
     The default representation function for an immutable object.
@@ -270,7 +268,7 @@ def _imm_new(cls):
     imm = object.__new__(cls)
     # Note that right now imm has a normal setattr method;
     # Give any parameter that has one a default value
-    params = cls._neuropythy_immutable_data_['params']
+    params = cls._pimms_immutable_data_['params']
     for (p,dat) in six.iteritems(params):
         dat = dat[0]
         if dat: object.__setattr__(imm, p, dat[0])
@@ -278,7 +276,7 @@ def _imm_new(cls):
     _imm_clear(imm)
     # Note that we are initializing...
     dd = object.__getattribute__(imm, '__dict__')
-    dd['_neuropythy_immutable_is_init'] = True
+    dd['_pimms_immutable_is_init'] = True
     # That should do it!
     return imm
 def _imm__copy__(self):
@@ -290,7 +288,7 @@ def _imm__copy__(self):
     dup = _imm_new(type(self))
     sd = object.__getattribute__(self, '__dict__')
     dd = object.__getattribute__(dup,  '__dict__')
-    del dd['_neuropythy_immutable_is_init']
+    del dd['_pimms_immutable_is_init']
     for (k,v) in six.iteritems(sd):
         dd[k] = v
     return dup
@@ -304,11 +302,11 @@ def _imm_init_to_trans(imm):
         raise RuntimeError(
             'Attempted to change non-initializing immutable from initializing to transient')
     if not all(p in dd for p in six.iterkeys(params)):
-        miss = [p for p in six.iterkeys(params) if p not in dd]
-        raise RuntimeError('Not all parameters were set prior to accessing values: %s' % (miss,))
+        diffs = [p for p in six.iterkeys(params) if p not in dd]
+        raise RuntimeError('Not all parameters were set prior to accessing values: %s' % (diffs,))
     # Okay, we can run the checks now; we need to remove init status, though...
-    del dd['_neuropythy_immutable_is_init']
-    dd['_neuropythy_immutable_is_trans'] = True
+    del dd['_pimms_immutable_is_init']
+    dd['_pimms_immutable_is_trans'] = True
     _imm_check(imm)
     # Those passed, so we can actually change the methods now
     return imm
@@ -323,7 +321,7 @@ def _imm_trans_to_persist(imm):
     #imm.__dict__['__setattr__'] = _imm_setattr
     #imm.__dict__['__delattr__'] = _imm_delattr
     dd = object.__getattribute__(imm, '__dict__')
-    del dd['_neuropythy_immutable_is_trans']
+    del dd['_pimms_immutable_is_trans']
     return imm
 
 def imm_transient(imm):
@@ -340,7 +338,7 @@ def imm_transient(imm):
     elif _imm_is_persist(imm):
         # it's persistent; re-transient-ize this new one
         dd = object.__getattribute__(dup, '__dict__')
-        dd['_neuropythy_immutable_is_trans'] = True
+        dd['_pimms_immutable_is_trans'] = True
     return dup
 def imm_persist(imm):
     '''
@@ -440,10 +438,10 @@ def value(f):
     (args, varargs, kwargs, dflts) = inspect.getargspec(f)
     if varargs is not None or kwargs is not None or dflts:
         raise ValueError('Values may not accept variable, variadic keyword, or default arguments')
-    f._neuropythy_immutable_data_ = {}
-    f._neuropythy_immutable_data_['is_value'] = True
-    f._neuropythy_immutable_data_['inputs'] = args
-    f._neuropythy_immutable_data_['name'] = f.__name__
+    f._pimms_immutable_data_ = {}
+    f._pimms_immutable_data_['is_value'] = True
+    f._pimms_immutable_data_['inputs'] = args
+    f._pimms_immutable_data_['name'] = f.__name__
     f = staticmethod(f)
     return f
 def param(f):
@@ -459,9 +457,9 @@ def param(f):
         raise ValueError('Params may not accept variable, variadic keyword, or default arguments')
     if len(args) != 1:
         raise ValueError('Parameter transformation functions must take exactly one argument')
-    f._neuropythy_immutable_data_ = {}
-    f._neuropythy_immutable_data_['is_param'] = True
-    f._neuropythy_immutable_data_['name'] = f.__name__
+    f._pimms_immutable_data_ = {}
+    f._pimms_immutable_data_['is_param'] = True
+    f._pimms_immutable_data_['name'] = f.__name__
     f = staticmethod(f)
     return f
 def option(default_value):
@@ -477,10 +475,10 @@ def option(default_value):
                 'Options may not accept variable, variadic keyword, or default arguments')
         if len(args) != 1:
             raise ValueError('Parameter transformation functions must take exactly one argument')
-        f._neuropythy_immutable_data_ = {}
-        f._neuropythy_immutable_data_['is_param'] = True
-        f._neuropythy_immutable_data_['default_value'] = default_value
-        f._neuropythy_immutable_data_['name'] = f.__name__
+        f._pimms_immutable_data_ = {}
+        f._pimms_immutable_data_['is_param'] = True
+        f._pimms_immutable_data_['default_value'] = default_value
+        f._pimms_immutable_data_['name'] = f.__name__
         f = staticmethod(f)
         return f
     return _option
@@ -496,10 +494,10 @@ def require(f):
     if varargs is not None or kwargs is not None or dflts:
         raise ValueError(
             'Requirements may not accept variable, variadic keyword, or default arguments')
-    f._neuropythy_immutable_data_ = {}
-    f._neuropythy_immutable_data_['is_check'] = True
-    f._neuropythy_immutable_data_['inputs'] = args
-    f._neuropythy_immutable_data_['name'] = f.__name__
+    f._pimms_immutable_data_ = {}
+    f._pimms_immutable_data_['is_check'] = True
+    f._pimms_immutable_data_['inputs'] = args
+    f._pimms_immutable_data_['name'] = f.__name__
     f = staticmethod(f)
     return f
 
@@ -529,7 +527,7 @@ def _imm_resolve_deps(cls):
     _imm_resolve_deps(imm_class) resolves the dependencies of the given immutable class imm_class
     and edits the immutable metadata appropriately.
     '''
-    dat = cls._neuropythy_immutable_data_
+    dat = cls._pimms_immutable_data_
     params = dat['params']
     values = dat['values']
     consts = dat['consts']
@@ -597,18 +595,20 @@ def _imm_merge_class(cls, parent):
     function in method-resolution order.
     '''
     # If this is not an immutable parent, ignore it
-    if not hasattr(parent, '_neuropythy_immutable_data_'): return cls
+    if not hasattr(parent, '_pimms_immutable_data_'): return cls
     # otherwise, let's look at the data
-    cdat = cls._neuropythy_immutable_data_
-    pdat = parent._neuropythy_immutable_data_
+    cdat = cls._pimms_immutable_data_
+    pdat = parent._pimms_immutable_data_
     # for params, values, and checks, we add them to cls only if they do not already exist in cls
     cparams = cdat['params']
-    for (param, (dflt, tx_fn, arg_lists, check_fns, deps)) in six.iteritems(pdat['params']):
-        if param not in cparams:
-            cparams[param] = (dflt, tx_fn, [], [], [])
     cvalues = cdat['values']
     cconsts = cdat['consts']
+    for (param, (dflt, tx_fn, arg_lists, check_fns, deps)) in six.iteritems(pdat['params']):
+        if param not in cparams and param not in cvalues:
+            cparams[param] = (dflt, tx_fn, [], [], [])
     for (value, (arg_list, calc_fn, deps)) in six.iteritems(pdat['values']):
+        if value in cparams:
+            raise ValueError('cannot convert value into parameter: %s' % value)
         if value not in cvalues:
             cvalues[value] = (arg_list, calc_fn, [])
             if len(arg_list) == 0:
@@ -621,35 +621,35 @@ def _imm_merge_class(cls, parent):
     return cls
 def _annotate_imm(cls):
     '''
-    _annotate_imm(cls) crawls the class members and adds the _neuropythy_immutable_data_ attribute
+    _annotate_imm(cls) crawls the class members and adds the _pimms_immutable_data_ attribute
     (a dict) with the following items to the class's attributes:
       * 'params'
       * 'values'
       * 'checks'
     '''
     dat = {}
-    cls._neuropythy_immutable_data_ = dat
+    cls._pimms_immutable_data_ = dat
     # First, crawl this class's static members to see what has been added...
     mems = inspect.getmembers(cls)
     immmems = [m for m in mems
                if isinstance(m[1], types.FunctionType)
-               if hasattr(m[1], '_neuropythy_immutable_data_')]
+               if hasattr(m[1], '_pimms_immutable_data_')]
     dat['params'] = {}
     dat['values'] = {}
     dat['checks'] = {}
     dat['consts'] = {}
     for (fname,f) in immmems:
-        if 'is_param' in f._neuropythy_immutable_data_:
+        if 'is_param' in f._pimms_immutable_data_:
             dat['params'][f.__name__] = (
                 None if 'default_value' not in dat else (dat['default_value'],),
                 f, [], [], [])
-        elif 'is_value' in f._neuropythy_immutable_data_:
-            inputs = f._neuropythy_immutable_data_['inputs']
+        elif 'is_value' in f._pimms_immutable_data_:
+            inputs = f._pimms_immutable_data_['inputs']
             dat['values'][f.__name__] = (inputs, f, [])
             if len(inputs) == 0:
                 dat['consts'][f.__name__] = ([], [])
-        elif 'is_check' in f._neuropythy_immutable_data_:
-            dat['checks'][f.__name__] = (f._neuropythy_immutable_data_['inputs'], f)
+        elif 'is_check' in f._pimms_immutable_data_:
+            dat['checks'][f.__name__] = (f._pimms_immutable_data_['inputs'], f)
     # That grabs all the relevant immutable data; we now have two tasks:
     # (1) merge with parent immutable classes to generate final value/param/check lists
     # --- to do this, we start by getting the class hierarchy
@@ -724,7 +724,7 @@ def immutable(cls):
         if _imm_is_init(imm): _imm_init_to_trans(imm)
         # Okay, all checks passed!
     setattr(cls, '__init__', types.MethodType(_imm_init_wrapper, None, cls))
-    dflt_members = (('__dir__',          _imm_is_persist),
+    dflt_members = (('__dir__',          _imm_dir),
                     ('__repr__',         _imm_repr),
                     ('__hash__',         _imm_hash))
     for (name, fn) in dflt_members:
