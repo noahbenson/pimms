@@ -304,7 +304,8 @@ def _imm_init_to_trans(imm):
         raise RuntimeError(
             'Attempted to change non-initializing immutable from initializing to transient')
     if not all(p in dd for p in six.iterkeys(params)):
-        raise RuntimeError('Not all parameters were set prior to accessing values')
+        miss = [p for p in six.iterkeys(params) if p not in dd]
+        raise RuntimeError('Not all parameters were set prior to accessing values: %s' % (miss,))
     # Okay, we can run the checks now; we need to remove init status, though...
     del dd['_neuropythy_immutable_is_init']
     dd['_neuropythy_immutable_is_trans'] = True
@@ -727,7 +728,8 @@ def immutable(cls):
                     ('__repr__',         _imm_repr),
                     ('__hash__',         _imm_hash))
     for (name, fn) in dflt_members:
-        if not hasattr(cls, name) or getattr(cls, name) is getattr(object, name):
+        if not hasattr(cls, name) or not hasattr(object, name) or \
+           getattr(cls, name) is getattr(object, name):
             setattr(cls, name, types.MethodType(fn, None, cls))
     # Done!
     return cls
