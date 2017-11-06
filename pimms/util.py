@@ -453,7 +453,7 @@ def is_number(arg):
     '''
     return (is_number(mag(arg)) if is_quantity(arg)              else
             True                if isinstance(arg, numbers.Real) else
-            is_npscalar(u, np.number) or is_npgeneric(u, np.number))
+            is_npscalar(arg, np.number) or is_npgeneric(arg, np.number))
 def is_map(arg):
     '''
     is_map(x) yields True if x implements Python's builtin Mapping class.
