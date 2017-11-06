@@ -728,8 +728,8 @@ def immutable(cls):
                     ('__repr__',         _imm_repr),
                     ('__hash__',         _imm_hash))
     for (name, fn) in dflt_members:
-        if not hasattr(cls, name) or \
-           (hasattr(object, name) and getattr(cls, name) is getattr(object, name)):
+        if not hasattr(cls, name) or not hasattr(object, name) or \
+           getattr(cls, name) is getattr(object, name):
             setattr(cls, name, types.MethodType(fn, None, cls))
     # Done!
     return cls
