@@ -5,7 +5,7 @@ from setuptools import setup
 
 setup(
     name='pimms',
-    version='0.2.0',
+    version='0.2.1',
     description='Python immutable data structures library',
     keywords='persistent immutable functional',
     author='Noah C. Benson',
