@@ -129,7 +129,7 @@ class ITable(colls.Mapping):
             raise ValueError('itable columns do not all have identical lengths!')
         return cols
     @value
-    def rows(data, column_names, columns):
+    def rows(data, row_count, column_names, columns):
         '''
         itbl.rows is a tuple of all the persistent maps that makeup the rows of the data table.
         '''
