@@ -304,7 +304,7 @@ class ITable(colls.Mapping):
             return self.rows[rows]
         elif isinstance(rows, six.string_types):
             return self.data[rows]
-        elif not rows:
+        elif rows is None or len(rows) == 0:
             return ITable(ps.m(), n=0)
         elif isinstance(rows, slice) or isinstance(rows[0], six.integer_types):
             n = len(range(rows.start, rows.stop, rows.step)) if isinstance(rows, slice) else \
