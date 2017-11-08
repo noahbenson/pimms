@@ -231,34 +231,13 @@ class ITable(colls.Mapping):
         '''
         itbl.map(f) yields the result of mapping the rows of the given datatable itbl over the
           given function f.
-        The function f is called according to its argument spec; generally speaking this assures an
-        intuitive behavior for most uses of the map method. The exact rules are detailed below:
-         (1) If the function f accepts a single argument that is either named _ or anything other
-             than a column name in itbl, the entire row pmap is passed to f as that argument.
-         (2) Any other valid function signature is allowed to optionally include a variable keyword
-             argument, which is given the entire row when present. Additionally, variadic arguments
-             are always simply ignored. Any argument named _ is always given the entire value of
-             the row.
-         (3) If f accepts any number of parameters named after columns in itbl, these column values
-             for each row are passed (with optional keyword argument).
-         (4) If f accepts additional parameters that are not named after columns but that do have
-             default values, these defaults are used to fill in the appropriate values.
-         (5) If f accepts additional named values, they are given the value None.
         '''
         if isinstance(f, six.string_types) and f in self.data: return self.data[f]
         (args, vargs, kwargs, dflts) = inspect.getargspec(f)
         dflts = dflts if dflts else ()
         dflts = tuple([None for _ in range(len(args) - len(dflts))]) + dflts
-        return map(
-            (((lambda row: f(*[row if k == '_' else row[k] if k in row else d
-                               for (k,d) in zip(args,dflts)]))
-              if not kwargs else
-              (lambda row: f(*[row if k == '_' else row[k] if k in row else d
-                               for (k,d) in zip(args,dflts)],
-                             **row)))
-             if kwargs or len(args) != 1 or (args[0] != '_' and args[0] in self.data) else
-             f),
-            self.rows)
+        # we have to decide what to map over...
+        return map(f, self.rows)
     def where(self, f):
         '''
         itbl.where(f) yields the indices for which itbl.map(f) yields True.
