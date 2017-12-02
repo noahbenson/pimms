@@ -363,6 +363,7 @@ def imm_copy(imm, **kwargs):
         # no changes and copy risk
         return imm
     dup = copy.copy(imm)
+    if _imm_is_trans(dup): dup = dup.persist()
     dd = object.__getattribute__(dup, '__dict__')
     if _imm_is_persist(dup):
         # we update values directly then recompute checks and invalidate cache
@@ -386,13 +387,9 @@ def imm_copy(imm, **kwargs):
             if not check_fn(*[getattr(dup, arg) for arg in arg_list]):
                 raise ValueError(
                     'Requirement \'%s%s\' failed when copying immutable' % (check_fn, arg_list))
-    elif _imm_is_trans(dup):
-        # we set values then want it persisted...
-        for (p,v) in six.iteritems(kwargs): setattr(dup, p, v)
-        _imm_trans_to_persist(dup)
     else:
         # this is an initial-state immutable...
-        for (p,v) in six.iteritems(kwargs): setattr(dup, p, v)
+        for (p,v) in six.iteritems(kwargs): object.__setattr__(dup, p, v)
         _imm_init_to_trans(dup)
         _imm_trans_to_persist(dup)
     return dup
