@@ -337,7 +337,7 @@ def itable(*args, **kwargs):
               None)
     if v is None:
         v = next((v for v in six.itervalues(kwargs) if not isinstance(v, types.FunctionType)), None)
-    return ITable(ps.pmap(merge(args, kwargs)), n=(None if v is None else len(v)))
+    return ITable(merge(args, kwargs), n=(None if v is None else len(v)))
 def is_itable(arg):
     '''
     is_itable(x) yields True if x is an ITable object and False otherwise.
