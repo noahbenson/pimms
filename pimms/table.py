@@ -22,6 +22,44 @@ def _ndarray_assoc(arr, k, v):
     arr.setflags(write=False)
     return arr    
 
+class ITableRow(colls.Mapping):
+    '''
+    ITableRow is a class that works with the ITable class to quickly and lazily allow access to
+    individual rows as if they were individual persistent maps. For all intents and purposes, an
+    ITableRow object should be treated as a dict object that cannot be changed.
+    Note that ITableRow is not an immutable class, but its members cannot be changed. The class
+    is intended as a hidden subclass that is very efficient.
+    '''
+    def __init__(self, data, colnames, rownum):
+        object.__setattr__(self, 'data',         data)
+        object.__setattr__(self, 'column_names', colnames)
+        object.__setattr__(self, 'row_number',   rownum)
+    def keys(self):
+        return self.column_names
+    def __setattr__(self, k, v):
+        raise RuntimeError('ITableRow object is immutable')
+    def __getitem__(self, key):
+        return self.data[key][self.row_number]
+    def __setitem__(self, key, value):
+        raise RuntimeError('Cannot set row of immutable table')
+    def __delitem__(self, key):
+        raise RuntimeError('Cannot set row of immutable table')
+    def __iter__(self):
+        dat = self.data
+        n = self.row_number
+        for col in self.column_names:
+            yield (col, dat[col][n])
+    def __len__(self):
+        return len(self.column_names)
+    def asdict(self):
+        return {k:v for (k,v) in self.__iter__()}
+    def aspmap(self):
+        return pyr.pmap(self.asdict())
+    def __repr__(self):
+        return repr(self.asdict())
+    def __hash__(self):
+        return hash(self.aspmap())
+        
 @immutable
 class ITable(colls.Mapping):
     '''
@@ -129,12 +167,11 @@ class ITable(colls.Mapping):
             raise ValueError('itable columns do not all have identical lengths!')
         return cols
     @value
-    def rows(data, row_count, column_names, columns):
+    def rows(data, row_count, column_names):
         '''
         itbl.rows is a tuple of all the persistent maps that makeup the rows of the data table.
         '''
-        return tuple([ps.pmap({k:c[i] for (k,c) in zip(column_names, columns)})
-                      for i in range(row_count)])
+        return tuple([ITableRow(data, column_names, i) for i in range(row_count)])
     # Methods
     def set(self, k, v):
         '''
