@@ -95,8 +95,8 @@ class ITable(colls.Mapping):
     @param
     def data(d):
         '''
-        itbl.data is an immutable map of in which property names are associated with their data
-        vectors.
+        itbl.data is an immutable map of the given itable in which property names are associated
+        with their data vectors.
         '''
         # we want to check these values and clean them up as we go, but if this is a lazy map, we
         # want to do that lazily...
@@ -172,6 +172,15 @@ class ITable(colls.Mapping):
         itbl.rows is a tuple of all the persistent maps that makeup the rows of the data table.
         '''
         return tuple([ITableRow(data, column_names, i) for i in range(row_count)])
+    @value
+    def dataframe(data):
+        '''
+        itbl.dataframe is a pandas dataframe object that is equivalent to the given itable. Note
+          you must have pandas installed for this to work; an exception will be raised when this
+          value is requested if you do not.
+        '''
+        import pandas
+        return pandas.DataFrame.from_dict(dict(data))
     # Methods
     def set(self, k, v):
         '''
