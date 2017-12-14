@@ -48,11 +48,11 @@ class ITableRow(colls.Mapping):
         dat = self.data
         n = self.row_number
         for col in self.column_names:
-            yield (col, dat[col][n])
+            yield col
     def __len__(self):
         return len(self.column_names)
     def asdict(self):
-        return {k:v for (k,v) in self.__iter__()}
+        return {k:self.data[k][self.row_number] for k in self.__iter__()}
     def aspmap(self):
         return pyr.pmap(self.asdict())
     def __repr__(self):
