@@ -59,7 +59,7 @@ class ITableRow(colls.Mapping):
         return repr(self.asdict())
     def __hash__(self):
         return hash(self.aspmap())
-        
+
 @immutable
 class ITable(colls.Mapping):
     '''
@@ -79,8 +79,9 @@ class ITable(colls.Mapping):
     def __setstate__(self, d):
         dat = d['data']
         object.__setattr__(self, 'data',
-                           ps.pmap({k:(imm_array(v) if u is None else iquant(v, u))
+                           ps.pmap({k:(imm_array(u) if v is None else iquant(u, v))
                                     for (k,(u,v)) in six.iteritems(dat)}))
+        object.__setattr__(self, '_row_count', None)
     @staticmethod
     def _filter_col(vec):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
@@ -266,7 +267,7 @@ class ITable(colls.Mapping):
             def _make_lambda(k): return lambda:np.delete(dat[k], cols, 0)
             newdat = lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)})
             return ITable(newdat, n=len(np.delete(np.ones((self.row_count,)), cols, 0)))
-        elif isinstance(cols, six.string_types) or (iterq and isinstance(cols[0], six.string_types)):
+        elif isinstance(cols, six.string_types) or (iterq and isinstance(cols[0],six.string_types)):
             cols = set(cols if iterq else [cols])
             def _make_lambda(k): return lambda:dat[k]
             return ITable(lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat) if k not in cols}),
@@ -375,6 +376,12 @@ def itable(*args, **kwargs):
         return ITable({}, n=0)
     elif len(args) == 1 and len(kwargs) == 0 and isinstance(args[0], ITable):
         return args[0]
+    # we want to try to convert any arguments we can from datatables into maps
+    try:
+        import pandas
+        args = [{a[k].values for k in a.keys()} if isinstance(a, pandas.DataFrame) else a
+                for a in args]
+    except: pass
     # see if we can deduce the row size from a non-lazy argument:
     v = next((m[k] for m in args for k in six.iterkeys(m)
               if ((is_lazy_map(m) and not m.is_lazy(k))

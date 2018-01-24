@@ -30,7 +30,8 @@ def is_unit(q):
         return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
 def is_quantity(q):
     '''
-    is_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) and False otherwise.
+    is_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) and False
+      otherwise.
     '''
     if isinstance(q, tuple):
         return len(q) == 2 and is_unit(q[1])
@@ -87,22 +88,22 @@ def quant(val, u=Ellipsis):
     quant(q) yields q for any quantity q; if q is not part of the pimms units registry, then a
       version of q registered to pimms.units is yielded. Note that q is a quantity if
       pimms.is_quantity(q) is True.
-    quant(x, u) yields the given scalar or quantity x converted to the given unit u; if x is a scalar
-      or a dimensionless quantity, then the unit u is given to the new quantity with no conversion;
-      otherwise, x must be a quantity whose unit can be converted into the unit u.
+    quant(x, u) yields the given scalar or quantity x converted to the given unit u; if x is a
+      scalar or a dimensionless quantity, then the unit u is given to the new quantity with no
+      conversion; otherwise, x must be a quantity whose unit can be converted into the unit u.
     '''
     if is_quantity(val):
         if isinstance(val, tuple) or val._REGISTRY is not units:
             val = units.Quantity(mag(val), unit(val))
-        return val if u is Ellipsis else val.to(unit(u))
+        return val if u is Ellipsis or u is None else val.to(unit(u))
     else:
-        return units.Quantity(val, units.dimensionless if u is Ellipsis else unit(u))
+        return units.Quantity(val, units.dimensionless if u is Ellipsis or u is None else unit(u))
 def iquant(val, u=Ellipsis):
     '''
     iquant(...) is equivalent to quant(...) except that the magnitude of the return value is always
       a read-only numpy array object.
     '''
-    if u is not Ellipsis: u = unit(u)
+    if u is not Ellipsis and u is not None: u = unit(u)
     if is_quantity(val):
         uu = unit(val)
         if u is Ellipsis or u == uu:
@@ -139,7 +140,7 @@ def qhashform(o):
       across instances. This correctly handles quantities and numpy arrays, among other things.
     '''
     if is_quantity(o): return ('__#quant', qhashform(mag(o)), str(o.u))
-    elif isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.number):
+    elif isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.dtype(np.number).type):
         return ('__#ndarray', o.tobytes())
     elif isinstance(o, (set, frozenset)): return ('__#set', tuple([qhashform(x) for x in o]))
     elif is_map(o): return ps.pmap({qhashform(k):qhashform(v) for (k,v) in six.iteritems(o)})
@@ -154,7 +155,8 @@ def qhash(o):
     return hash(qhashform(o))
 io_formats = colls.OrderedDict(
     [('numpy', {
-        'match': lambda o:   isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.number),
+        'match': lambda o:   (isinstance(o, np.ndarray) and
+                              np.issubdtype(o.dtype, np.dtype(np.number).type)),
         'write': lambda s,o: np.save(s, o),
         'read':  lambda s:   np.load(s)}),
      ('pickle', {
@@ -318,7 +320,7 @@ def is_nparray(u, dtype=None, dims=None):
         if isinstance(dtype, types.TupleType):
             if not any(np.issubdtype(u.dtype, d) for d in dtype):
                 return False
-        elif not np.issubdtype(u.dtype, dtype):
+        elif not np.issubdtype(u.dtype, np.dtype(dtype).type):
             return False
     # okay, the dtype is fine; check the dims
     if dims is None: return True
@@ -360,7 +362,7 @@ def is_npgeneric(u, dtype=None):
       of the given dtype.
     '''
     if is_str(dtype): dtype = numpy_type(dtype)
-    return np.issubdtype(type(u), np.generic if dtype is None else dtype)
+    return np.issubdtype(type(u), np.generic if dtype is None else np.dtype(dtype).type)
 
 def is_array(u, dtype=None, dims=None):
     '''
