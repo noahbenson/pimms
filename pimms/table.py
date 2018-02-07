@@ -54,7 +54,7 @@ class ITableRow(colls.Mapping):
     def asdict(self):
         return {k:self.data[k][self.row_number] for k in self.__iter__()}
     def aspmap(self):
-        return pyr.pmap(self.asdict())
+        return ps.pmap(self.asdict())
     def __repr__(self):
         return repr(self.asdict())
     def __hash__(self):
