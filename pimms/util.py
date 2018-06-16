@@ -466,6 +466,7 @@ def is_pmap(arg):
     is_pmap(x) yields True if x is a persistent map object and False otherwise.
     '''
     return isinstance(arg, ps.PMap)
+    
 
 class LazyPMap(ps.PMap):
     '''
