@@ -302,9 +302,9 @@ def numpy_type(type_id):
 def is_nparray(u, dtype=None, dims=None):
     '''
     is_nparray(u) yields True if u is an instance of a numpy array and False otherwise.
-    is_nparray(u, dtype) yields True if is_array(u) and the dtype of u is a sub-dtype of the given
+    is_nparray(u, dtype) yields True if is_nparray(u) and the dtype of u is a sub-dtype of the given
       dtype.
-    is_nparray(u, dtype, dims) yields True if is_array(u, dtype) and the number of dimensions is
+    is_nparray(u, dtype, dims) yields True if is_nparray(u, dtype) and the number of dimensions is
       equal to dims (note that dtype may be set to None for no dtype requirement).
     
     Note that either dims or dtype may be None to indicate no requirement; additionally, either may
