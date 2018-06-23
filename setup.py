@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 ####################################################################################################
 
-from setuptools import setup
+from setuptools import (setup, Extension)
 
 setup(
     name='pimms',
@@ -13,6 +13,7 @@ setup(
     url='https://github.com/noahbenson/pimms/',
     license='GPLv3',
     packages=['pimms', 'pimms.test'],
+    #ext_modules=[Extension('pimms.c_util', ['pimms/c_util.c'])],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
     install_requires=['pyrsistent>=0.11',
