@@ -7,7 +7,7 @@ import copy, inspect, types, os, sys, re, warnings, pickle, pint, six
 import pyrsistent as ps, numpy as np
 from functools import reduce
 from .util  import (merge, is_pmap, is_map, is_lazy_map, is_quantity, quant, mag, units, qhash,
-                    save, load)
+                    save, load, is_nparray)
 from .table import (itable, is_itable)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -201,10 +201,13 @@ class Plan(object):
         object.__setattr__(self, 'nodes', nodes)
         # let's get the default-value arguments and make sure they all match!
         defaults = {}
+        eq = False
         for node in six.itervalues(nodes):
             for (k,v) in six.iteritems(node.defaults):
                 if k in defaults:
-                    if defaults[k] != v:
+                    try: eq = np.array_equal(defaults[k], v)
+                    except: eq = False
+                    if not eq:
                         raise ValueError(
                             'conflicting default values found for \'%s\': %s and %s' % (
                                 k, v, defaults[k]))
