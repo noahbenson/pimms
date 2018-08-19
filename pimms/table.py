@@ -3,13 +3,13 @@
 # Classes for storing immutable data tables.
 # By Noah C. Benson
 
-import copy, inspect, types, sys, pint, six
+import copy, types, sys, pint, six
 import numpy                      as     np
 import pyrsistent                 as     ps
 from   functools                  import reduce
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
                                           is_quantity, is_unit, quant, iquant, mag, unit, qhash,
-                                          units, imm_array)
+                                          units, imm_array, getargspec_py27like)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -85,7 +85,7 @@ class ITable(colls.Mapping):
     @staticmethod
     def _filter_col(vec):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
-        if isinstance(vec, types.FunctionType) and inspect.getargspec(vec) == ([],None,None,None):
+        if isinstance(vec, types.FunctionType) and getargspec_py27like(vec) == ([],None,None,None):
             return lambda:imm_array(vec())
         elif is_quantity(vec):
             m = mag(vec)
@@ -280,7 +280,7 @@ class ITable(colls.Mapping):
           given function f.
         '''
         if isinstance(f, six.string_types) and f in self.data: return self.data[f]
-        (args, vargs, kwargs, dflts) = inspect.getargspec(f)
+        (args, vargs, kwargs, dflts) = getargspec_py27like(f)
         dflts = dflts if dflts else ()
         dflts = tuple([None for _ in range(len(args) - len(dflts))]) + dflts
         # we have to decide what to map over...
@@ -303,12 +303,11 @@ class ITable(colls.Mapping):
             if n == self.row_count and set(arg) == set([0,1]):
                 arg = [i for (i,b) in enumerate(arg) if b]
                 n = len(arg)
-            if n == self.row_count: return self
             dat = self.data
             def _make_lambda(k): return lambda:dat[k][arg]
             return ITable(
                 lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)}),
-                n=len(keepers))
+                n=n)
     def merge(self, *args, **kwargs):
         '''
         itbl.merge(...) yields a copy of the ITable object itbl that has been merged left-to-right
