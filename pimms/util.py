@@ -171,6 +171,7 @@ def qhash(o):
       mutable and/or unhashable objects.
     '''
     return hash(qhashform(o))
+_pickle_load_options = {} if six.PY2 else {'encoding': 'latin1'}
 io_formats = colls.OrderedDict(
     [('numpy', {
         'match': lambda o:   (isinstance(o, np.ndarray) and
@@ -180,7 +181,7 @@ io_formats = colls.OrderedDict(
      ('pickle', {
         'match': lambda o:   True,
         'write': lambda s,o: pickle.dump(o, s),
-        'read':  lambda s:   pickle.load(s)})])
+        'read':  lambda s:   pickle.load(s, **_pickle_load_options)})])
 def _check_io_format(obj, fmt):
     try:    return io_formats[fmt]['match'](obj)
     except: return False
@@ -203,7 +204,7 @@ def _save_stream(stream, obj):
         finally: s.close()
     raise ValueError('unsavable object: did not match any exporters')
 def _load_stream(stream):
-    try:    fmt = pickle.load(stream)
+    try:    fmt = pickle.load(stream, **_pickle_load_options)
     except: raise ValueError('could not unpickle format; probably not a pimms save file')
     if not isinstance(fmt, six.string_types):
         raise ValueError('file format object is not a string; probably not a pimms save file')
@@ -268,7 +269,7 @@ def load(filename, ureg='pimms'):
             pint._DEFAULT_REGISTRY = orig_dfl_ureg
     if isinstance(filename, six.string_types):
         filename = os.path.expanduser(filename)
-        with open(filename, 'r') as f:
+        with open(filename, 'rb') as f:
             return _load_stream(f)
     else:
         return _load_stream(filename)
