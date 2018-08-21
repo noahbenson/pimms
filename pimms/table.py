@@ -8,8 +8,8 @@ import numpy                      as     np
 import pyrsistent                 as     ps
 from   functools                  import reduce
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
-                                          is_quantity, is_unit, quant, iquant, mag, unit, qhash,
-                                          units, imm_array, getargspec_py27like)
+                                          is_quantity, is_unit, is_int, quant, iquant, mag, unit,
+                                          qhash, units, imm_array, getargspec_py27like)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -133,7 +133,7 @@ class ITable(colls.Mapping):
         ITable _row_count must be a non-negative integer or None.
         '''
         if _row_count is None: return True
-        else: return isinstance(_row_count, six.integer_types) and _row_count >= 0
+        else: return is_int(_row_count) and _row_count >= 0
     @value
     def column_names(data):
         '''
@@ -200,7 +200,7 @@ class ITable(colls.Mapping):
             v = self._filter_col(v)
             new_data = self.data.set(k, v)
             return ITable(new_data, n=len(v))
-        elif isinstance(k, six.integer_types):
+        elif is_int(k):
             # This is an awful slow way to do things
             def _make_lambda(k):
                 return lambda:_ndarray_assoc(dat[k], k, v[k]) if k in v else dat[k]
@@ -262,8 +262,7 @@ class ITable(colls.Mapping):
         if not cols: return self
         dat = self.data
         iterq = hasattr(cols, '__iter__')
-        if isinstance(cols, (slice, six.integer_types)) or \
-           (iterq and isinstance(cols[0], six.integer_types)):
+        if (isinstance(cols, slice) or is_int(cols)) or (iterq and is_int(cols[0])):
             def _make_lambda(k): return lambda:np.delete(dat[k], cols, 0)
             newdat = lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)})
             return ITable(newdat, n=len(np.delete(np.ones((self.row_count,)), cols, 0)))
@@ -325,13 +324,13 @@ class ITable(colls.Mapping):
           any order).
         '''
         if cols is not Ellipsis: return self[rows][cols]
-        if isinstance(rows, six.integer_types):
+        if is_int(rows):
             return self.rows[rows]
         elif isinstance(rows, six.string_types):
             return self.data[rows]
         elif rows is None or len(rows) == 0:
             return ITable(ps.m(), n=0)
-        elif isinstance(rows, slice) or isinstance(rows[0], six.integer_types):
+        elif isinstance(rows, slice) or is_int(rows[0]):
             n = len(range(rows.start, rows.stop, rows.step)) if isinstance(rows, slice) else \
                 len(rows)
             dat = self.data
@@ -352,7 +351,7 @@ class ITable(colls.Mapping):
     def __len__(self):
         return len(self.data)
     def __contains__(self, k):
-        return ((0 <= k < self.row_count) if isinstance(k, six.integer_types)  else
+        return ((0 <= k < self.row_count) if is_int(k)  else
                 (k in self.data)          if isinstance(k, six.string_types)   else
                 False)
     def iterrows(self):

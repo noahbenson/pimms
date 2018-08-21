@@ -140,7 +140,10 @@ def reload_pimms():
     '''
     reload_pimms() reloads the entire pimms module and returns it.
     '''
-    import sys
+    import sys, six
+    if not six.PY2:
+        try:    from importlib import reload
+        except: from imp       import reload
     reload(sys.modules['pimms.util'])
     reload(sys.modules['pimms.table'])
     reload(sys.modules['pimms.immutable'])

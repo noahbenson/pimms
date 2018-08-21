@@ -654,7 +654,7 @@ def merge(*args, **kwargs):
     if 'choose' in kwargs: choose_fn = kwargs['choose']
     kwargs = set(six.iterkeys(kwargs)) - set(['choose'])
     if len(kwargs) != 0:
-        raise ValueError('Unidentified options given to merge: %s' (list(kwargs),))
+        raise ValueError('Unidentified options given to merge: %s' % (list(kwargs),))
     if choose_fn is None: choose_fn = _choose_last
     def _make_lambda(k, args):
         return lambda:choose_fn(k, args)
