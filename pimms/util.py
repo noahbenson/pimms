@@ -41,7 +41,8 @@ def is_unit(q):
       otherwise.
     '''
     if isinstance(q, six.string_types):
-        return hasattr(units, q)
+        try: return hasattr(units, q)
+        except: return False
     else:
         cls = type(q)
         return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
