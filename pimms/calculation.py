@@ -69,9 +69,9 @@ class Calc(object):
         object.__setattr__(self, 'defaults',  dflts)
         object.__setattr__(self, 'lazy',      lazy)
         object.__setattr__(self, 'meta_data', ps.pmap(meta_data))
-        object.__setattr__(self, 'cache', cache)
-        object.__setattr__(self, 'memoize', memoize)
-        object.__setattr__(self, 'name', f.__module__ + '.' + f.__name__)
+        object.__setattr__(self, 'cache',     cache)
+        object.__setattr__(self, 'memoize',   memoize)
+        object.__setattr__(self, 'name',      f.__module__ + '.' + f.__name__)
         pdoc = Calc._parse_doc(f, affs, effs)
         pdoc = {k:ps.pmap(v) for (k,v) in six.iteritems(pdoc)}
         object.__setattr__(self, 'afferent_docs', pdoc['afferent'])
