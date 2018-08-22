@@ -630,10 +630,10 @@ def merge(*args, **kwargs):
         raise ValueError('marge requires Mapping collections')
     all_keys = reduce(lambda r,s: r|s, [set(six.iterkeys(m)) for m in args])
     choose_fn = None
-    if 'choose' in kwargs: choose_fn = kwargs['choose']
-    kwargs = set(six.iterkeys(kwargs)) - set(['choose'])
-    if len(kwargs) != 0:
-        raise ValueError('Unidentified options given to merge: %s' (list(kwargs),))
+    if 'choose' in kwargs:
+        choose_fn = kwargs['choose']
+    if len(kwargs) > 1 or (len(kwargs) > 0 and 'choose' not in kwargs):
+        raise ValueError('Unidentified options given to merge: %s' (kwargs.keys(),))
     if choose_fn is None: choose_fn = _choose_last
     def _make_lambda(k, args):
         return lambda:choose_fn(k, args)
