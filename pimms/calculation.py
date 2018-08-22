@@ -3,15 +3,15 @@
 # Decorator and class definition for functional calculations.
 # By Noah C. Benson
 
-import copy, inspect, types, os, sys, re, warnings, pickle, pint, six
-import pyrsistent as ps, numpy as np
+import copy, types, os, sys, re, warnings, pickle, pint, six
+import pyrsistent as ps, numpy as np, collections as colls
 from functools import reduce
 from .util  import (merge, is_pmap, is_map, is_lazy_map, is_quantity, quant, mag, units, qhash,
-                    save, load, is_nparray)
+                    save, load, is_nparray, getargspec_py27like)
 from .table import (itable, is_itable)
 
-if sys.version_info[0] == 3: from   collections import abc as colls
-else:                        import collections            as colls
+if six.PY2: tuple_type = types.TupleType
+else:       tuple_type = tuple
 
 ####################################################################################################
 # The Calc, Plan, and IMap classes
@@ -87,7 +87,7 @@ class Calc(object):
         if is_map(result):
             if len(result) != len(self.efferents) or not all(e in result for e in self.efferents):
                 raise ValueError('keys returned by %s did not match calc declaration' % self.name)
-        elif isinstance(result, types.TupleType):
+        elif isinstance(result, tuple_type):
             result = {k:v for (k,v) in zip(self.efferents, result)}
         elif len(self.efferents) == 1:
             result = {self.efferents[0]: result}
@@ -349,7 +349,7 @@ class Plan(object):
         calculation pieces specified by the arguments have been replaced with the given
         calculations instead.
         '''
-        return Plan(reduce(lambda m,(k,v): m.set(k,v), six.iteritems(kwargs), self.nodes))
+        return Plan(reduce(lambda m,u: m.set(u[0],u[1]), six.iteritems(kwargs), self.nodes))
     def discard(self, *args):
         '''
         cplan.discard(...) yields a new calculation plan identical to cplan except without any of
@@ -555,7 +555,7 @@ class IMap(colls.Mapping):
         # ensure we have a result
         if res is None: res = node(self)
         # process the result:
-        effs = reduce(lambda m,(k,v): m.set(k,v), six.iteritems(res), self.efferents)
+        effs = reduce(lambda m,v: m.set(v[0],v[1]), six.iteritems(res), self.efferents)
         object.__setattr__(self, 'efferents', effs)
         # Handle the caching if needed:
         if h is not None:
@@ -587,7 +587,7 @@ class IMap(colls.Mapping):
                 'The given key \'%s\' is not an afferent parameter of IMap object')
         # okay, we can make the change...
         new_calc_dict = copy.copy(self)
-        new_affs = reduce(lambda m,(k,v): m.set(k,v), six.iteritems(args), affs)
+        new_affs = reduce(lambda m,v: m.set(v[0],v[1]), six.iteritems(args), affs)
         object.__setattr__(new_calc_dict, 'afferents', new_affs)
         # we need to run checks and delete any cache that has been invalidated.
         # The calculation's check method does this; it raises an exception if there is an error
@@ -652,7 +652,7 @@ def calc(*args, **kwargs):
         if isinstance(args[0], types.FunctionType):
             f = args[0]
             effs = (f.__name__,)
-            (affs, varargs, kwargs, dflts) = inspect.getargspec(f)
+            (affs, varargs, kwargs, dflts) = getargspec_py27like(f)
             if varargs or kwargs: raise ValueError('@calc functions may not accept variadic args')
             affs = tuple(affs)
             dflts = ps.pmap({} if dflts is None else
@@ -662,7 +662,7 @@ def calc(*args, **kwargs):
         elif args[0] is None:
             effs = ()
             def _calc_req(f):
-                (affs, varargs, kwargs, dflts) = inspect.getargspec(f)
+                (affs, varargs, kwargs, dflts) = getargspec_py27like(f)
                 if varargs or kwargs: raise ValueError('@calc functions only accept simple params')
                 affs = tuple(affs)
                 dflts = ps.pmap({} if dflts is None else
@@ -680,7 +680,7 @@ def calc(*args, **kwargs):
         effs = tuple(args)
         kwargs0 = kwargs
         def _calc(f):
-            (affs, varargs, kwargs, dflts) = inspect.getargspec(f)
+            (affs, varargs, kwargs, dflts) = getargspec_py27like(f)
             if varargs or kwargs:
                 raise ValueError('@calc functions may only accept simple parameters')
             affs = tuple(affs)

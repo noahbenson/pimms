@@ -4,19 +4,36 @@
 # By Noah C. Benson
 
 import inspect, types, sys, six, pint, os, numbers
-import numpy as np, pyrsistent as ps
+import collections as colls, numpy as np, pyrsistent as ps
 from functools import reduce
-try:    import cStringIO as strio
-except: import StringIO  as strio
-try:    import cPickle   as pickle
+if six.PY2:
+    try:    from cStringIO import StringIO as BytesIO
+    except: from StringIO  import StringIO as BytesIO
+else:
+    from io import BytesIO
+try:    from six.moves import cPickle as pickle
 except: import pickle
+
+if six.PY2: tuple_type = types.TupleType
+else:       tuple_type = tuple
 
 units = pint.UnitRegistry()
 units.define('pixel = [image_length] = px')
 
-if sys.version_info[0] == 3: from   collections import abc as colls
-else:                        import collections            as colls
-
+if six.PY2:
+    def getargspec_py27like(f):
+        '''
+    getargspec_py27like(f) yields the results of calling inspect.getargspec(f) in Python 2.7, or the
+      equivalent in Python 3.
+    '''
+        return inspect.getargspec(f)
+else:
+    def getargspec_py27like(f):
+        '''
+    getargspec_py27like(f) yields the results of calling inspect.getargspec(f) in Python 2.7, or the
+      equivalent in Python 3.
+    '''
+        return inspect.getfullargspec(f)[:4]
 
 def is_unit(q):
     '''
@@ -24,7 +41,8 @@ def is_unit(q):
       otherwise.
     '''
     if isinstance(q, six.string_types):
-        return hasattr(units, q)
+        try: return hasattr(units, q)
+        except: return False
     else:
         cls = type(q)
         return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
@@ -153,6 +171,7 @@ def qhash(o):
       mutable and/or unhashable objects.
     '''
     return hash(qhashform(o))
+_pickle_load_options = {} if six.PY2 else {'encoding': 'latin1'}
 io_formats = colls.OrderedDict(
     [('numpy', {
         'match': lambda o:   (isinstance(o, np.ndarray) and
@@ -162,7 +181,7 @@ io_formats = colls.OrderedDict(
      ('pickle', {
         'match': lambda o:   True,
         'write': lambda s,o: pickle.dump(o, s),
-        'read':  lambda s:   pickle.load(s)})])
+        'read':  lambda s:   pickle.load(s, **_pickle_load_options)})])
 def _check_io_format(obj, fmt):
     try:    return io_formats[fmt]['match'](obj)
     except: return False
@@ -175,7 +194,7 @@ def _load_stream_format(stream, fmt):
 def _save_stream(stream, obj):
     for (fmt,fdat) in six.iteritems(io_formats):
         if not _check_io_format(obj, fmt): continue
-        s = strio.StringIO()
+        s = BytesIO()
         try:
             _save_stream_format(s, obj, fmt)
             pickle.dump(fmt, stream)
@@ -185,7 +204,7 @@ def _save_stream(stream, obj):
         finally: s.close()
     raise ValueError('unsavable object: did not match any exporters')
 def _load_stream(stream):
-    try:    fmt = pickle.load(stream)
+    try:    fmt = pickle.load(stream, **_pickle_load_options)
     except: raise ValueError('could not unpickle format; probably not a pimms save file')
     if not isinstance(fmt, six.string_types):
         raise ValueError('file format object is not a string; probably not a pimms save file')
@@ -250,7 +269,7 @@ def load(filename, ureg='pimms'):
             pint._DEFAULT_REGISTRY = orig_dfl_ureg
     if isinstance(filename, six.string_types):
         filename = os.path.expanduser(filename)
-        with open(filename, 'r') as f:
+        with open(filename, 'rb') as f:
             return _load_stream(f)
     else:
         return _load_stream(filename)
@@ -258,6 +277,8 @@ def load(filename, ureg='pimms'):
 def is_str(arg):
     '''
     is_str(x) yields True if x is a string object and False otherwise.
+
+    In python 2, this uses isinstance
     '''
     return isinstance(arg, six.string_types)
 def is_class(arg):
@@ -317,14 +338,14 @@ def is_nparray(u, dtype=None, dims=None):
     # it's an array... check dtype
     if dtype is not None:
         if is_str(dtype): dtype = numpy_type(dtype)
-        if isinstance(dtype, types.TupleType):
+        if isinstance(dtype, tuple_type):
             if not any(np.issubdtype(u.dtype, d) for d in dtype):
                 return False
         elif not np.issubdtype(u.dtype, np.dtype(dtype).type):
             return False
     # okay, the dtype is fine; check the dims
     if dims is None: return True
-    if isinstance(dims, types.TupleType):
+    if isinstance(dims, tuple_type):
         return len(u.shape) in dims
     else:
         return len(u.shape) == dims
@@ -481,7 +502,7 @@ class LazyPMap(ps.PMap):
         vid = id(val)
         if vid in self._memoized:
             return self._memoized[vid]
-        elif ([], None, None, None) != inspect.getargspec(val):
+        elif ([], None, None, None) != getargspec_py27like(val):
             return val
         else:
             val = val()
@@ -553,7 +574,7 @@ class LazyPMap(ps.PMap):
         v = ps.PMap.__getitem__(self, k)
         if not isinstance(v, types.FunctionType) or \
            id(v) in self._memoized or \
-           ([], None, None, None) != inspect.getargspec(v):
+           ([], None, None, None) != getargspec_py27like(v):
             return False
         else:
             return True
@@ -573,7 +594,7 @@ class LazyPMap(ps.PMap):
         nor a formerly-lazy memoized key.
         '''
         v = ps.PMap.__getitem__(self, k)
-        if not isinstance(v, types.FunctionType) or ([],None,None,None) != inspect.getargspec(v):
+        if not isinstance(v, types.FunctionType) or ([],None,None,None) != getargspec_py27like(v):
             return True
         else:
             return False

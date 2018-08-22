@@ -3,8 +3,8 @@
 # Simple class decorator for immutable lazily-loading classes.
 # By Noah C. Benson
 
-import copy, inspect, types, six
-from .util import qhash
+import copy, types, six, inspect
+from .util import (getargspec_py27like, qhash)
 
 # An immutable has three important values in the _pimms_immutable_data_ attribute of its class:
 # (1) params
@@ -70,8 +70,8 @@ def _imm_check(imm, names=Ellipsis):
     all_checks = set([])
     params = _imm_param_data(imm)
     consts = _imm_const_data(imm)
-    names = params.keys() + consts.keys() if names is Ellipsis                   else \
-            [names]                       if isinstance(names, six.string_types) else \
+    names = list(params.keys()) + list(consts.keys()) if names is Ellipsis                   else \
+            [names]                                   if isinstance(names, six.string_types) else \
             names
     for name in names:
         if name in params:
@@ -432,7 +432,7 @@ def value(f):
     function is actually a calculator for a lazy value. The function parameters are the attributes
     of the object that are part of the calculation.
     '''
-    (args, varargs, kwargs, dflts) = inspect.getargspec(f)
+    (args, varargs, kwargs, dflts) = getargspec_py27like(f)
     if varargs is not None or kwargs is not None or dflts:
         raise ValueError('Values may not accept variable, variadic keyword, or default arguments')
     f._pimms_immutable_data_ = {}
@@ -449,7 +449,7 @@ def param(f):
     function abc with @param, then imm.abc = x will result in imm's abc attribute being set to the
     value of type(imm).abc(x).
     '''
-    (args, varargs, kwargs, dflts) = inspect.getargspec(f)
+    (args, varargs, kwargs, dflts) = getargspec_py27like(f)
     if varargs is not None or kwargs is not None or dflts:
         raise ValueError('Params may not accept variable, variadic keyword, or default arguments')
     if len(args) != 1:
@@ -466,7 +466,7 @@ def option(default_value):
     value x when the immutable is created.
     '''
     def _option(f):
-        (args, varargs, kwargs, dflts) = inspect.getargspec(f)
+        (args, varargs, kwargs, dflts) = getargspec_py27like(f)
         if varargs is not None or kwargs is not None or dflts:
             raise ValueError(
                 'Options may not accept variable, variadic keyword, or default arguments')
@@ -487,7 +487,7 @@ def require(f):
     data change. Daughter classes can overload requirements to change them, or may add new
     requirements with different function names.
     '''
-    (args, varargs, kwargs, dflts) = inspect.getargspec(f)
+    (args, varargs, kwargs, dflts) = getargspec_py27like(f)
     if varargs is not None or kwargs is not None or dflts:
         raise ValueError(
             'Requirements may not accept variable, variadic keyword, or default arguments')
@@ -529,7 +529,7 @@ def _imm_resolve_deps(cls):
     values = dat['values']
     consts = dat['consts']
     checks = dat['checks']
-    members = params.keys() + values.keys()
+    members = list(params.keys()) + list(values.keys())
     mem_ids = {k:i for (i,k) in enumerate(members)}
     # make sure that every input that's not already a value or param becomes a param:
     all_inputs = [v[0] for v in six.itervalues(values)] + [c[0] for c in six.itervalues(checks)]
@@ -657,6 +657,14 @@ def _annotate_imm(cls):
     _imm_resolve_deps(cls)
     return cls
 
+# depending on python 2/3 we need to make the methods a certain way...
+if six.PY2:
+    def _method_type(f, cls):
+        return types.MethodType(f, None, cls)
+else:
+    def _method_type(f, cls):
+        return f.__get__(None, cls)
+
 def immutable(cls):
     '''
     The @immutable decorator makes an abstract type out of the decorated class that overloads
@@ -695,7 +703,7 @@ def immutable(cls):
                     ('__delattr__',      _imm_delattr),
                     ('__copy__',         _imm__copy__),
                     ('__deepcopy__',     _imm__copy__))
-    for (name, fn) in auto_members: setattr(cls, name, types.MethodType(fn, None, cls))
+    for (name, fn) in auto_members: setattr(cls, name, _method_type(fn, cls))
     # __new__ is special...
     @staticmethod
     def _custom_new(c, *args, **kwargs): return _imm_new(c)
@@ -711,24 +719,23 @@ def immutable(cls):
                     ('todict',           imm_dict))
     for (name, fn) in optl_members:
         if not hasattr(cls, name):
-            setattr(cls, name, types.MethodType(fn, None, cls))
+            setattr(cls, name, _method_type(fn, cls))
     # and the attributes we set if they're not overloaded from object
     initfn = _imm_default_init if cls.__init__ is object.__init__ else cls.__init__
     def _imm_init_wrapper(imm, *args, **kwargs):
         # call the init normally...
         initfn(imm, *args, **kwargs)
-        # If we're still initializing after running the constructor, we need to switch to transient
+        # If we're still initializing after running the constructor, we need to switch to
+        # transient
         if _imm_is_init(imm): _imm_init_to_trans(imm)
         # Okay, all checks passed!
-    setattr(cls, '__init__', types.MethodType(_imm_init_wrapper, None, cls))
+    setattr(cls, '__init__', _method_type(_imm_init_wrapper, cls))
     dflt_members = (('__dir__',          _imm_dir),
                     ('__repr__',         _imm_repr),
                     ('__hash__',         _imm_hash))
     for (name, fn) in dflt_members:
         if not hasattr(cls, name) or not hasattr(object, name) or \
            getattr(cls, name) is getattr(object, name):
-            setattr(cls, name, types.MethodType(fn, None, cls))
+            setattr(cls, name, _method_type(fn, cls))
     # Done!
     return cls
-    
-    
