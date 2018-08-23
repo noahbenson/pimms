@@ -86,10 +86,10 @@ class ITable(colls.Mapping):
     def _filter_col(vec):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
         if isinstance(vec, types.FunctionType) and getargspec_py27like(vec) == ([],None,None,None):
-            return lambda:imm_array(vec())
+            return lambda:ITable._filter_col(vec())
         elif is_quantity(vec):
             m = mag(vec)
-            mm = ITable._filter_col(mm)
+            mm = ITable._filter_col(m)
             return vec if m is mm else quant(mm, unit(vec))
         else:
             return imm_array(vec)
@@ -101,13 +101,12 @@ class ITable(colls.Mapping):
         '''
         # we want to check these values and clean them up as we go, but if this is a lazy map, we
         # want to do that lazily...
-        if isinstance(d, LazyPMap):
+        if is_map(d):
+            if not is_lazy_map(d): d = lazy_map(d)
             def _make_lambda(k): return (lambda:ITable._filter_col(d[k]))
             return lazy_map(
                 {k:_make_lambda(k) if d.is_lazy(k) else ITable._filter_col(d[k])
                  for k in six.iterkeys(d)})
-        elif isinstance(d, colls.Mapping):
-            return lazy_map({k:ITable._filter_col(v) for (k,v) in six.iteritems(d)})
         else:
             raise ValueError('Unable to interpret data argument; must be a mapping')
     @param
@@ -380,15 +379,13 @@ def itable(*args, **kwargs):
         args = [{a[k].values for k in a.keys()} if isinstance(a, pandas.DataFrame) else a
                 for a in args]
     except: pass
+    # now we want to merge these together and make them one lazy map
+    m0 = lazy_map(merge(args, kwargs))
     # see if we can deduce the row size from a non-lazy argument:
-    v = next((m[k] for m in args for k in six.iterkeys(m)
-              if ((is_lazy_map(m) and not m.is_lazy(k))
-                  or
-                  (not is_lazy_map(m) and not isinstance(m[k], types.FunctionType)))),
-              None)
-    if v is None:
-        v = next((v for v in six.itervalues(kwargs) if not isinstance(v, types.FunctionType)), None)
-    return ITable(merge(args, kwargs), n=(None if v is None else len(v)))
+    v = next((m0[k] for k in six.iterkeys(m0) if not m0.is_lazy(k)), None) if is_lazy_map(m0) else \
+        None
+    if v is None: v = next((u for u in six.itervalues(m0)), None)
+    return ITable(m0, n=(None if v is None else len(v)))
 def is_itable(arg):
     '''
     is_itable(x) yields True if x is an ITable object and False otherwise.

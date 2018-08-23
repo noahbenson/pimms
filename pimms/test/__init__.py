@@ -21,6 +21,7 @@ usage.
 
 import unittest, math, sys, six, pimms
 import numpy as np
+import pyrsistent as pyr
 
 if sys.version_info[0] == 3: from   collections import abc as colls
 else:                        import collections            as colls
@@ -30,6 +31,94 @@ class TestPimms(unittest.TestCase):
     The TestPimms class defines all the tests for the pimms library.
     '''
 
+    def test_predicates(self):
+        '''
+        test_predicates ensures that the various pimms functions of the form is_<type>(obj) are
+        working properly.
+        '''
+        # some arbitrary values to use in testing
+        qr = pimms.quant([1.5, 3.3, 9.5, 10.4, 6.2, 0.1], 'mm')
+        qi = pimms.quant([1, 3, 9, 10, 6, 0], 'seconds')
+        mr = np.random.rand(10,3)
+        vi = np.random.randint(0, 5000, size=12)
+        sr = np.array(10.0)
+        si = np.array(2)*pimms.units.deg
+        l = [1, 2.0, 'abc']
+        lm = [[1,1], [2.0,2.0], [4,7.7]]
+        u = u'a unicode string of stuff'
+        b = b'a byte string of stuff'
+        f0 = lambda:np.linspace(0,100,117)
+        f1 = lambda x:x**2 + 1
+        d = {'a': 12, 'b':None, 'c':f0, 'd':f1,
+             'e':lambda:'some string', 'f':lambda:None}
+        pm = pyr.pmap(d)
+        lm = pimms.lazy_map(d)
+        # a function for testing predicates
+        def tpred(p, tvals, fvals):
+            for s in tvals: self.assertTrue(p(s))
+            for s in fvals: self.assertFalse(p(s))
+        # Map types
+        tpred(pimms.is_lazy_map, [lm], [qr,qi,mr,vi,sr,si,l,u,b,f0,f1,d,pm])
+        tpred(pimms.is_map, [lm,d,pm], [qr,qi,mr,vi,sr,si,l,u,b,f0,f1])
+        tpred(pimms.is_pmap, [lm,pm], [qr,qi,mr,vi,sr,si,l,u,b,f0,f1,d])
+        # Numpy types require a little attention due to their optional arguments and the
+        # complexities of the type relationships
+        tpred(pimms.is_nparray, [qr,qi,mr,vi,sr], [l,lm,u,b,f0,f1,d,pm,lm])
+        self.assertTrue(pimms.is_nparray(qr, 'real'))
+        self.assertTrue(pimms.is_nparray(qr, 'any', 1))
+        self.assertFalse(pimms.is_nparray(qr, 'any', 2))
+        self.assertFalse(pimms.is_nparray(qi, 'string'))
+        self.assertTrue(pimms.is_nparray(qi, ('real','int'), (1,3)))
+        self.assertFalse(pimms.is_nparray(qi, ('real','int'), 2))
+        self.assertFalse(pimms.is_nparray(qr, ('string','bool','bytes'), (2,3)))
+        self.assertTrue(pimms.is_nparray(mr, None, 2))
+        self.assertFalse(pimms.is_nparray(mr, None, 1))
+        self.assertFalse(pimms.is_nparray(vi, 'int', 2))
+        tpred(pimms.is_npscalar, [sr], [qr,qi,mr,vi,l,lm,u,b,f0,f1,d,pm,lm])
+        self.assertTrue(pimms.is_npscalar(np.array(12.0), 'real'))
+        self.assertFalse(pimms.is_npscalar(np.array(12.0), 'string'))
+        self.assertTrue(pimms.is_npscalar(np.array(12.0), ('real','complex')))
+        tpred(pimms.is_npmatrix, [mr, pimms.quant(mr, 'm/s')],
+              [sr,si,qr,qi,vi,l,lm,u,b,f0,f1,d,pm,lm])
+        self.assertTrue(pimms.is_npmatrix(mr, ('int','real','string')))
+        self.assertTrue(pimms.is_npmatrix(mr, 'number'))
+        self.assertFalse(pimms.is_npmatrix(mr, ('bool','string')))
+        tpred(pimms.is_npvector, [qr,qi,vi,vi*pimms.units.mol,qr,qi],
+              [sr,si,mr,l,lm,u,b,f0,f1,d,pm,lm])
+        self.assertTrue(pimms.is_npvector(vi, 'real'))
+        self.assertTrue(pimms.is_npvector(qi, 'int'))
+        self.assertFalse(pimms.is_npvector(qr, ('bool','string')))
+        self.assertTrue(pimms.is_npvalue('abc', 'string'))
+        self.assertTrue(pimms.is_npvalue(u'abc', ('unicode','real')))
+        self.assertFalse(pimms.is_npvalue(np.array(5.6), ('unicode','real')))
+        self.assertFalse(pimms.is_npvalue(np.array(5.6), ('unicode','bool')))
+        self.assertFalse(pimms.is_npvalue(np.array([5.6]), ('unicode','real')))
+        # Also the un-nump'ified versions
+        tpred(pimms.is_array, [qr,qi,vi,sr,si,mr,qr,qi,l,lm,u,b,f0,f1,d,pm,lm], [])
+        self.assertTrue(pimms.is_array(qr, 'real'))
+        self.assertTrue(pimms.is_array(qr, 'any', 1))
+        self.assertTrue(pimms.is_array(qr, 'any', 1))
+        self.assertFalse(pimms.is_array(qi, 'string'))
+        self.assertTrue(pimms.is_array(qi, ('real','int'), (1,3)))
+        self.assertFalse(pimms.is_array(qi, ('real','int'), 2))
+        self.assertFalse(pimms.is_array(qr, ('string','bool','bytes'), (2,3)))
+        self.assertTrue(pimms.is_array(mr, None, 2))
+        self.assertFalse(pimms.is_array(mr, None, 1))
+        self.assertFalse(pimms.is_array(vi, 'int', 2))
+        self.assertFalse(pimms.is_array(l, 'number', 1))
+        self.assertTrue(pimms.is_array(lm, 'any', (1,2)))
+        tpred(pimms.is_scalar, [u,b,f0,f1,d,sr,si], [qr,qi,vi,mr,l,pm,lm])
+        tpred(pimms.is_int, [vi[0],si,1,10], [u,b,f0,f1,d,pm,lm,sr,qr,mr])
+        tpred(pimms.is_real, [vi[0],si,1,10,sr], [4j,u,b,f0,f1,d,pm,lm,mr,qr])
+        tpred(pimms.is_complex, [vi[0],si,1,10,sr,4j], [u,b,f0,f1,d,pm,lm,mr,qr])
+        tpred(pimms.is_number, [vi[0],si,1,10,sr], [u,b,f0,f1,d,pm,lm,mr,qr])
+        tpred(pimms.is_str, ['abc'], [vi,si,1,10,sr,qr,f0,f1,d,pm,lm,mr])
+        tpred(pimms.is_class, [str,int], [vi,si,1,10,sr,qr,u,b,f0,f1,d,pm,lm,mr])
+        tpred(pimms.is_quantity, [qr,qi,si], [vi,10,sr,u,b,f0,f1,d,pm,lm,mr])
+        tpred(pimms.is_unit,
+              ('seconds', 's', 'mm', 'deg', pimms.units.seconds, pimms.units.s, pimms.units.mm,
+               pimms.units.deg),
+              (1, 10.0, np.asarray([10]), None, 'nonunitstring', qr))
     def test_units(self):
         '''
         test_units ensures that the various pimms functions related to pint integration work
@@ -38,17 +127,20 @@ class TestPimms(unittest.TestCase):
         # make a few pieces of data with types
         x = np.asarray([1.0, 2.0, 3.0, 4.0]) * pimms.units.mm
         y = pimms.quant([2, 4, 6, 8], 'sec')
-        self.assertTrue(all(pimms.is_quantity(u) for u in [x,y]))
-        self.assertTrue(pimms.like_units(pimms.unit(x), pimms.unit('millimeters')))
-        self.assertTrue(pimms.like_units(pimms.unit(y), pimms.unit('seconds')))
+        for u in [x,y]: self.assertTrue(pimms.is_quantity(u))
+        for u in ('abc', 123, 9.0, []): self.assertFalse(pimms.is_quantity(u))
+        for u in [x,y]: self.assertFalse(pimms.is_quantity(pimms.mag(u)))
+        self.assertTrue(pimms.like_units(pimms.unit(x), pimms.unit('yards')))
+        self.assertTrue(pimms.like_units(pimms.unit(y), pimms.unit('minutes')))
+        self.assertFalse(pimms.like_units(pimms.unit(y), pimms.unit('mm')))
         z = x / y
         self.assertTrue(pimms.is_vector(x, 'real'))
         self.assertTrue(pimms.is_vector(y, 'real'))
         self.assertFalse(pimms.is_vector(x, 'int'))
         self.assertTrue(pimms.is_vector(y, 'int'))
-        self.assertFalse(pimms.is_vector(y, 'float'))
+        self.assertTrue(pimms.is_vector(y, 'float'))
         self.assertTrue(pimms.is_vector(z, 'real'))
-
+        
     def test_lazy_complex(self):
         '''
         test_lazy_complex makes sure that the example in pimms.test.lazy_complex works.
@@ -207,6 +299,32 @@ class TestPimms(unittest.TestCase):
         self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
         remem = [v for (k,v) in six.iteritems(lm)]
         self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
-        
+
+    def test_itable(self):
+        '''
+        test_itable() tests pimms itable objects and makes sure they work correctly.
+        '''
+        class nloc:
+            lazy_loads = 0
+        def _load_lazy():
+            nloc.lazy_loads += 1
+            return pimms.quant(np.random.rand(10), 'sec')
+        dat = {'a': [1,2,3,4,5,6,7,8,9,10],
+               'b': pimms.quant(np.random.rand(10), 'mm'),
+               'c': ['abc','def','ghi','jkl','mno','pqr','stu','vwx','yz!','!!!'],
+               'd': _load_lazy}
+        tbl = pimms.itable(dat)
+        # make sure the data is the right size
+        for k in tbl.keys(): self.assertTrue(tbl[k].shape == (10,))
+        self.assertTrue(tbl.row_count == 10)
+        self.assertTrue(len(tbl.rows) == 10)
+        self.assertTrue(len(tbl.column_names) == 4)
+        self.assertTrue(len(tbl.columns) == 4)
+        # Check a few of the entries
+        for (i,ki) in zip(np.random.randint(0, tbl.row_count, 50), np.random.randint(0, 4, 50)):
+            ki = tbl.column_names[ki]
+            self.assertTrue(tbl.rows[i][ki] == tbl[ki][i])
+        self.assertTrue(nloc.lazy_loads == 1)
+                
 if __name__ == '__main__':
     unittest.main()

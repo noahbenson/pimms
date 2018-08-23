@@ -41,4 +41,4 @@ class LazyComplex(object):
         return math.atan2(im, re)
 
     def __repr__(self):
-        return '(%.3f exp(%.3f i))' % (self.abs, self.arg)
+        return '(%.3f exp %.3fi)' % (self.abs, self.arg)

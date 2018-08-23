@@ -276,48 +276,82 @@ def load(filename, ureg='pimms'):
 
 def is_str(arg):
     '''
-    is_str(x) yields True if x is a string object and False otherwise.
-
-    In python 2, this uses isinstance
+    is_str(x) yields True if x is a string object or a 0-dim numpy array of a string and yields
+      False otherwise. 
     '''
-    return isinstance(arg, six.string_types)
+    return (isinstance(arg, six.string_types) or
+            is_npscalar(arg, 'string') or
+            is_npvalue(arg, 'string'))
 def is_class(arg):
     '''
     is_class(x) yields True if x is a class object and False otherwise.
     '''
     return isinstance(arg, six.class_types)
 
-# type translations:
-_numpy_type_names = {'int':     np.integer,
-                     'float':   np.floating,
-                     'inexact': np.inexact,
-                     'complex': np.complexfloating,
-                     'real':    (np.integer, np.floating),
-                     'number':  np.number,
-                     'bool':    np.bool_,
-                     'any':     np.generic}
+# handy type translations:
+_numpy_type_names = {'bool':    (np.bool_,),
+                     'int':     (np.integer, np.bool_),
+                     'integer': (np.integer, np.bool_),
+                     'float':   (np.floating, np.integer, np.bool_),
+                     'real':    (np.floating, np.integer, np.bool_),
+                     'complex': (np.number,),
+                     'number':  (np.number,),
+                     'string':  (np.bytes_ if six.PY2 else np.unicode_,),
+                     'unicode': (np.unicode_,),
+                     'bytes':   (np.bytes_,),
+                     'chars':   (np.character,),
+                     'object':  (np.object_,),
+                     'any':     (np.generic,),}
 def numpy_type(type_id):
     '''
-    numpy_type(type) yields a valid numpy type for the given type argument. The type argument may be
-      a numpy type such as numpy.bool, or it may be a string that labels a numpy type.
+    numpy_type(type) yields a tuple of valid numpy types that can represent the type specified in
+      the given type argument. The type argument may be a numpy type such as numpy.signedinteger, in
+      which case a tuple containing only it is returned. Alternately, it may be a string that labels
+      a numpy type or a builtin type that should be translated to a numpy type (see below).
+
+    Note that numpy_types() does note intend to reproduce the numpy type hierarchy! If you want to
+    perform comparisons on the numpy hierarchy, use numpy's functions. Rather, numpy_type()
+    represents types in a mathematical hierarchy, so, for example, numpy_type('real') yields the
+    tuple (numpy.floating, numpy.integer, numpy.bool_) because all of these are valid real numbers.
 
     Valid numpy type strings include:
-      * 'int'
-      * 'float'
-      * 'real'
-      * 'complex'
-      * 'number'
       * 'bool'
+      * 'int' / 'integer' (integers and booleans)
+      * 'float' / 'real' (integers, booleans, or floating-point)
+      * 'complex' / 'number' (integers, booleans, reals, or complex numbers)
+      * 'string' ('unicode' in Python 3, 'bytes' in Python 2)
+      * 'unicode'
+      * 'bytes'
+      * 'chars' (numpy.character)
+      * 'object'
       * 'any'
+    Valid builtin types include:
+      * int (also long in Python 2), like 'int'
+      * float, like 'float'
+      * complex, like 'complex'
+      * str, like 'string'
+      * bytes, like 'bytes',
+      * unicode, like 'unicode'
+      * object, like 'object'
+      * None, like 'any'
     '''
-    if is_str(type_id):                                    return _numpy_type_names[type_id.lower()]
-    elif np.issubdtype(type_id, np.generic):               return type_id
-    elif type_id in six.integer_types:                     return _numpy_type_names['int']
-    elif type_id is float:                                 return _numpy_type_names['float']
-    elif type_id is numbers.Real:                          return _numpy_type_names['real']
-    elif type_id is complex or type_id is numbers.Complex: return _numpy_type_names['complex']
-    elif type_id is bool:                                  return _numpy_type_names['bool']
-    elif type_id is None:                                  return _numpy_type_names['any']
+    if is_str(type_id):
+        return _numpy_type_names[type_id.lower()]
+    elif isinstance(type_id, (list, tuple)):
+        return tuple([dt for s in type_id for dt in numpy_type(s)])
+    elif type_id is None:
+        return _numpy_type_names['any']
+    elif type_id in six.integer_types:       return _numpy_type_names['int']
+    elif type_id is float:                   return _numpy_type_names['float']
+    elif type_id is numbers.Real:            return _numpy_type_names['real']
+    elif type_id is complex:                 return _numpy_type_names['complex']
+    elif type_id is numbers.Complex:         return _numpy_type_names['complex']
+    elif type_id is bool:                    return _numpy_type_names['bool']
+    elif type_id is str:                     return _numpy_type_names['string']
+    elif type_id is unicode:                 return _numpy_type_names['unicode']
+    elif type_id is bytes:                   return _numpy_type_names['bytes']
+    elif type_id is object:                  return _numpy_type_names['object']
+    elif np.issubdtype(type_id, np.generic): return type_id
     else: raise ValueError('Could not deduce numpy type for %s' % type_id)
 
 def is_nparray(u, dtype=None, dims=None):
@@ -328,27 +362,22 @@ def is_nparray(u, dtype=None, dims=None):
     is_nparray(u, dtype, dims) yields True if is_nparray(u, dtype) and the number of dimensions is
       equal to dims (note that dtype may be set to None for no dtype requirement).
     
-    Note that either dims or dtype may be None to indicate no requirement; additionally, either may
-    be a tuple to indicate that the dtype or dims may be any of the given values.
+    Notes:
+      * Either dims or dtype may be None to indicate no requirement; additionally, either may be a
+        tuple to indicate that the dtype or dims may be any of the given values.
+      * If u is a quantity, then this is equivalent to querying mag(u).
 
     See also: is_npscalar, is_npvector, is_npmatrix, is_array, is_scalar, is_vector, is_matrix
     '''
-    if   is_quantity(u):                return is_array(mag(u), dtype=dtype, dims=dims)
+    if   is_quantity(u):                return is_nparray(mag(u), dtype=dtype, dims=dims)
     elif not isinstance(u, np.ndarray): return False
     # it's an array... check dtype
     if dtype is not None:
-        if is_str(dtype): dtype = numpy_type(dtype)
-        if isinstance(dtype, tuple_type):
-            if not any(np.issubdtype(u.dtype, d) for d in dtype):
-                return False
-        elif not np.issubdtype(u.dtype, np.dtype(dtype).type):
-            return False
+        if not any(np.issubdtype(u.dtype, d) for d in numpy_type(dtype)): return False
     # okay, the dtype is fine; check the dims
     if dims is None: return True
-    if isinstance(dims, tuple_type):
-        return len(u.shape) in dims
-    else:
-        return len(u.shape) == dims
+    if isinstance(dims, (tuple,list)): return len(u.shape) in dims
+    else:                              return len(u.shape) == dims
 def is_npscalar(u, dtype=None):
     '''
     is_npscalar(u) yields True if u is an instance of a numpy array with 0 shape dimensions.
@@ -375,25 +404,41 @@ def is_npmatrix(u, dtype=None):
 
     See also: is_nparray, is_npscalar, is_npvector, is_array, is_scalar, is_vector, is_matrix
     '''
-    return is_array(u, dtype=dtype, dims=2)
-def is_npgeneric(u, dtype=None):
+    return is_nparray(u, dtype=dtype, dims=2)
+def is_npvalue(u, dtype):
     '''
-    is_npgeneric(u) yields True if u is a numpy generic type object.
-    is_npgeneric(u, dtype) yields True if u is a numpy generic type object and u's type is a subdtype
-      of the given dtype.
+    is_npvalue(u, dtype) yields True if u is a member of the given dtype according to numpy. The
+      dtype may be specified as a string (see numpy_type) or a type. Note that dtype may be None,
+      'any', or np.generic, but this will always return True if so.
+
+    Note that is_npvalue(1, 'int') will yield True, while is_npvalue(np.array(1), 'int'),
+    is_npvalue(np.array([1]), 'int'), and is_npvalue([1], 'int') will yield False (because lists
+    and numpy arrays of ints aren't ints).
+
+    See also is_nparray, is_npscalar, is_scalar.
     '''
-    if is_str(dtype): dtype = numpy_type(dtype)
-    return np.issubdtype(type(u), np.generic if dtype is None else np.dtype(dtype).type)
+    if is_quantity(u): return is_npvalue(mag(u), dtype=dtype)
+    return any(np.issubdtype(type(u), np.generic if d is None else d) for d in numpy_type(dtype))
 
 def is_array(u, dtype=None, dims=None):
     '''
     is_array(u) is equivalent to is_nparray(np.asarray(u)), meaning is_array(u) will always yield
-      True, but is_array(u, dtype, dims) may not.
+      True.
+    is_array(u, dtype) yields True if np.asarray(u) is of the given dtype, which is looked up using
+      numpy_type. If dtype is None, then no dtype requirement is applied.
+    is_array(u, dtype, dims) yields True if np.asarray(u) has the given dtype has the given number
+      of dimensions.
+
+    As in is_nparray(), dtype and dims may be tuples to indicate that any of the listed values are
+    acceptable.
 
     See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_scalar, is_vector, is_matrix
     '''
     if is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
-    else:              return is_nparray(np.asarray(u), dtype=dtype, dims=dims)
+    else:
+        try: u = np.asarray(u)
+        except: pass
+        return is_nparray(u, dtype=dtype, dims=dims)
 def is_scalar(u, dtype=None):
     '''
     is_scalar(u) is equivalent to is_npscalar(np.asarray(u)).
@@ -427,56 +472,50 @@ def is_int(arg):
     '''
     return (is_int(mag(arg)) if is_quantity(arg)                   else
             True             if isinstance(arg, six.integer_types) else
-            is_npscalar(arg, np.int) or is_npgeneric(arg, np.int))
+            is_npscalar(arg, 'int') or is_npvalue(arg, 'int'))
 def is_float(arg):
     '''
-    is_float(x) yields True if x is an floating-point object and False otherwise; floating-point
-      objects include the standard Python float types as well as numpy single floating-point arrays
-      (i.e., where x.shape == ()) and quantities with floating-point magnitudes.
+    is_float(x) yields True if x is a non-complex numeric object and False otherwise. It is an alias
+      for is_real(x).
 
-    Note that is_float(x) will yield False if x is an integer or a complex number; to check for real
-    (integer or floating-point) values, use is_real(); to check for inexact (floating-point or
-    complex) values, use is_inexact().
+    Note that is_float(i) will yield True for an integer or bool i; to check for floating-point
+    representations of numbers, use is_array(x, numpy.floating) or similar.
     '''
     return (is_float(mag(arg)) if is_quantity(arg)       else
             True               if isinstance(arg, float) else
-            is_npscalar(arg, np.floating) or is_npgeneric(arg, np.floating))
-def is_inexact(arg):
-    '''
-    is_inexact(x) yields True if x is a number represented by floating-point data (i.e., either a
-      non-integer real number or a complex number) and False otherwise.
-
-    Note that is_float(x) will yield False if x is an integer but True if x is a complex number; to
-    check for real (integer or floating-point) values, use is_real(); to check for real
-    floating-point values only, use is_float().
-    '''
-    return (is_inexact(mag(arg)) if is_quantity(arg)                          else
-            True                 if isinstance(arg, (float, numbers.Complex)) else
-            is_npscalar(u, np.inexact))
+            is_npscalar(arg, 'real') or is_npvalue(arg, 'real'))
 def is_real(arg):
     '''
     is_real(x) yields True if x is a non-complex numeric object and False otherwise.
 
-    Note that is_real(i) will yield True for an integer i; to check for floating-point
-    representations of numbers, use is_float().
+    Note that is_real(i) will yield True for an integer or bool i; to check for floating-point
+    representations of numbers, use is_array(x, numpy.floating) or similar.
     '''
-    return (is_real(mag(arg)) if is_quantity(arg)              else
-            True              if isinstance(arg, numbers.Real) else
-            is_npscalar(arg,(np.integer,np.floating)) or is_npgeneric(arg,(np.integer,np.floating)))
+    return (is_real(mag(arg)) if is_quantity(arg)       else
+            True              if isinstance(arg, float) else
+            is_npscalar(arg, 'real') or is_npvalue(arg, 'real'))
+def is_inexact(arg):
+    '''
+    is_inexact(x) yields True if x is a number represented by floating-point data (i.e., either a
+      non-integer real number or a complex number) and False otherwise.
+    '''
+    return (is_inexact(mag(arg)) if is_quantity(arg) else
+            is_npscalar(u, np.inexact) or is_npvalue(arg, np.inexact))
 def is_complex(arg):
     '''
-    is_complex(x) yields True if x is a complex numeric object and False otherwise.
+    is_complex(x) yields True if x is a complex numeric object and False otherwise. Note that this
+      includes anything representable as as a complex number such as an integer or a boolean value.
+      In effect, this makes this function an alias for is_number(arg).
     '''
     return (is_complex(mag(arg)) if is_quantity(arg)                 else
             True                 if isinstance(arg, numbers.Complex) else
-            is_npscalar(arg, np.complexfloating) or is_npgeneric(arg, np.complexfloating))
+            is_npscalar(arg, 'complex') or is_npvalue(arg, 'complex'))
 def is_number(arg):
     '''
     is_number(x) yields True if x is a numeric object and False otherwise.
     '''
     return (is_number(mag(arg)) if is_quantity(arg)              else
-            True                if isinstance(arg, numbers.Real) else
-            is_npscalar(arg, np.number) or is_npgeneric(arg, np.number))
+            is_npscalar(arg, 'number') or is_npvalue(arg, 'number'))
 def is_map(arg):
     '''
     is_map(x) yields True if x implements Python's builtin Mapping class.
@@ -651,10 +690,10 @@ def merge(*args, **kwargs):
         raise ValueError('marge requires Mapping collections')
     all_keys = reduce(lambda r,s: r|s, [set(six.iterkeys(m)) for m in args])
     choose_fn = None
-    if 'choose' in kwargs: choose_fn = kwargs['choose']
-    kwargs = set(six.iterkeys(kwargs)) - set(['choose'])
-    if len(kwargs) != 0:
-        raise ValueError('Unidentified options given to merge: %s' % (list(kwargs),))
+    if 'choose' in kwargs:
+        choose_fn = kwargs['choose']
+    if len(kwargs) > 1 or (len(kwargs) > 0 and 'choose' not in kwargs):
+        raise ValueError('Unidentified options given to merge: %s' (kwargs.keys(),))
     if choose_fn is None: choose_fn = _choose_last
     def _make_lambda(k, args):
         return lambda:choose_fn(k, args)
