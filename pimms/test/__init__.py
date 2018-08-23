@@ -127,9 +127,12 @@ class TestPimms(unittest.TestCase):
         # make a few pieces of data with types
         x = np.asarray([1.0, 2.0, 3.0, 4.0]) * pimms.units.mm
         y = pimms.quant([2, 4, 6, 8], 'sec')
-        self.assertTrue(all(pimms.is_quantity(u) for u in [x,y]))
-        self.assertTrue(pimms.like_units(pimms.unit(x), pimms.unit('millimeters')))
-        self.assertTrue(pimms.like_units(pimms.unit(y), pimms.unit('seconds')))
+        for u in [x,y]: self.assertTrue(pimms.is_quantity(u))
+        for u in ('abc', 123, 9.0, []): self.assertFalse(pimms.is_quantity(u))
+        for u in [x,y]: self.assertFalse(pimms.is_quantity(pimms.mag(u)))
+        self.assertTrue(pimms.like_units(pimms.unit(x), pimms.unit('yards')))
+        self.assertTrue(pimms.like_units(pimms.unit(y), pimms.unit('minutes')))
+        self.assertFalse(pimms.like_units(pimms.unit(y), pimms.unit('mm')))
         z = x / y
         self.assertTrue(pimms.is_vector(x, 'real'))
         self.assertTrue(pimms.is_vector(y, 'real'))
@@ -137,7 +140,7 @@ class TestPimms(unittest.TestCase):
         self.assertTrue(pimms.is_vector(y, 'int'))
         self.assertTrue(pimms.is_vector(y, 'float'))
         self.assertTrue(pimms.is_vector(z, 'real'))
-
+        
     def test_lazy_complex(self):
         '''
         test_lazy_complex makes sure that the example in pimms.test.lazy_complex works.
