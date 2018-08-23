@@ -313,7 +313,6 @@ class TestPimms(unittest.TestCase):
                'b': pimms.quant(np.random.rand(10), 'mm'),
                'c': ['abc','def','ghi','jkl','mno','pqr','stu','vwx','yz!','!!!'],
                'd': _load_lazy}
-        print(pimms.is_map(dat))
         tbl = pimms.itable(dat)
         # make sure the data is the right size
         for k in tbl.keys(): self.assertTrue(tbl[k].shape == (10,))
