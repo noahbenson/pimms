@@ -119,6 +119,8 @@ class TestPimms(unittest.TestCase):
               ('seconds', 's', 'mm', 'deg', pimms.units.seconds, pimms.units.s, pimms.units.mm,
                pimms.units.deg),
               (1, 10.0, np.asarray([10]), None, 'nonunitstring', qr))
+        self.assertTrue(pimms.is_nparray(mr, np.inexact))
+        self.assertFalse(pimms.is_nparray(vi, np.inexact))
     def test_units(self):
         '''
         test_units ensures that the various pimms functions related to pint integration work

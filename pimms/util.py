@@ -296,12 +296,13 @@ _numpy_type_names = {'bool':    (np.bool_,),
                      'real':    (np.floating, np.integer, np.bool_),
                      'complex': (np.number,),
                      'number':  (np.number,),
-                     'string':  (np.bytes_ if six.PY2 else np.unicode_,),
+                     'string':  ((np.bytes_ if six.PY2 else np.unicode_),),
                      'unicode': (np.unicode_,),
                      'bytes':   (np.bytes_,),
                      'chars':   (np.character,),
                      'object':  (np.object_,),
                      'any':     (np.generic,),}
+if not six.PY2: unicode = str
 def numpy_type(type_id):
     '''
     numpy_type(type) yields a tuple of valid numpy types that can represent the type specified in
@@ -351,7 +352,7 @@ def numpy_type(type_id):
     elif type_id is unicode:                 return _numpy_type_names['unicode']
     elif type_id is bytes:                   return _numpy_type_names['bytes']
     elif type_id is object:                  return _numpy_type_names['object']
-    elif np.issubdtype(type_id, np.generic): return type_id
+    elif np.issubdtype(type_id, np.generic): return (type_id,)
     else: raise ValueError('Could not deduce numpy type for %s' % type_id)
 
 def is_nparray(u, dtype=None, dims=None):
