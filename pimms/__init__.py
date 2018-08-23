@@ -122,7 +122,7 @@ The additional utility functions are provided as part of the pimms package:
 
 from .util        import (lazy_map, is_lazy_map, LazyPMap, is_map, is_pmap, merge,
                           is_map, is_pmap, is_str, is_class,
-                          is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npgeneric,
+                          is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
                           is_array, is_scalar, is_vector, is_matrix,
                           is_int, is_float, is_real, is_complex, is_number,
                           is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
@@ -141,9 +141,8 @@ def reload_pimms():
     reload_pimms() reloads the entire pimms module and returns it.
     '''
     import sys, six
-    if not six.PY2:
-        try:    from importlib import reload
-        except: from imp       import reload
+    try:    from importlib import reload
+    except: from imp       import reload
     reload(sys.modules['pimms.util'])
     reload(sys.modules['pimms.table'])
     reload(sys.modules['pimms.immutable'])
