@@ -334,9 +334,9 @@ class ITable(colls.Mapping):
             n = len(range(rows.start, rows.stop, rows.step)) if isinstance(rows, slice) else \
                 len(rows)
             dat = self.data
-            def _make_lambda(k): return lambda:dat[k][rows]
+            def _make_lambda(dat,k): return lambda:dat[k][rows]
             return ITable(
-                lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)}),
+                lazy_map({k:_make_lambda(dat,k) for k in six.iterkeys(dat)}),
                 n=n)
         else:
             rows = set(rows)
