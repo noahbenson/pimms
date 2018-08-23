@@ -299,6 +299,33 @@ class TestPimms(unittest.TestCase):
         self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
         remem = [v for (k,v) in six.iteritems(lm)]
         self.assertEqual(_make_lazy_lambda.counter, len(lazy_ks))
-        
+
+    def test_itable(self):
+        '''
+        test_itable() tests pimms itable objects and makes sure they work correctly.
+        '''
+        class nloc:
+            lazy_loads = 0
+        def _load_lazy():
+            nloc.lazy_loads += 1
+            return pimms.quant(np.random.rand(10), 'sec')
+        dat = {'a': [1,2,3,4,5,6,7,8,9,10],
+               'b': pimms.quant(np.random.rand(10), 'mm'),
+               'c': ['abc','def','ghi','jkl','mno','pqr','stu','vwx','yz!','!!!'],
+               'd': _load_lazy}
+        print(pimms.is_map(dat))
+        tbl = pimms.itable(dat)
+        # make sure the data is the right size
+        for k in tbl.keys(): self.assertTrue(tbl[k].shape == (10,))
+        self.assertTrue(tbl.row_count == 10)
+        self.assertTrue(len(tbl.rows) == 10)
+        self.assertTrue(len(tbl.column_names) == 4)
+        self.assertTrue(len(tbl.columns) == 4)
+        # Check a few of the entries
+        for (i,ki) in zip(np.random.randint(0, tbl.row_count, 50), np.random.randint(0, 4, 50)):
+            ki = tbl.column_names[ki]
+            self.assertTrue(tbl.rows[i][ki] == tbl[ki][i])
+        self.assertTrue(nloc.lazy_loads == 1)
+                
 if __name__ == '__main__':
     unittest.main()
