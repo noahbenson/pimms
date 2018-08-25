@@ -660,8 +660,8 @@ def lazy_map(initial={}, pre_size=0):
     '''
     lazy_map is a blatant copy of the pyrsistent.pmap function, and is used to create lazy maps.
     '''
-    if not initial:
-        return _EMPTY_LMAP
+    if is_lazy_map(initial): return initial
+    if not initial: return _EMPTY_LMAP
     return _lazy_turbo_mapping(initial, pre_size)
 def is_lazy_map(m):
     '''
