@@ -542,7 +542,7 @@ class LazyPMap(ps.PMap):
         vid = id(val)
         if vid in self._memoized:
             return self._memoized[vid]
-        elif ([], None, None, None) != getargspec_py27like(val):
+        elif [] != getargspec_py27like(val)[0]:
             return val
         else:
             val = val()
@@ -614,7 +614,7 @@ class LazyPMap(ps.PMap):
         v = ps.PMap.__getitem__(self, k)
         if not isinstance(v, types.FunctionType) or \
            id(v) in self._memoized or \
-           ([], None, None, None) != getargspec_py27like(v):
+           [] != getargspec_py27like(v)[0]:
             return False
         else:
             return True
@@ -634,7 +634,7 @@ class LazyPMap(ps.PMap):
         nor a formerly-lazy memoized key.
         '''
         v = ps.PMap.__getitem__(self, k)
-        if not isinstance(v, types.FunctionType) or ([],None,None,None) != getargspec_py27like(v):
+        if not isinstance(v, types.FunctionType) or [] != getargspec_py27like(v)[0]:
             return True
         else:
             return False

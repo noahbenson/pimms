@@ -85,7 +85,7 @@ class ITable(colls.Mapping):
     @staticmethod
     def _filter_col(vec):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
-        if isinstance(vec, types.FunctionType) and getargspec_py27like(vec) == ([],None,None,None):
+        if isinstance(vec, types.FunctionType) and getargspec_py27like(vec)[0] == []:
             return lambda:ITable._filter_col(vec())
         elif is_quantity(vec):
             m = mag(vec)
