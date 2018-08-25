@@ -722,14 +722,15 @@ def immutable(cls):
             setattr(cls, name, _method_type(fn, cls))
     # and the attributes we set if they're not overloaded from object
     initfn = _imm_default_init if cls.__init__ is object.__init__ else cls.__init__
-    def _imm_init_wrapper(imm, *args, **kwargs):
+    # we set this up so that it can monitor entry and exit from this specific class's __init__()
+    def _init_wrapper(imm, *args, **kwargs):
         # call the init normally...
         initfn(imm, *args, **kwargs)
         # If we're still initializing after running the constructor, we need to switch to
         # transient
-        if _imm_is_init(imm): _imm_init_to_trans(imm)
+        if type(imm) is cls and _imm_is_init(imm): _imm_init_to_trans(imm)
         # Okay, all checks passed!
-    setattr(cls, '__init__', _method_type(_imm_init_wrapper, cls))
+    setattr(cls, '__init__', _method_type(_init_wrapper, cls))
     dflt_members = (('__dir__',          _imm_dir),
                     ('__repr__',         _imm_repr),
                     ('__hash__',         _imm_hash))
