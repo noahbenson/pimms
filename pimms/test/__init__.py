@@ -311,13 +311,14 @@ class TestPimms(unittest.TestCase):
         def _load_lazy():
             nloc.lazy_loads += 1
             return pimms.quant(np.random.rand(10), 'sec')
-        dat = {'a': [1,2,3,4,5,6,7,8,9,10],
-               'b': pimms.quant(np.random.rand(10), 'mm'),
-               'c': ['abc','def','ghi','jkl','mno','pqr','stu','vwx','yz!','!!!'],
-               'd': _load_lazy}
+        dat = pimms.lazy_map({'a': [1,2,3,4,5,6,7,8,9,10],
+                              'b': pimms.quant(np.random.rand(10), 'mm'),
+                              'c': ['abc','def','ghi','jkl','mno','pqr','stu','vwx','yz!','!!!'],
+                              'd': _load_lazy})
         tbl = pimms.itable(dat)
         # make sure the data is the right size
-        for k in tbl.keys(): self.assertTrue(tbl[k].shape == (10,))
+        for k in tbl.keys():
+            self.assertTrue(tbl[k].shape == (10,))
         self.assertTrue(tbl.row_count == 10)
         self.assertTrue(len(tbl.rows) == 10)
         self.assertTrue(len(tbl.column_names) == 4)

@@ -376,7 +376,7 @@ def itable(*args, **kwargs):
     # we want to try to convert any arguments we can from datatables into maps
     try:
         import pandas
-        args = [{a[k].values for k in a.keys()} if isinstance(a, pandas.DataFrame) else a
+        args = [{k:a[k].values for k in a.keys()} if isinstance(a, pandas.DataFrame) else a
                 for a in args]
     except: pass
     # now we want to merge these together and make them one lazy map

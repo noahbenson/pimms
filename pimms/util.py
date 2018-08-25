@@ -536,7 +536,7 @@ class LazyPMap(ps.PMap):
     '''
     def __init__(self, *args, **kwargs):
         self._memoized = ps.m()
-    def _examine_val(self, val):
+    def _examine_val(self, k, val):
         'should only be called internally'
         if not isinstance(val, types.FunctionType): return val
         vid = id(val)
@@ -549,13 +549,13 @@ class LazyPMap(ps.PMap):
             object.__setattr__(self, '_memoized', self._memoized.set(vid, val))
             return val
     def __getitem__(self, k):
-        return self._examine_val(ps.PMap.__getitem__(self, k))
+        return self._examine_val(k, ps.PMap.__getitem__(self, k))
     def iterkeys(self):
         for (k,_) in ps.PMap.iteritems(self):
             yield k
     def iteritems(self):
         for (k,v) in ps.PMap.iteritems(self):
-            yield (k, self._examine_val(v))
+            yield (k, self._examine_val(k, v))
     def iterlazy(self):
         '''
         lmap.iterlazy() yields an iterator over the lazy keys only (memoized lazy keys are not
