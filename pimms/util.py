@@ -237,7 +237,7 @@ def save(filename, obj, overwrite=False, create_directories=False):
         if create_directories:
             dname = os.path.dirname(os.path.realpath(filename))
             if not os.path.isdir(dname): os.makedirs(dname)
-        with open(filename, 'w') as f:
+        with open(filename, 'wb') as f:
             _save_stream(f, obj)
     else:
         _save_stream(filename, obj)
