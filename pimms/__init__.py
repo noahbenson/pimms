@@ -120,8 +120,9 @@ The additional utility functions are provided as part of the pimms package:
   * imm_is_transient(imm) is identical to imm.is_transient() for an immutable object imm.
 '''
 
-from .util        import (lazy_map, is_lazy_map, LazyPMap, is_map, is_pmap, merge,
-                          is_map, is_pmap, is_str, is_class,
+from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge,
+                          lazy_value_map, value_map, key_map, collect, flatten_maps,
+                          is_map, is_pmap, is_lazy_map, is_str, is_class,
                           is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
                           is_array, is_scalar, is_vector, is_matrix,
                           is_int, is_float, is_real, is_complex, is_number,
