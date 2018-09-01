@@ -695,7 +695,7 @@ def lazy_value_map(f, m, *args, **kwargs):
     def curry_fn(k): return lambda:f(m[k], *args, **kwargs)
     m0 = {k:curry_fn(k) for k in six.iterkeys(m)}
     from .table import (is_itable, itable)
-    return itable(m0) if is_itable(m0) else lazy_map(m0)
+    return itable(m0) if is_itable(m) else lazy_map(m0)
 def value_map(f, m, *args, **kwargs):
     '''
     value_map(f, mapping) yields a persistent map whose keys are the same as those of the given dict
@@ -859,3 +859,123 @@ def rmerge(*args, **kwargs):
     See also merge, lmerge.
     '''
     return merge(*(args + (kwargs,)), choose=_choose_last)
+def is_persistent(arg):
+    '''
+    is_persistent(x) yields True if x is a persistent object and False if not.
+
+    Note that this persistence can only be checked by the pimms library, so immutable/persistent
+    structures not known to pimms or defined in terms of pimms's immutables library cannot be
+    evaluated correctly.
+
+    Additionally, is_persistent(x) checks only x; if x is a tuple of mutable objects, it is still
+    considered a persistent object.
+    '''
+    from .immutable import (is_imm, imm_is_persistent)
+    if is_imm(arg): return imm_is_persistent(arg)
+    elif isinstance(arg, (np.generic, np.ndarray)): return not arg.flags.writeable
+    elif is_quantity(arg) and isinstance(mag(arg), (np.generic, np.ndarray)):
+        return not mag(arg).flags.writable
+    elif pimms.is_str(arg): return True
+    elif pimms.is_number(arg): return True
+    elif is_pmap(arg): return True
+    elif isinstance(arg, frozenset): return True
+    elif isinstance(arg, (ps.PVector, ps.PSet, ps.PList, ps.PRecord)): return True
+    else: return False
+def persist(arg, depth=Ellipsis, on_mutable=None):
+    '''
+    persist(x) yields a persistent version of x if possible, or yields x itself.
+
+    The transformations performed by persist(x) are as follows:
+      * If x is an immutable object, yields x.persist()
+      * If x is a set, yield a frozenset of of persist(u) for all u in x.
+      * If x is a numpy array, yield imm_array(x).
+      * If x is a map, yields a persistent version of x with all keys and values replaced with their
+        persist()'ed form; note that this respects laziness and itables.
+      * If x is a list/tuple type, yields a tuple of persist()'ed contents.
+      * Otherwise, if the type of x is not recognized, yields x.
+
+    The depth to which persist() searches the argument's elements is controlled by the depth option;
+    the default behavior is to persist objects down to the point that a persistent object is found,
+    at which its elements are not checked for persistence.
+
+    Note that persist() is not guaranteed to recognize a particular object; it is intended as a
+    utility function for basic functional-style and immutable data code in Python. In particular,
+    it is usefl for pimms's immutable objects; dicts and mappings; pimms's lazy-maps and itables;
+    pyrsistent's sets, vectors, and maps; sets and frozensets (which are both communted to
+    frozensets); and anything implementing __iter__ (which are commuted to tuples). Objects that are
+    not numbers or strings are considered potentially-mutable and will trigger the on_mutable case.
+
+    The optional arguments may be passed to persist:
+      * depth (default: Ellipsis) specifies the depth to which toe persist() function should search
+        when persisting objects. The given argument is considered depth 0, so persist(arg, 0) will
+        persist only arg and not its contents, if it is a collection. If None is given, then goes to
+        any depth; if Ellipsis is given, then searches until a persistent object is found, but does
+        not attempt to persist the elements of already-persistent containers (this is the default).
+      * on_mutable (default: None) specifies what to do when a non-persistable object is encountered
+        in the search. If None, then the object is left; if 'error', then an error is raised;
+        otherwise, this must be a function that is passed the object--the return value of this
+        function is the replacement used in the object returned from persist().
+    '''
+    from .immutable import (is_imm, imm_copy)
+    # Parse the on_mutable argument
+    if on_mutable is None: on_mutable = lambda x:x
+    elif on_mutable == 'error':
+        def _raise(x):
+            raise ValueError('non-persistable: %s' % x)
+        on_mutable = _raise
+    if depth in (None, Ellipsis): depth_next = depth
+    elif depth < 0: return arg
+    else: depth_next = depth - 1
+    precur = lambda x:persist(x, depth=depth_next, on_mutable=on_mutable)
+    # See if we have an easy type to handle
+    if is_imm(arg): return imm_copy(arg)
+    if is_quantity(arg):
+        (m,u) = (mag(arg), unit(arg))
+        mm = precur(m)
+        if mm is m: return arg
+        else: return quant(mm, u)
+    elif isinstance(arg, np.ndarray): return imm_array(arg)
+    elif isinstance(arg, np.generic):
+        x = type(arg)(arg)
+        x.setflags(write=False)
+        return x
+    elif is_str(arg) or is_number(arg): return arg
+    elif isinstance(arg, ps.PVector):
+        if depth is Ellipsis or depth == 0: return arg
+        for (k,v0) in zip(range(len(arg)), arg):
+            v = precur(v0)
+            if v0 is not v: arg = arg.set(k,v)
+        return arg
+    elif isinstance(arg, ps.PSet):
+        if depth is Ellipsis or depth == 0: return arg
+        for v0 in arg:
+            v = precur(v0)
+            if v0 is not v: arg = arg.discard(v0).add(v)
+        return arg
+    elif is_pmap(arg):
+        if depth is Ellipsis or depth == 0: return arg
+        return key_map(precur, value_map(precur, arg))
+    elif is_map(arg):
+        if not is_pmap(arg): arg = ps.pmap(arg)
+        if depth == 0: return arg
+        return key_map(precur, value_map(precur, arg))
+    elif isinstance(arg, frozenset):
+        if depth is Ellipsis or depth == 0: return frozenset(arg)
+        a = [x for x in arg]
+        q = [precur(x) for x in a]
+        if all(ai is qi for (ai,qi) in zip(a,q)): return arg
+        return frozenset(q)
+    elif isinstance(arg, set):
+        if depth == 0: return frozenset(arg)
+        a = [x for x in arg]
+        q = [precur(x) for x in a]
+        if isinstance(arg, frozenset) and all(ai is qi for (ai,qi) in zip(a,q)): return arg
+        return frozenset(q)
+    elif hasattr(arg, '__iter__'):
+        if depth == 0 or (depth is Ellipsis and isinstance(arg, tuple)): return tuple(arg)
+        q = tuple(precur(x) for x in arg)
+        if isinstance(arg, tuple) and all(ai is qi for (ai,qi) in zip(arg,q)): return arg
+        else: return q
+    elif isinstance(arg, types.FunctionType):
+        return arg
+    else: return on_mutable(arg)
