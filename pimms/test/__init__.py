@@ -328,6 +328,64 @@ class TestPimms(unittest.TestCase):
             ki = tbl.column_names[ki]
             self.assertTrue(tbl.rows[i][ki] == tbl[ki][i])
         self.assertTrue(nloc.lazy_loads == 1)
-                
+
+    def test_persist(self):
+        '''
+        test_persist() tests pimms persist() function.
+        '''
+        from .lazy_complex import LazyComplex
+
+        z = LazyComplex((1.0, 2.0))
+        self.assertFalse(z.is_persistent())
+        self.assertTrue(z.is_transient())
+        z.persist()
+        self.assertTrue(z.is_persistent())
+        self.assertFalse(z.is_transient())
+        
+        z = LazyComplex((1.0, 2.0))
+        self.assertFalse(z.is_persistent())
+        self.assertTrue(z.is_transient())
+        zp = pimms.persist(z)
+        self.assertTrue(zp.is_persistent())
+        self.assertFalse(zp.is_transient())
+        self.assertFalse(z.is_persistent())
+        self.assertTrue(z.is_transient())
+
+        m0 = {'a': [1,2,3], 'b': (2,3,4),
+              'c': {'d':'abc', 'e':set(['def','ghi']), 'f':frozenset([10,11,12])},
+              'z': z, 'zp': zp,
+              'q': (1,2,[3,4]),
+              't': pimms.itable({'c1': range(10), 'c2': range(1,11), 'c3': range(2,12)})}
+        m = pimms.persist(m0)
+        self.assertIs(m['b'], m0['b'])
+        self.assertIsNot(m['a'], m0['a'])
+        self.assertTrue(all(ai == bi for (ai,bi) in zip(m['a'], m0['a'])))
+        self.assertTrue(pimms.is_pmap(m['c']))
+        self.assertIs(m['c']['d'], m0['c']['d'])
+        self.assertTrue(isinstance(m['c']['e'], frozenset))
+        self.assertTrue(isinstance(m['c']['f'], frozenset))
+        self.assertTrue(all(ai == bi for (ai,bi) in zip(m['c']['f'], m0['c']['f'])))
+        self.assertTrue(m['z'].is_persistent())
+        self.assertIs(m['zp'], m0['zp'])
+        self.assertIs(m['q'], m0['q'])
+        self.assertIs(m['q'][2], m0['q'][2])
+        self.assertTrue(pimms.is_itable(m['t']))
+        self.assertTrue(m['t'].is_persistent())
+        m = pimms.persist(m0, depth=1)
+        self.assertIs(m['b'], m0['b'])
+        self.assertIsNot(m['a'], m0['a'])
+        self.assertTrue(all(ai == bi for (ai,bi) in zip(m['a'], m0['a'])))
+        self.assertTrue(pimms.is_pmap(m['c']))
+        self.assertIs(m['c']['d'], m0['c']['d'])
+        self.assertTrue(isinstance(m['c']['e'], set))
+        self.assertTrue(isinstance(m['c']['f'], frozenset))
+        self.assertTrue(all(ai == bi for (ai,bi) in zip(m['c']['f'], m0['c']['f'])))
+        self.assertTrue(m['z'].is_persistent())
+        self.assertIs(m['zp'], m0['zp'])
+        self.assertIs(m['q'], m0['q'])
+        self.assertIs(m['q'][2], m0['q'][2])
+        self.assertTrue(pimms.is_itable(m['t']))
+        self.assertTrue(m['t'].is_persistent())
+        
 if __name__ == '__main__':
     unittest.main()
