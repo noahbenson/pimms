@@ -522,12 +522,6 @@ def is_map(arg):
     is_map(x) yields True if x implements Python's builtin Mapping class.
     '''
     return isinstance(arg, colls.Mapping)
-def is_pmap(arg):
-    '''
-    is_pmap(x) yields True if x is a persistent map object and False otherwise.
-    '''
-    return isinstance(arg, ps.PMap)
-    
 
 class LazyPMap(ps.PMap):
     '''
@@ -665,10 +659,137 @@ def lazy_map(initial={}, pre_size=0):
     return _lazy_turbo_mapping(initial, pre_size)
 def is_lazy_map(m):
     '''
-    is_lazy_map(m) yields True if m is an instance if LazyPMap and False otherwise.
+    is_lazy_map(m) yields True if m is an instance if LazyPMap and False otherwise. Note that this
+      will yield True for a pimms itable object as well as a pimms lazy map because itables respect
+      laziness. To check if an object is a pimms lazy map specifically, use
+      isinstance(m, pimms.LazyPMap).
     '''
-    return isinstance(m, LazyPMap)
+    from .table import is_itable
+    return isinstance(m, LazyPMap) or is_itable(m)
+def is_pmap(arg):
+    '''
+    is_pmap(x) yields True if x is a persistent map object and False otherwise. Note that this will
+      yield True for any of the following types: a pyrsistent.PMap (persistent mapping object), a
+      pimms lazy map, a pimms itable object. If you want to check specifically if an object is a
+      pyrsistent PMap object, use isinstance(arg, pyrsistent.PMap).
+    '''
+    return isinstance(arg, ps.PMap) or is_lazy_map(arg)
 
+def lazy_value_map(f, m, *args, **kwargs):
+    '''
+    lazy_value_map(f, mapping) yields a lazy map whose keys are the same as those of the given dict
+      or mapping object and whose values, for each key k are f(mapping[k]).
+    lazy_value_map(f, mapping, *args, **kw) additionally passes the given arguments to the function
+      f, so in the resulting map, each key k is mapped to f(mapping[k], *args, **kw).
+
+    If a dict object that is not persistent is passed to lazy_value_map, then a persistent copy of
+    it is made for use with the lazy-map; accordingly, it's not necessary to worry about the 
+    persistence of the map you pass to this function. It is, however, important to worry about the
+    persistence of the values in the map you pass. If these values are mutated in-place, then the
+    lazy map returned from this function could change as well.
+
+    If the given mapping object is an ITable object, then an ITable object is returned.
+    '''
+    if not is_map(m): raise ValueError('Non-mapping object passed to lazy_value_map')
+    if not is_lazy_map(m) and not is_pmap(m): m = ps.pmap(m)
+    def curry_fn(k): return lambda:f(m[k], *args, **kwargs)
+    m0 = {k:curry_fn(k) for k in six.iterkeys(m)}
+    from .table import (is_itable, itable)
+    return itable(m0) if is_itable(m0) else lazy_map(m0)
+def value_map(f, m, *args, **kwargs):
+    '''
+    value_map(f, mapping) yields a persistent map whose keys are the same as those of the given dict
+      or mapping object and whose values, for each key k are f(mapping[k]).
+    value_map(f, mapping, *args, **kw) additionally passes the given arguments to the function
+      f, so in the resulting map, each key k is mapped to f(mapping[k], *args, **kw).
+
+    Unlike lazy_value_map, this function yields either a persistent or a lazy map depending on the
+    input argument mapping. If mapping is a lazy map, then a lazy map is returned; otherwise, a
+    persistent non-lazy map is returned.
+    '''
+    if is_lazy_map(m): return lazy_value_map(f, m, *args, **kwargs)
+    else:              return ps.pmap({k:f(v, *args, **kwargs) for (k,v) in six.iteritems(m)})
+def key_map(f, m, *args, **kwargs):
+    '''
+    key_map(f, m) is equivalent to {f(k):v for (k,v) in m.items()} except that it returns a
+      persistent mapping object instead of a dict. Additionally, it respects the laziness of maps
+      and does not evaluate the values of a lazy map that has been passed to it.
+    key_map(f, m, *args, **kwargs) uses f(k, *args, **kwargs) instead of f(k).
+    '''
+    if is_lazy_map(m):
+        from .table import (is_itable, itable)
+        def _curry_getval(k): return lambda:m[k]
+        m0 = {f(k, *args, **kwargs):_curry_getval(k) for k in six.iterkeys(m)}
+        return itable(m0) if is_itable(m) else lazy_map(m0)
+    else:
+        return ps.pmap({f(k, *args, **kwargs):v for (k,v) in six.iteritems(m)})
+def flatten_maps(*args, **kwargs):
+    '''
+    flatten_maps(*args, **kwags) yields a tuple of the maps in the given arguments; this flattens
+      over lists and iterables so long as all elements eventually yield True to is_map(el). The
+      optional keyword arguments passed make up the final map.
+
+    This funtion does not evaluate any values of any of the maps and thus implicitly respects the
+    laziness of the provided maps.
+    '''
+    def _recur(arg, work):
+        if is_map(arg): work.append(arg)
+        elif not hasattr(arg, '__iter__'): raise ValueError('Non-map given to flatten_maps')
+        else:
+            for a in arg: _recur(a, work)
+    res = []
+    for arg in args: _recur(arg, res)
+    if len(kwargs) > 0: res.append(kwargs)
+    return tuple(res)
+def collect(*args, **kwargs):
+    '''
+    collect(m1, m2, ...) yields a persistent map whose keys are the union of all keys in the given
+      maps m1, m2, etc. and whose values are tuples containing each of the given maps (in provided
+      order) that contain the given key. This function never evaluates the values in the maps so it
+      implicitly supports laziness.
+
+    The collect function fist passes its arguments to flatten_maps, so it is fine to pass lists or
+    nested lists of maps to this function; all will be collected.
+    '''
+    args = flatten_maps(args, **kwargs)
+    if len(args) == 0: return ps.m()
+    m = {}
+    for arg in args:
+        for k in six.iterkeys(arg):
+            if k in m: m[k].append(arg)
+            else: m[k] = [arg]
+    return ps.pmap({k:tuple(v) for (k,v) in six.iteritems(m)})
+def assoc(m, **kwargs):
+    '''
+    assoc(m, k1=v1, k2=v2...) yields a persistent map equivalent to the given mapping object m but
+      with the given keys k1, k2, etc. associated with the given values v1, v2, etc.
+
+    This function respects laziness, so lazy maps will remain lazy, and parameter-free functions
+    passed as values will be lazy if m is lazy. It does not, however, make non-lazy maps into lazy
+    maps.
+    '''
+    if not is_map(m): raise ValueError('assoc given non-mapping object')
+    if not is_pmap(m): m = ps.pmap(m)
+    for (k,v) in six.iteritems(kwargs): m = m.set(k,v)
+    return m
+def dissoc(m, *args, **kwargs):
+    '''
+    dissoc(m, k1, k2, ...) yields a persistent map equivalent to the given mapping object m but
+      with the given keys k1, k2, etc. removed. If a key is not found, it is ignored. Note that you
+      may pass keyword arguments; their values will be ignored but they will be removed.
+
+    This function respects laziness, so lazy maps will remain lazy, and parameter-free functions
+    passed as values will be lazy if m is lazy. It does not, however, make non-lazy maps into lazy
+    maps.
+    '''
+    if not is_map(m): raise ValueError('assoc given non-mapping object')
+    if not is_pmap(m): m = ps.pmap(m)
+    for k in six.iteritems(args): m = m.discard(k)
+    for k in six.iterkeys(kwargs): m = m.discard(k)
+    return m
+def _choose_first(k, vs):
+    '_choose_first(k, vs) yields vs[0][k].'
+    return vs[0][k]
 def _choose_last(k, vs):
     '_choose_last(k, vs) yields vs[-1][k].'
     return vs[-1][k]
@@ -680,22 +801,61 @@ def merge(*args, **kwargs):
       requested of it; in this fashion it preserves the laziness of immutable map objects that are
       passed to it. Arguments may be mappings or lists/tuples of mappings.
 
+    If all of the arguments passed to merge are pimms itables with the same row_count, then an
+    itable object is returned instead of a lazy map.
+
     The following options are accepted:
     * choose (default None) specifies a function that chooses from which map, of those maps given
       to merge, the value should be drawn when keys overlap. The function is always passed two
       arguments: the key for which the conflict occurs and a list of maps containing that key; it
       should return the value to which the key should be mapped. The default uses the first map.
     '''
-    args = tuple(arg for arg0 in args for arg in ([arg0] if is_map(arg0) else arg0))
-    if not all(is_map(arg) for arg in args):
-        raise ValueError('marge requires Mapping collections')
-    all_keys = reduce(lambda r,s: r|s, [set(six.iterkeys(m)) for m in args])
+    from .table import (is_itable, ITable)
+    # figure out the choose-fn
     choose_fn = None
     if 'choose' in kwargs:
         choose_fn = kwargs['choose']
     if len(kwargs) > 1 or (len(kwargs) > 0 and 'choose' not in kwargs):
         raise ValueError('Unidentified options given to merge: %s' (kwargs.keys(),))
+    # collect the maps...
+    maps = flatten_maps(*args)
+    if len(maps) == 0: return ps.m()
+    elif len(maps) == 1: return maps[0]
+    coll = collect(maps)
     if choose_fn is None: choose_fn = _choose_last
-    def _make_lambda(k, args):
-        return lambda:choose_fn(k, args)
-    return lazy_map({k:_make_lambda(k, [m for m in args if k in m]) for k in all_keys})
+    def curry_choice(k, args): return lambda:choose_fn(k, args)
+    resmap = lazy_map({k:curry_choice(k, v) for (k,v) in six.iteritems(coll)})
+    # if they're all itables of the same size, return an itable
+    if is_itable(maps[0]):
+        n = maps[0].row_count
+        if all(is_itable(m) and m.row_count == n for m in maps):
+            return ITable(resmap, n)
+    # otherwise return the lazy map
+    return resmap
+def lmerge(*args, **kwargs):
+    '''
+    lmerge(...) is equivalent to merge(...) except for two things: (1) any keyword arguments passed
+      to lmerge are bundled into a map that is appended to the argument list to merge, and (2) the
+      choose function for the merge always takes the left-most argument. Essentially, this means
+      that the map returned from lmerge always chooses the first value it finds in the argument list
+      for a particular key.
+
+    See also merge, rmerge.
+    '''
+    return merge(*(args + (kwargs,)), choose=_choose_first)
+def rmerge(*args, **kwargs):
+    '''
+    rmerge(...) is equivalent to merge(...) except for two things: (1) any keyword arguments passed
+      to lmerge are bundled into a map that is appended to the argument list to merge, and (2) the
+      choose function for the merge always takes the right-most argument. Essentially, this means
+      that the map returned from rmerge always chooses the last value it finds in the argument list
+      for a particular key.
+
+    Note that rmerge is the 'traditional' form of the merge operation as found in languages like
+    clojure; merge(a,b) overwrites the values of a with any found in b, and merge(a, k=v) is
+    roughly equivalent to assoc(a, k=v) (though merge and assoc respect the types of their maps
+    slightly differently).
+
+    See also merge, lmerge.
+    '''
+    return merge(*(args + (kwargs,)), choose=_choose_last)
