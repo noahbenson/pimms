@@ -875,8 +875,8 @@ def is_persistent(arg):
     elif isinstance(arg, (np.generic, np.ndarray)): return not arg.flags.writeable
     elif is_quantity(arg) and isinstance(mag(arg), (np.generic, np.ndarray)):
         return not mag(arg).flags.writable
-    elif pimms.is_str(arg): return True
-    elif pimms.is_number(arg): return True
+    elif is_str(arg): return True
+    elif is_number(arg): return True
     elif is_pmap(arg): return True
     elif isinstance(arg, frozenset): return True
     elif isinstance(arg, (ps.PVector, ps.PSet, ps.PList, ps.PRecord)): return True
