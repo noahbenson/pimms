@@ -272,6 +272,45 @@ class ITable(colls.Mapping):
                           n=self.row_count)
         else:
             raise ValueError('ITable.discard requires integers or strings')
+    def is_lazy(self, k):
+        '''
+        itable.is_lazy(k) yields True if k is a lazy value in the given itable, as in a lazy map.
+        '''
+        return self.data.is_lazy(k)
+    def is_memoized(self, k):
+        '''
+        itable.is_memoized(k) yields True if k is a memoized value in the given itable, as in a lazy
+          map.
+        '''
+        return self.data.is_memoized(k)
+    def is_normal(self, k):
+        '''
+        itable.is_normal(k) yields True if k is a normal value in the given itable, as in a lazy
+          map.
+        '''
+        return self.data.is_normal(k)
+    def iterkeys(self):
+        return self.data.iterkeys()
+    def iteritems(self):
+        return self.data.iteritems()
+    def iterlazy(self):
+        '''
+        itable.iterlazy() yields an iterator over the lazy keys only (memoized lazy keys are not
+          considered lazy).
+        '''
+        return self.data.iterlazy()
+    def itermemoized(self):
+        '''
+        itable.itermemoized() yields an iterator over the memoized keys only (neihter unmemoized
+          lazy keys nor normal keys are considered memoized).
+        '''
+        return self.data.itermemoized()
+    def iternormal(self):
+        '''
+        itable.iternormal() yields an iterator over the normal unlazy keys only (memoized lazy keys
+          are not considered normal).
+        '''
+        return self.data.iternormal()
     def map(self, f):
         '''
         itbl.map(f) yields the result of mapping the rows of the given datatable itbl over the
