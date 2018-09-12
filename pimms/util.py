@@ -18,7 +18,8 @@ if six.PY2: tuple_type = types.TupleType
 else:       tuple_type = tuple
 
 units = pint.UnitRegistry()
-units.define('pixel = [image_length] = px')
+if not hasattr(units, 'pixels'):
+    units.define('pixel = [image_length] = px')
 
 if six.PY2:
     def getargspec_py27like(f):
