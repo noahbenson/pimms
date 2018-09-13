@@ -160,6 +160,7 @@ class TestPimms(unittest.TestCase):
         self.assertLess(abs(z2.arg - 0.9272952180016122), 1e-9)
         self.assertEqual(z3.abs, 1)
         self.assertLess(abs(z3.arg - (-0.5 * math.pi)), 1e-9)
+        self.assertTrue(z1.is_lazy_complex)
         
     def test_normal_calc(self):
         from .normal_calc import (normal_distribution, pdf)

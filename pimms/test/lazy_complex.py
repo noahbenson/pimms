@@ -34,6 +34,9 @@ class LazyComplex(object):
         return float(r) if r is not None else 0.0
 
     @pimms.value
+    def is_lazy_complex():
+        return True
+    @pimms.value
     def abs(re, im):
         return math.sqrt(re*re + im*im)
     @pimms.value
