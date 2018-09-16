@@ -329,6 +329,12 @@ class TestPimms(unittest.TestCase):
             ki = tbl.column_names[ki]
             self.assertTrue(tbl.rows[i][ki] == tbl[ki][i])
         self.assertTrue(nloc.lazy_loads == 1)
+        # see if we can discard stuff
+        self.assertTrue('a' in tbl)
+        self.assertFalse('a' in tbl.discard('a'))
+        self.assertFalse('b' in tbl.discard('b'))
+        self.assertFalse('c' in tbl.discard('b').discard('c'))
+        self.assertTrue('c' in tbl.discard('b').discard('a'))
 
     def test_persist(self):
         '''
