@@ -531,6 +531,10 @@ class LazyPMap(ps.PMap):
     '''
     def __init__(self, *args, **kwargs):
         self._memoized = ps.m()
+    def __repr__(self):
+        s = ', '.join(['%s: %s' % (repr(k), '<lazy>' if self.is_lazy(k) else self[k])
+                       for k in self.iterkeys()])
+        return 'lmap({' + s + '})'
     def _examine_val(self, k, val):
         'should only be called internally'
         if not isinstance(val, types.FunctionType): return val
