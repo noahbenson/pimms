@@ -8,8 +8,9 @@ import numpy                      as     np
 import pyrsistent                 as     ps
 from   functools                  import reduce
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
-                                          is_quantity, is_unit, is_int, quant, iquant, mag, unit,
-                                          qhash, units, imm_array, getargspec_py27like)
+                                          is_quantity, is_unit, is_str, is_int, is_vector,
+                                          quant, iquant, mag, unit, qhash, units, imm_array,
+                                          getargspec_py27like)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -260,18 +261,19 @@ class ITable(colls.Mapping):
         '''
         if not cols: return self
         dat = self.data
-        iterq = hasattr(cols, '__iter__')
-        if (isinstance(cols, slice) or is_int(cols)) or (iterq and is_int(cols[0])):
-            def _make_lambda(k): return lambda:np.delete(dat[k], cols, 0)
-            newdat = lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)})
-            return ITable(newdat, n=len(np.delete(np.ones((self.row_count,)), cols, 0)))
-        elif isinstance(cols, six.string_types) or (iterq and isinstance(cols[0],six.string_types)):
-            cols = set(cols if iterq else [cols])
+        vecq = is_vector(cols)
+        if is_str(cols) or (vecq and len(cols) > 0 and is_str(cols[0])):
+            cols = set(cols if vecq else [cols])
             def _make_lambda(k): return lambda:dat[k]
             return ITable(lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat) if k not in cols}),
                           n=self.row_count)
-        else:
-            raise ValueError('ITable.discard requires integers or strings')
+        elif isinstance(cols, slice) or is_int(cols) or \
+             (vecq and len(cols) > 0 and is_int(cols[0])):
+            def _make_lambda(k): return lambda:np.delete(dat[k], cols, 0)
+            newdat = lazy_map({k:_make_lambda(k) for k in six.iterkeys(dat)})
+            return ITable(newdat, n=len(np.delete(np.ones((self.row_count,)), cols, 0)))
+        elif vecq and len(cols) == 0: return self
+        else: raise ValueError('ITable.discard requires integers or strings')
     def is_lazy(self, k):
         '''
         itable.is_lazy(k) yields True if k is a lazy value in the given itable, as in a lazy map.
