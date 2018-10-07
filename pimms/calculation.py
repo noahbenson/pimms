@@ -419,6 +419,7 @@ class Plan(object):
         m = self._memoized_data
         self._memoized_data = {}
         return m
+        
 class IMap(colls.Mapping):
     '''
     The IMap class instantiates a lazy immutable mapping from both parameters and calculated
@@ -747,3 +748,4 @@ def imap_tr(imap, *args, **kwargs):
     if not is_imap(imap):
         raise TypeError('IMap object required of imap_tr')
     return imap.tr(*args, **kwargs)
+
