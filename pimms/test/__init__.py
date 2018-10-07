@@ -393,6 +393,54 @@ class TestPimms(unittest.TestCase):
         self.assertIs(m['q'][2], m0['q'][2])
         self.assertTrue(pimms.is_itable(m['t']))
         self.assertTrue(m['t'].is_persistent())
-        
+
+    def test_cmdline(self):
+        '''
+        test_cmdline() ensures that the command-line functions such as argv_parse() are working
+          correctly and work correctly with calculation plans.
+        '''
+        from .normal_calc import normal_distribution
+
+        # command-line parsing works with all kinds of string literals:
+        schema = [('a', 'arg-a', 'a',  0),
+                  ('b', 'arg-b', 'b', ''),
+                  ('c', 'arg-c', 'c', {}),
+                  ('d', 'arg-d', 'd', []),
+                  ('e', 'arg-e', 'e', True),
+                  ('f', 'arg-f', 'f', False),
+                  ('g', 'arg-g', 'g', Ellipsis),
+                  ('h', 'arg-h', 'h', 'test')]
+        a = pimms.argv_parse(schema,
+                             ['-a1.5', '--arg-b=string arg', '-c', '{10:"str"}', '-d[1,2,3]',
+                              '--arg-e', '-g...'])
+        (leftover, a) = a
+        self.assertEqual(a['a'], 1.5)
+        self.assertEqual(a['b'], 'string arg')
+        self.assertEqual(a['c'], {10:'str'})
+        self.assertEqual(a['d'], [1,2,3])
+        self.assertEqual(a['e'], False)
+        self.assertEqual(a['f'], False)
+        self.assertEqual(a['g'], Ellipsis)
+        self.assertEqual(a['h'], 'test')
+
+        # test use with plans:
+        dflts = {'mean':0.0, 'standard_deviation':1.0}
+        a = pimms.argv_parse(normal_distribution,
+                             ['-m4.5', '--standard-deviation=6.3', 'leftover'],
+                             defaults=dflts)
+        self.assertTrue(pimms.is_imap(a))
+        self.assertEqual(a['argv'], ('leftover',))
+        self.assertEqual(a['argv_parsed']['mean'], 4.5)
+        self.assertEqual(a['mean'], 4.5)
+        self.assertEqual(a['standard_deviation'], 6.3)
+        a = pimms.argv_parse(normal_distribution,
+                             ['--standard-deviation=6.3', 'leftover'],
+                             defaults=dflts)
+        self.assertTrue(pimms.is_imap(a))
+        self.assertEqual(a['argv'], ('leftover',))
+        self.assertEqual(a['argv_parsed']['mean'], 0.0)
+        self.assertEqual(a['mean'], 0.0)
+        self.assertEqual(a['standard_deviation'], 6.3)
+
 if __name__ == '__main__':
     unittest.main()
