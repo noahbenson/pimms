@@ -135,6 +135,7 @@ from .calculation import (calc,    plan,    imap,
                           Calc,    Plan,    IMap,
                           is_calc, is_plan, is_imap)
 from .table       import (itable, is_itable, ITable)
+from .cmdline     import (argv_parse, argv_parser, to_argv_schema, CommandLineParser)
 
 
 def reload_pimms():
@@ -148,8 +149,9 @@ def reload_pimms():
     reload(sys.modules['pimms.table'])
     reload(sys.modules['pimms.immutable'])
     reload(sys.modules['pimms.calculation'])
+    reload(sys.modules['pimms.cmdline'])
     reload(sys.modules['pimms'])
     return sys.modules['pimms']
 
-__version__ = '0.2.12'
+__version__ = '0.3.0'
 description = 'Lazy immutable library for Python built on top of pyrsistent'
