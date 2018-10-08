@@ -183,7 +183,7 @@ class CommandLineParser(object):
         wargs  = self.option_words
         cargs  = self.option_characters
         dflts  = self.default_values
-        for arg in args:
+        for arg in [aa for arg in args for aa in (arg if is_vector(arg) else [arg])]:
             larg = arg.lower()
             if parse_state is not None:
                 opts[parse_state] = arg
@@ -201,14 +201,18 @@ class CommandLineParser(object):
                             parts = trimmed.split('=')
                             if len(parts) == 1:
                                 if trimmed not in wargs:
-                                    raise ValueError('Unrecognized flag/option: %s' % trimmed)
-                                # the next argument specifies this one
-                                parse_state = wargs[trimmed]
+                                    #raise ValueError('Unrecognized flag/option: %s' % trimmed)
+                                    remaining_args.append(arg)
+                                else:
+                                    # the next argument specifies this one
+                                    parse_state = wargs[trimmed]
                             else:
                                 k = parts[0]
                                 if k not in wargs:
-                                    raise ValueError('Unrecognized option: %s' % k)
-                                opts[wargs[k]] = trimmed[(len(k) + 1):]
+                                    #raise ValueError('Unrecognized option: %s' % k)
+                                    remaining_args.append(arg)
+                                else:
+                                    opts[wargs[k]] = trimmed[(len(k) + 1):]
                     else:
                         trimmed = arg[1:]
                         for (k,c) in enumerate(trimmed):
@@ -281,8 +285,8 @@ def to_argv_schema(data, arg_names=None, arg_abbrevs=None, filters=None, default
         # we go through the afferent parameters...
         for aff in plan.afferents:
             # these are provided by the parsing mechanism and shouldn't be processed
-            if aff in ['argv', 'unparsed_argv', 'stdout', 'stderr', 'stdin']: continue
-            # we ignore defaults because these will just fall through
+            if aff in ['argv', 'argv_parsed', 'stdout', 'stderr', 'stdin']: continue
+            # we ignore defaults for now
             data[aff] = (None, aff.replace('_', '-'), aff)
         # and let's try to guess at abbreviation names
         entries = sorted(data.keys())
@@ -292,6 +296,11 @@ def to_argv_schema(data, arg_names=None, arg_abbrevs=None, filters=None, default
             if ii < n-1 and entry[0] == entries[ii+1][0]: continue
             r = data[entry]
             data[entry] = (entry[0], r[1], entry, r[3]) if len(r) == 4 else (entry[0], r[1], entry)
+        # now go through and fix defaults...
+        for (entry,dflt) in six.iteritems(plan.defaults):
+            if entry not in data: continue
+            r = data[entry]
+            data[entry] = (r[0], r[1], r[2], dflt)
     elif arg_names is None and arg_abbrevs is None and defaults is None:
         # return the same object if there are no changes to a schema
         return data
@@ -300,14 +309,17 @@ def to_argv_schema(data, arg_names=None, arg_abbrevs=None, filters=None, default
     # Now we go through and make updates based on the optional arguments
     if arg_names is None: arg_names = {}
     for (entry,arg_name) in six.iteritems(arg_names):
+        if entry not in data: continue
         r = data[entry]
         data[entry] = (r[0], arg_name, entry) if len(r) == 3 else (r[0], arg_name, entry, r[3])
     if arg_abbrevs is None: arg_abbrevs = {}
     for (entry,arg_abbrev) in six.iteritems(arg_abbrevs):
+        if entry not in data: continue
         r = data[entry]
         data[entry] = (arg_abbrev, r[1], entry) if len(r) == 3 else (arg_abbrev, r[1], entry, r[3])
     if defaults is None: defaults = {}
     for (entry,dflt) in six.iteritems(defaults):
+        if entry not in data: continue
         r = data[entry]
         data[entry] = (r[0], r[1], entry, dflt)
     # return the list-ified version of this
@@ -408,7 +420,7 @@ class WorkLog(object):
         worklog.inrent(x) indents x times.
         '''
         return WorkLog(columns=self.columns,
-                       bullet=(''.join([self.blanks for ii in range(n)]) + self.bullet),
+                       bullet=(self.blanks + self.bullet),
                        stdout=self.stdout, stderr=self.stderr)
 
     def _write(self, fl, *args):
@@ -421,7 +433,9 @@ class WorkLog(object):
             [(bksep.join(textwrap.wrap(arg.strip(), n)) if is_str(arg) else
               pasep.join([bksep.join(textwrap.wrap(s.strip(), n)) for s in arg]))
              for arg in args])
-        return fl.write(s)
+        r = fl.write(s + '\n')
+        fl.flush()
+        return r
     
     def __call__(self, *args):
         '''
@@ -442,7 +456,7 @@ class WorkLog(object):
         '''
         return self._write(self.stderr, *args)
     
-def worklog(columns=80, bullet='  * ', stdout=Ellipsis, stderr=Ellipsis, verbose=False):
+def worklog(columns=None, bullet='  * ', stdout=Ellipsis, stderr=Ellipsis, verbose=False):
     '''
     worklog() yields a worklog object using sys.stdout and sys.stderr as the outputs.
     worklog(n) yields a worklog that formats output to n columns.
@@ -456,6 +470,9 @@ def worklog(columns=80, bullet='  * ', stdout=Ellipsis, stderr=Ellipsis, verbose
       * verbose (default: False) specifies whether to use verbose output. This only has an effect
         if the stdout option is Ellipsis.
     '''
+    if columns is None:
+        try: columns = int(os.environ['COLUMNS'])
+        except: columns = 80
     if stdout is Ellipsis:
         if verbose: stdout = sys.stdout
         else: stdout = None
