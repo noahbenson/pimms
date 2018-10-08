@@ -4,7 +4,7 @@
 # command-line arguments for use with a pimms calc-plan.
 # By Noah C. Benson
 
-import copy, types, os, sys, re, warnings, six
+import copy, types, os, sys, re, warnings, textwrap, six
 import pyrsistent   as     pyr
 import numpy        as     np
 import collections  as     colls
@@ -280,13 +280,10 @@ def to_argv_schema(data, arg_names=None, arg_abbrevs=None, filters=None, default
         (plan, data) = (data, {})
         # we go through the afferent parameters...
         for aff in plan.afferents:
-            # we ignore defaults because these will just fall through, UNLESS they are boolean and
-            # need to be reversed
-            if aff in plan.defaults and plan.defaults[aff] in [True,False]:
-                dflt = plan.defaults[aff]
-                data[aff] = (None, aff.replace('_', '-'), aff, dflt)
-            else:
-                data[aff] = (None, aff.replace('_', '-'), aff)
+            # these are provided by the parsing mechanism and shouldn't be processed
+            if aff in ['argv', 'unparsed_argv', 'stdout', 'stderr', 'stdin']: continue
+            # we ignore defaults because these will just fall through
+            data[aff] = (None, aff.replace('_', '-'), aff)
         # and let's try to guess at abbreviation names
         entries = sorted(data.keys())
         n = len(entries)
@@ -388,4 +385,78 @@ def argv_parse(schema, argv, init=None,
     else:
         return res if init is None else (res[0], dict(merge(res[1], init)))
 
+class WorkLog(object):
+    '''
+    A WorkLog object is a simple print formatter. Given a column width, allows the user to print
+    bullet points with customized indentation. Useful for printing progress in long computations
+    or workflows.
+    '''
+
+    def __init__(self, columns=80, bullet='  * ', stdout=Ellipsis, stderr=Ellipsis):
+        if stdout is Ellipsis: stdout = sys.stdout
+        if stderr is Ellipsis: stderr = sys.stderr
+        self.stdout = stdout
+        self.stderr = stderr
+        self.columns = columns
+        self.bullet = bullet
+        self.blanks = ''.join([' ' for x in bullet])
+        self.inner_worklog = None
+        
+    def indent(self, n=1):
+        '''
+        worklog.indent() yields a duplicate worklog that is indented relative to worklog.
+        worklog.inrent(x) indents x times.
+        '''
+        return WorkLog(columns=self.columns,
+                       bullet=(''.join([self.blanks for ii in range(n)]) + self.bullet),
+                       stdout=self.stdout, stderr=self.stderr)
+
+    def _write(self, fl, *args):
+        if fl is None: return None
+        n = self.columns - len(self.blanks)
+        bksep = '\n' + self.blanks
+        busep = '\n' + self.bullet
+        pasep = '\n\n' + self.blanks
+        s = self.bullet + busep.join(
+            [(bksep.join(textwrap.wrap(arg.strip(), n)) if is_str(arg) else
+              pasep.join([bksep.join(textwrap.wrap(s.strip(), n)) for s in arg]))
+             for arg in args])
+        return fl.write(s)
     
+    def __call__(self, *args):
+        '''
+        worlog(a, b, c...) prints each argument as a separate bullet point at the worklog's current
+          indentation level.
+        
+        Each argument may be a string (which is word-wrapped) or a list of strings, each of which is
+        word-wrapped and printed as a separate paragraph.
+        '''
+        return self._write(self.stdout, *args)
+    def warn(self, *args):
+        '''
+        worlog.warn(a, b, c...) prints each argument as a separate bullet point at the worklog's
+          current indentation level to the worklog's standard-error.
+        
+        Each argument may be a string (which is word-wrapped) or a list of strings, each of which is
+        word-wrapped and printed as a separate paragraph.
+        '''
+        return self._write(self.stderr, *args)
+    
+def worklog(columns=80, bullet='  * ', stdout=Ellipsis, stderr=Ellipsis, verbose=False):
+    '''
+    worklog() yields a worklog object using sys.stdout and sys.stderr as the outputs.
+    worklog(n) yields a worklog that formats output to n columns.
+
+    The following options may be give:
+      * bullet (default: '  * ') the bullet-text to print for each bullet.
+      * stdout (default: Ellipsis) the file to use in place of stdout; if None, no stdout is
+        printed; if Ellipsis, then is set to sys.stdout if verbose is True and None otherwise.
+      * stderr (default: Ellipsis) the file to use in place of stderr; if None, no stderr is
+        printed; if Ellipsis, then is set to sys.stderr.
+      * verbose (default: False) specifies whether to use verbose output. This only has an effect
+        if the stdout option is Ellipsis.
+    '''
+    if stdout is Ellipsis:
+        if verbose: stdout = sys.stdout
+        else: stdout = None
+    return WorkLog(columns=columns, bullet=bullet, stdout=stdout, stderr=stderr)
