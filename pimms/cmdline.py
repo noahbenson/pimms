@@ -417,7 +417,7 @@ class WorkLog(object):
     def indent(self, n=1):
         '''
         worklog.indent() yields a duplicate worklog that is indented relative to worklog.
-        worklog.inrent(x) indents x times.
+        worklog.indent(x) indents x times.
         '''
         return WorkLog(columns=self.columns,
                        bullet=(self.blanks + self.bullet),
