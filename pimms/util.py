@@ -5,6 +5,7 @@
 
 import inspect, types, sys, six, pint, os, numbers
 import collections as colls, numpy as np, pyrsistent as ps
+import scipy.sparse as sps
 from functools import reduce
 if six.PY2:
     try:    from cStringIO import StringIO as BytesIO
@@ -437,6 +438,7 @@ def is_array(u, dtype=None, dims=None):
     See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_scalar, is_vector, is_matrix
     '''
     if is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
+    elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
     else:
         try: u = np.asarray(u)
         except: pass
