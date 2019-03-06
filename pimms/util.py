@@ -164,6 +164,7 @@ def qhashform(o):
         return ('__#ndarray', o.tobytes())
     elif isinstance(o, (set, frozenset)): return ('__#set', tuple([qhashform(x) for x in o]))
     elif is_map(o): return ps.pmap({qhashform(k):qhashform(v) for (k,v) in six.iteritems(o)})
+    elif is_str(o): return o
     elif hasattr(o, '__iter__'): return tuple([qhashform(u) for u in o])
     else: return o
 def qhash(o):
@@ -741,7 +742,8 @@ def flatten_maps(*args, **kwargs):
     '''
     def _recur(arg, work):
         if is_map(arg): work.append(arg)
-        elif not hasattr(arg, '__iter__'): raise ValueError('Non-map given to flatten_maps')
+        elif is_str(arg) or not hasattr(arg, '__iter__'):
+            raise ValueError('Non-map given to flatten_maps')
         else:
             for a in arg: _recur(a, work)
     res = []
