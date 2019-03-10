@@ -17,6 +17,8 @@ except: import pickle
 
 if six.PY2: tuple_type = types.TupleType
 else:       tuple_type = tuple
+if six.PY2: list_type = types.ListType
+else:       list_type = list
 
 units = pint.UnitRegistry()
 if not hasattr(units, 'pixels'):
@@ -768,34 +770,6 @@ def collect(*args, **kwargs):
             if k in m: m[k].append(arg)
             else: m[k] = [arg]
     return ps.pmap({k:tuple(v) for (k,v) in six.iteritems(m)})
-def assoc(m, **kwargs):
-    '''
-    assoc(m, k1=v1, k2=v2...) yields a persistent map equivalent to the given mapping object m but
-      with the given keys k1, k2, etc. associated with the given values v1, v2, etc.
-
-    This function respects laziness, so lazy maps will remain lazy, and parameter-free functions
-    passed as values will be lazy if m is lazy. It does not, however, make non-lazy maps into lazy
-    maps.
-    '''
-    if not is_map(m): raise ValueError('assoc given non-mapping object')
-    if not is_pmap(m): m = ps.pmap(m)
-    for (k,v) in six.iteritems(kwargs): m = m.set(k,v)
-    return m
-def dissoc(m, *args, **kwargs):
-    '''
-    dissoc(m, k1, k2, ...) yields a persistent map equivalent to the given mapping object m but
-      with the given keys k1, k2, etc. removed. If a key is not found, it is ignored. Note that you
-      may pass keyword arguments; their values will be ignored but they will be removed.
-
-    This function respects laziness, so lazy maps will remain lazy, and parameter-free functions
-    passed as values will be lazy if m is lazy. It does not, however, make non-lazy maps into lazy
-    maps.
-    '''
-    if not is_map(m): raise ValueError('assoc given non-mapping object')
-    if not is_pmap(m): m = ps.pmap(m)
-    for k in six.iteritems(args): m = m.discard(k)
-    for k in six.iterkeys(kwargs): m = m.discard(k)
-    return m
 def _choose_first(k, vs):
     '_choose_first(k, vs) yields vs[0][k].'
     return vs[0][k]
@@ -988,3 +962,108 @@ def persist(arg, depth=Ellipsis, on_mutable=None):
     elif isinstance(arg, types.FunctionType):
         return arg
     else: return on_mutable(arg)
+def dissoc(m, *args, **kw):
+    '''
+    dissoc(m, k1, k2...) yields a map equivalent to m without the arguments k1, k2, etc. If m is a
+      mutable pythin dictionary, this is equivalent to using del m[k] for k in [k1, k2...] then
+      returning m itself. If m is a persistent map, this is equivalent to calling m = m.discard(k)
+      for all the keys then returning m.
+
+    If m is not a map but is instead a list or persistent vector, this operates as if the
+    list/vector is a map whose keys are integers. If an item not at the end of the vector is deleted
+    then it is replaced with None instead of pop'ed.
+
+    The optional argument error (default: False) specifies whether an error should be raised when
+    one of the keys is not found; this applies to mutable or immutable arguments.
+    '''
+    if   len(kw) == 0: err = False
+    elif len(kw) == 1: err = kw['error']
+    else:              raise ValueError('unrecognized optional arguments')
+    if is_pmap(m):
+        if err:
+            for k in args: m = m.remove(k)
+        else:
+            for k in args: m = m.discard(k)
+        return m
+    elif is_map(m):
+        if err:
+            for k in args: del m[k]
+        else:
+            for k in args:
+                if k in m: del m[k]
+        return m
+    elif isinstance(m, tuple_type):
+        return m if len(args) == 0 else tuple(dissoc(list(m), *args, error=err))
+    elif isinstance(m, list_type):
+        if len(args) == 0: return m
+        n = len(m)
+        if err:
+            for k in args:
+                if not is_int(k) or k < 0 or k >= n: raise KeyError(k)
+        else: args = [k for k in args if is_int(k)]
+        args = sorted(list(set(k if k >= 0 else n + k for k in args)))
+        if err:
+            for k in args:
+                if k < 0 or k >= n: raise KeyError(k)
+        else: args = [k for k in args if k < n and k >= 0]
+        n -= 1 # just for eliminating the == n-1 in the next line
+        while len(args) > 0 and args[-1] == n:
+            m.pop()
+            args.pop()
+            n -= 1
+        for k in args: m[k] = None
+        return m
+    elif is_nparray(m):
+        args = list(args)
+        if len(args) == 0: return m
+        return np.asarray(dissoc(m.tolist(), *args, error=err))
+    else: raise ValueError('Cannot dissoc from given type: %s' % type(m))
+def assoc(m, *args, **kw):
+    '''
+    assoc(m, k1, v1, k2, v2...) yields a map equivalent to m without the arguments k1, k2, etc.
+      associated with the values v1, v2, etc. If m is a mutable python dictionary, this is
+      equivalent to using m[k] = v for all the given key-value pairs then returning m itself. If m
+      is a persistent map, this is equivalent to calling m = m.set(k, v) for all the key-value pairs
+      then returning m.
+
+    Keys given in the arguments list are always associated in order, then keys in the keyword
+    arguments are associated, meaning that the keyword arguments have precedence.
+
+    Note that in addition to key-value pairs in the ordinary arguments list, assoc() also uses the
+    key-value pairs given as named/keyword arguments.
+    
+    If m is not a map but is instead a list or persistent vector, this operates as if the
+    list/vector is a map whose keys are integers. If an item is added beyond the extent of the list
+    then it is extended by adding None to the list. If negative indices are given, they are always
+    interpreted relative to the end of the initial input list m and not in terms of the list as it
+    has grown at the point that the key-value pair is processed.
+    '''
+    if len(args) % 2 != 0: raise ValueError('assoc arguments must be given as key-value pairs')
+    args = (u for it in [zip(args[::2],args[1::2]), six.iteritems(kw)] for u in it)
+    if is_pmap(m):
+        for (k,v) in args: m = m.set(k, v)
+        return m
+    elif is_map(m):
+        for (k,v) in args: m[k] = v
+        return m
+    elif isinstance(m, tuple_type):
+        args = list(args)
+        return m if len(args) == 0 else tuple(assoc(list(m), *args, **kw))
+    elif isinstance(m, list_type):
+        n0 = len(m)
+        n = n0
+        for (k,v) in args:
+            if not is_int(k): TypeError('Keys for list args must be integers')
+            if k < -n: KeyError(k)
+            if k < 0: k = n0 + k
+            if k >= n: (n,m) = (k+1, m + [None]*(k - n + 1))
+            m[k] = v
+        return m
+    elif is_nparray(m):
+        args = list(args)
+        if len(args) == 0: return m
+        return np.asarray(assoc(m.tolist(), *[x for u in args for x in u]))
+    else: raise ValueError('Cannot assoc given type: %s' % type(m))
+    
+                    
+            

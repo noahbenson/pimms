@@ -6,8 +6,8 @@
 import copy, types, os, sys, re, warnings, pickle, pint, six
 import pyrsistent as ps, numpy as np, collections as colls
 from functools import reduce
-from .util  import (merge, is_pmap, is_map, is_lazy_map, is_quantity, quant, mag, units, qhash,
-                    save, load, is_nparray, getargspec_py27like)
+from .util  import (merge, is_pmap, is_str, is_map, is_lazy_map, is_vector, is_quantity, quant, mag,
+                    units, qhash, save, load, is_nparray, getargspec_py27like)
 from .table import (itable, is_itable)
 
 if six.PY2: tuple_type = types.TupleType
@@ -157,10 +157,14 @@ class Calc(object):
                            tuple(d[af] if af in d else af for af in self.afferents))
         object.__setattr__(translation, 'efferents',
                            tuple(d[ef] if ef in d else ef for ef in self.efferents))
-        object.__setattr__(translation, 'value_docs',
+        object.__setattr__(translation, 'afferent_docs',
                            ps.pmap({kk:ps.pmap({(d[k] if k in d else k):v
                                                 for (k,v) in six.iteritems(vv)})
-                                    for (kk,vv) in six.iteritems(self.value_docs)}))
+                                    for (kk,vv) in six.iteritems(self.afferent_docs)}))
+        object.__setattr__(translation, 'efferent_docs',
+                           ps.pmap({kk:ps.pmap({(d[k] if k in d else k):v
+                                                for (k,v) in six.iteritems(vv)})
+                                    for (kk,vv) in six.iteritems(self.efferent_docs)}))
         fn = self.function
         def _tr_fn_wrapper(*args, **kwargs):
             res = fn(*args, **kwargs)
@@ -530,7 +534,7 @@ class IMap(colls.Mapping):
                     res = memdat[ho]
                     h = None
                     ho = None
-                    #print IMap.indent, 'retrieved' #dbg
+                    #print(IMap.indent, 'retrieved') #dbg
                 else:
                     cpath = self.afferents['cache_directory'] \
                             if node.cache and 'cache_directory' in self.afferents else \
@@ -543,7 +547,7 @@ class IMap(colls.Mapping):
                         try:
                             res = self._uncache(cpath, node, ureg)
                             cpath = None
-                            #print IMap.indent, 'loaded cache' #dbg
+                            #print(IMap.indent, 'loaded cache') #dbg
                         except: pass
             except:
                 # memoization failure, must run the node normally (don't memoize/cache)
@@ -706,6 +710,52 @@ def plan(*args, **kwargs):
     adict = merge(tuple(arg.nodes if isinstance(arg, Plan) else arg for arg in args),
                   kwargs)
     return Plan(**adict)
+def planfn(*args, **kwargs):
+    '''
+    planfn(val1=fn1, val2=fn2...) uses the pimms plan mechanism to yield a function f that produces
+      an immutable imap when called with the correct paramters. Unlike in plan(), planfn() does not
+      care about the names of the calculation units; instead the val1, val2, etc. are names of the
+      efferent values while the given fn objects are the functions that calculate them (they are
+      automatically converted into calc objects, and names are automatically generated for the items
+      required).
+    planfn(res, val1=fn1, val2=fn2...) yields a function f that is equivalent to the function
+      lambda *args,**kw: g(*args,**kw)[res] where g = planfn(val1=fn1, val2=fn2...).
+    planfn((p1, p2...), val1=fn1, val2=fn2...) yields a function f that is equivalent to the
+      function lambda *a: g({p1:a[0], p2:a[1]...}) where g = planfn(val1=fn1, val2=fn2...).
+    planfn((p1, p2...), res, val1=fn1, val2=fn2...) applies both of the above translations to the
+      resulting function; note that either the first or second argument may be None to specify
+      default behavior. Additionally, the first argument may be a string s equivalent to (s,).
+    '''
+    # first: parse options
+    if   len(args) > 2:           raise ValueError('no more than 2 non-keyword arguments allowed')
+    elif len(args) == 0:          (params,result) = (None,None)
+    elif len(args) == 2:          (params,result) = args
+    elif is_str(args[0]):         (params,result) = (None,args[0])
+    elif is_vector(args[0], str): (params,result) = (args[0],None)
+    else:                         raise ValueError('cannot interpret argument: %s' % args[0])
+    # okay, now, we make the calcs and the calc plan:
+    calcs = {}
+    for (k,v) in six.iteritems(kwargs):
+        # if v is already a calc object, we can only use this if it has exactly one efferent
+        if is_calc(v):
+            if len(v.efferents) != 1:
+                raise ValueError('calc objects given to planfn must have exactly 1 efferent')
+            eff = v.efferents[0]
+            if eff != k: v = v.tr({eff:k})
+        else: v = calc(k)(v) # otherwise convert it to a calc with the output we want
+        # it's possible that the names of the calc objects are not unique, so we want to auto-
+        # generate unique names based on their names...
+        calcs['calc_' + k] = v
+    p0 = plan(calcs)
+    # see if we need to fix the input
+    if params is None:           p = p0
+    elif is_str(params):         p = lambda arg: p0({params:arg})
+    elif is_vector(params, str): p = lambda *args: p0({k:v for (k,v) in zip(params,args)})
+    else: raise ValueError('params must be a string or list of strings or None')
+    # and if we need to fix the output
+    if result is None: return p
+    def f(*args, **kw): return p(*args, **kw)[result]
+    return f
 def imap(p, *args, **kwargs):
     '''
     imap(p, args...) yields an immutable map object made from the plan object p and the given
