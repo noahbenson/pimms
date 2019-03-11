@@ -240,7 +240,7 @@ def calc_triangle_dims(a, b, c):
     # get the unit vector orthogonal to the base:
     u = np.array([-u[1], u[0]]) / base
     v = c - a
-    height = np.dot(ou, v)
+    height = np.dot(u, v)
     return (base, height)
 
 # Second calc unit: calculate the area
