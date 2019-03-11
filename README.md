@@ -206,7 +206,7 @@ can be obtained via a normal getitem lookup.
 
 #### Example
 
-An example of a lazy calculation plan is shown here (see also `pimms.test.tri_calc`):
+An example of a lazy calculation plan is shown here (see also `pimms.test.tri_calc`).:
 
 ```python
 # Usage example: calculating the area of a triangle
@@ -230,15 +230,18 @@ def calc_triangle_dims(a, b, c):
      @ base Will be the base, or width, of the triangle a-b-c.
      @ height Will be the height of the triangle a-b-c.
     '''
-    print 'Calculating base...'
-    xs = [a[0], b[0], c[0]]
-    xmin = min(xs)
-    xmax = max(xs)
-    print 'Calculating height...'
-    ys = [a[1], b[1], c[1]]
-    ymin = min(ys)
-    ymax = max(ys)
-    return (xmax - xmin, ymax - ymin)
+    import numpy as np
+    print('Calculating base...')
+    (a,b,c) = [np.asarray(x) for x in (a,b,c)]
+    # we use the first side as the base:
+    u = a - b
+    base = np.linalg.norm(u)
+    print('Calculating height...')
+    # get the unit vector orthogonal to the base:
+    u = np.array([-u[1], u[0]]) / base
+    v = c - a
+    height = np.dot(ou, v)
+    return (base, height)
 
 # Second calc unit: calculate the area
 @pimms.calc('area')
