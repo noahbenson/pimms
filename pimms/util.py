@@ -492,7 +492,7 @@ def curry(f, *args0, **kwargs0):
       a partial object and thus is suitable for use with pimms lazy maps.
     '''
     def curried_f(*args, **kwargs): 
-        return f(*(args0 + args), **pimms.merge(kwargs0, kwargs))
+        return f(*(args0 + args), **merge(kwargs0, kwargs))
     return curried_f
 def is_seq(arg):
     '''
