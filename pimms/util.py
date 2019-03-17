@@ -6,7 +6,7 @@
 import inspect, types, sys, six, pint, os, numbers
 import collections as colls, numpy as np, pyrsistent as ps
 import scipy.sparse as sps
-from functools import reduce
+from functools import (reduce, partial)
 if six.PY2:
     try:    from cStringIO import StringIO as BytesIO
     except: from StringIO  import StringIO as BytesIO
@@ -470,6 +470,45 @@ def is_matrix(u, dtype=None):
     See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_array, is_scalar, is_vector
     '''
     return is_array(u, dtype=dtype, dims=2)
+def is_tuple(arg):
+    '''
+    is_tuple(arg) yields True if arg is a tuple and False otherwise.
+    '''
+    return isinstance(arg, tuple_type)
+def is_list(arg):
+    '''
+    is_list(arg) yields True if arg is a list and False otherwise.
+    '''
+    return isinstance(arg, list_type)
+def is_set(arg):
+    '''
+    is_set(arg) yields True if arg is a set or frozenset and False otherwise.
+    '''
+    isinstance(arg, colls.Set)
+def curry(f, *args0, **kwargs0):
+    '''
+    curry(f, ...) yields a function equivalent to f with all following arguments and keyword
+      arguments passed. This is much like the partial function, but yields a function instead of
+      a partial object and thus is suitable for use with pimms lazy maps.
+    '''
+    def curried_f(*args, **kwargs): 
+        return f(*(args0 + args), **pimms.merge(kwargs0, kwargs))
+    return curried_f
+def is_seq(arg):
+    '''
+    is_seq(arg) yields True if arg is a sequential collection otherwise False; i.e., it must be a
+      list, tuple, persistent vector, persistent list, or numpy array.
+    
+    Note that strings are not considered sequences.
+    '''
+    return isinstance(arg, (list_type, tuple_type, pyr.PVector, pyr.PList)) or is_nparray(arg)
+def is_pseq(arg):
+    '''
+    is_pseq(arg) yields True if arg is a persistent vector, a persistent list, a tuple, or a numpy
+      array with its writeable flag off.
+    '''
+    if is_nparray(arg): return arg.flags['WRITEABLE'] == False
+    return isinstance(arg, (tuple_type, pyr.PVector, pyr.PList))
     
 def is_int(arg):
     '''
@@ -542,7 +581,7 @@ class LazyPMap(ps.PMap):
         return 'lmap({' + s + '})'
     def _examine_val(self, k, val):
         'should only be called internally'
-        if not isinstance(val, types.FunctionType): return val
+        if not isinstance(val, (types.FunctionType, partial)): return val
         vid = id(val)
         if vid in self._memoized:
             return self._memoized[vid]
@@ -590,7 +629,7 @@ class LazyPMap(ps.PMap):
                 lmap = LazyPMap(self._size, self._buckets_evolver.persistent())
                 mems = self._original_pmap._memoized
                 for (k,v) in ps.PMap.iteritems(self._original_pmap):
-                    if not isinstance(v, types.FunctionType): continue
+                    if not isinstance(v, (types.FunctionType, partial)): continue
                     vid = id(v)
                     if vid not in mems or ps.PMap.__getitem__(lmap, k) is v: continue
                     mems = mems.discard(vid)
@@ -616,7 +655,7 @@ class LazyPMap(ps.PMap):
         lmap, otherwise False.
         '''
         v = ps.PMap.__getitem__(self, k)
-        if not isinstance(v, types.FunctionType) or \
+        if not isinstance(v, (types.FunctionType, partial)) or \
            id(v) in self._memoized or \
            [] != getargspec_py27like(v)[0]:
             return False
@@ -628,7 +667,7 @@ class LazyPMap(ps.PMap):
         and already memoized.
         '''
         v = ps.PMap.__getitem__(self, k)
-        if not isinstance(v, types.FunctionType):
+        if not isinstance(v, (types.FunctionType, partial)):
             return False
         else:
             return id(v) in self._memoized
@@ -638,7 +677,7 @@ class LazyPMap(ps.PMap):
         nor a formerly-lazy memoized key.
         '''
         v = ps.PMap.__getitem__(self, k)
-        if not isinstance(v, types.FunctionType) or [] != getargspec_py27like(v)[0]:
+        if not isinstance(v, (types.FunctionType, partial)) or [] != getargspec_py27like(v)[0]:
             return True
         else:
             return False
@@ -959,7 +998,7 @@ def persist(arg, depth=Ellipsis, on_mutable=None):
         q = tuple(precur(x) for x in arg)
         if isinstance(arg, tuple) and all(ai is qi for (ai,qi) in zip(arg,q)): return arg
         else: return q
-    elif isinstance(arg, types.FunctionType):
+    elif isinstance(arg, (types.FunctionType, partial)):
         return arg
     else: return on_mutable(arg)
 def dissoc(m, *args, **kw):
