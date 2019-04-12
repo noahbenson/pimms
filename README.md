@@ -37,7 +37,7 @@ The pimms library currently depends on a small number of libraries, all installa
   largely a duplicate of pyrsistent's PMap code with additional hooks to handle lazy values.
 * [numpy](http://www.numpy.org/); the numpy library is required for pimms's ITable structures.
 * [six](https://github.com/benjaminp/six); a library for helping write code compatible with both
-  Python 2 and 3 versions (note: pimms has not been tested at all with Python 3).
+  Python 2 and 3 versions.
 * [pint](https://github.com/hgrecco/pint); a units library broadly compatible with numpy; pimms uses
   this library and manages its own unit registry (`pimms.units`).
 
