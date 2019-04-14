@@ -440,7 +440,8 @@ def is_array(u, dtype=None, dims=None):
 
     See also: is_nparray, is_npscalar, is_npvector, is_npmatrix, is_scalar, is_vector, is_matrix
     '''
-    if is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
+    if   is_map(u): return False # sometimes turns into a named-column array
+    elif is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
     elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
     else:
         try: u = np.asarray(u)
