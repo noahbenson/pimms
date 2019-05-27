@@ -426,9 +426,11 @@ def itable(*args, **kwargs):
     v = next((m0[k] for k in six.iterkeys(m0) if not m0.is_lazy(k)), None) if is_lazy_map(m0) else \
         None
     if v is None:
-        k = next((u for u in six.iterkeys(m0)), m0)
-        if k is m0: v = None
-        else: v = m0[k]
+        for k in six.iterkeys(m0):
+            try:
+                v = m0[k]
+                break
+            except Exception: pass
     return ITable(m0, n=(None if v is None else len(v)))
 def is_itable(arg):
     '''
