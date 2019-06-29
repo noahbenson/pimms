@@ -7,7 +7,8 @@ import copy, types, os, sys, re, warnings, pickle, pint, six
 import pyrsistent as ps, numpy as np, collections as colls
 from functools import reduce
 from .util  import (merge, is_pmap, is_str, is_map, is_lazy_map, is_vector, is_quantity, quant, mag,
-                    units, qhash, save, load, is_nparray, getargspec_py27like)
+                    units, qhash, save, load, is_nparray, getargspec_py27like, cache_filename,
+                    cache_lmap)
 from .table import (itable, is_itable)
 
 if six.PY2: tuple_type = types.TupleType
@@ -30,7 +31,7 @@ class Calc(object):
         try:
             s = f.__doc__
             assert(isinstance(s, six.string_types))
-        except:
+        except Exception:
             return res
         lines = s.split('\n')
         marks = [re.search('^\s*@\s*([a-zA-Z_]\w*)\s+(.*)$', ln) for ln in lines]
@@ -210,7 +211,7 @@ class Plan(object):
             for (k,v) in six.iteritems(node.defaults):
                 if k in defaults:
                     try: eq = np.array_equal(defaults[k], v)
-                    except: eq = False
+                    except Exception: eq = False
                     if not eq:
                         raise ValueError(
                             'conflicting default values found for \'%s\': %s and %s' % (
@@ -491,27 +492,6 @@ class IMap(colls.Mapping):
         elif k not in self.plan.efferents:
             raise TypeError('IMap object has no item named \'%s\'' % k)
         # else we don't worry about it; not yet calculated.
-    @staticmethod
-    def _cache(cpath, arg):
-        '''
-        IMap._cache(cpath, arg) is an internally-called method that saves the dict of arguments to
-          cache files in the given cpath directory.
-        '''
-        if not os.path.isdir(cpath): os.makedirs(cpath)
-        for (k,v) in six.iteritems(arg):
-            save(os.path.join(cpath, k + '.pp'), v, create_directories=True, overwrite=True)
-        return True
-    def _uncache(self, cpath, node, ureg):
-        '''
-        calc._uncache(cpath, uret) is an internally called function that handles loading of cached
-          data from disk given the afferent parameters.
-        '''
-        # load the results, one at a time; all errors can just be allowed to raise upward since
-        # this is always called from in a try block (in __call__)
-        result = {}
-        for eff in node.efferents:
-            result[eff] = load(os.path.join(cpath, eff) + '.pp', ureg=ureg)
-        return result
     #indent = ' -' #dbg
     def _run_node(self, node):
         '''
@@ -523,54 +503,38 @@ class IMap(colls.Mapping):
         #IMap.indent = '  ' + IMap.indent #dbg
         #
         # We need to pause here and handle caching, if needed.
-        res = None
+        (res, h, found) = (None, None, False)
         if ('memoize' in self.afferents and self.afferents['memoize']) and node.memoize:
             memdat = self.plan._memoized_data
             try:
-                h = qhash({k:self.afferents[k] for k in self.plan.afferent_dependencies[node.name]})
-                ho = (node.name, h)
-                if ho in memdat:
-                    # memoization success; no need to memoize the result after processing it
-                    res = memdat[ho]
-                    h = None
-                    ho = None
-                    #print(IMap.indent, 'retrieved') #dbg
-                else:
-                    cpath = self.afferents['cache_directory'] \
-                            if node.cache and 'cache_directory' in self.afferents else \
-                            None
+                h = {k:self.afferents[k] for k in self.plan.afferent_dependencies[node.name]}
+                h = (node.name, ps.pmap(h))
+                if h in memdat:
+                    # memoization success; set h to None so we don't re-memoize the value
+                    (res, h, found) = (memdat[h], None, True)
+                elif node.cache:
+                    cpath = self.afferents.get('cache_directory', None)
                     if cpath is not None:
-                        ureg = self.afferents['unit_registry'] \
-                               if 'unit_registry' in self.afferents else \
-                               'pimms'
-                        cpath = os.path.join(cpath, node.name, ('0' + str(-h)) if h < 0 else str(h))
-                        try:
-                            res = self._uncache(cpath, node, ureg)
-                            cpath = None
-                            #print(IMap.indent, 'loaded cache') #dbg
-                        except: pass
-            except:
-                # memoization failure, must run the node normally (don't memoize/cache)
-                h = None
-                ho = None
-                res = None
-        else:
-            h = None
-            ho = None
+                        ureg = self.afferents.get('unit_registry', 'pimms')
+                        cpath = cache_filename(cpath, h)
+                        if os.path.isfile(cpath):
+                            # set cpath to None to signal we don't need to cache the value out
+                            try: (res, cpath, found) = (load(cpath, ureg), None, True)
+                            except Exception: pass
+                else: cpath = None
+            except Exception: raise#b(h, found) = (None, False)
         # ensure we have a result
-        if res is None: res = node(self)
+        if not found: res = node(self)
         # process the result:
         effs = reduce(lambda m,v: m.set(v[0],v[1]), six.iteritems(res), self.efferents)
         object.__setattr__(self, 'efferents', effs)
         # Handle the caching if needed:
         if h is not None:
-            memdat[ho] = res
+            memdat[h] = res
             #if cpath is None: print IMap.indent, 'hashed' #dbg
             if cpath is not None:
-                try:
-                    self._cache(cpath, res)
-                    #print IMap.indent, 'saved cache' #dbg
-                except: pass
+                try: save(cpath, res)
+                except Exception: pass
         #elif node.memoize: print IMap.indent, 'simple-calc' #dbg
         #IMap.indent = IMap.indent[2:] #dbg
     # Also, since we're a persistent object, we should follow the conventions for copying

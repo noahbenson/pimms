@@ -8,12 +8,12 @@ import collections as colls, numpy as np, pyrsistent as ps
 import scipy.sparse as sps
 from functools import (reduce, partial)
 if six.PY2:
-    try:    from cStringIO import StringIO as BytesIO
-    except: from StringIO  import StringIO as BytesIO
+    try:              from cStringIO import StringIO as BytesIO
+    except Exception: from StringIO  import StringIO as BytesIO
 else:
     from io import BytesIO
-try:    from six.moves import cPickle as pickle
-except: import pickle
+try:              from six.moves import cPickle as pickle
+except Exception: import pickle
 
 if six.PY2: tuple_type = types.TupleType
 else:       tuple_type = tuple
@@ -46,7 +46,7 @@ def is_unit(q):
     '''
     if isinstance(q, six.string_types):
         try: return hasattr(units, q)
-        except: return False
+        except Exception: return False
     else:
         cls = type(q)
         return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
@@ -154,7 +154,7 @@ def like_units(a, b):
     try:
         c = a.to(b.u)
         return True
-    except:
+    except Exception:
         return False
 def qhashform(o):
     '''
@@ -188,8 +188,8 @@ io_formats = colls.OrderedDict(
         'write': lambda s,o: pickle.dump(o, s),
         'read':  lambda s:   pickle.load(s, **_pickle_load_options)})])
 def _check_io_format(obj, fmt):
-    try:    return io_formats[fmt]['match'](obj)
-    except: return False
+    try:              return io_formats[fmt]['match'](obj)
+    except Exception: return False
 def _save_stream_format(stream, obj, fmt):
     fdat = io_formats[fmt]
     fdat['write'](stream, obj)
@@ -204,19 +204,19 @@ def _save_stream(stream, obj):
             _save_stream_format(s, obj, fmt)
             pickle.dump(fmt, stream)
             stream.write(s.getvalue())
-        except:  continue
-        else:    return stream
-        finally: s.close()
+        except Exception:  continue
+        else:              return stream
+        finally:           s.close()
     raise ValueError('unsavable object: did not match any exporters')
 def _load_stream(stream):
-    try:    fmt = pickle.load(stream, **_pickle_load_options)
-    except: raise ValueError('could not unpickle format; probably not a pimms save file')
+    try:              fmt = pickle.load(stream, **_pickle_load_options)
+    except Exception: raise ValueError('could not unpickle format; probably not a pimms save file')
     if not isinstance(fmt, six.string_types):
         raise ValueError('file format object is not a string; probably not a pimms save file')
     if fmt not in io_formats:
         raise ValueError('file has unrecognized format \'%s\'' % fmt)
     return _load_stream_format(stream, fmt)
-def save(filename, obj, overwrite=False, create_directories=False):
+def save(filename, obj, overwrite=False, create_directories=False, create_mode=0o755):
     '''
     pimms.save(filename, obj) attempts to pickle the given object obj in the filename (or stream,
       if given). An error is raised when this cannot be accomplished; the first argument is always
@@ -224,9 +224,9 @@ def save(filename, obj, overwrite=False, create_directories=False):
       the same file.
 
     The save/load protocol uses pickle for all saving/loading except when the object is a numpy
-    object, in which case it is written using obj.tofile(). The save function writes meta-data
-    into the file so cannot simply be unpickled, but must be loaded using the pimms.load()
-    function. Fundamentally, however, if an object can be picled, it can be saved/loaded.
+    object, in which case it is written using obj.tofile(). The save function writes meta-data into
+    the file so it cannot simply be unpickled, but must be loaded using the pimms.load() function.
+    Fundamentally, however, if an object can be pickled, it can be saved/loaded by pimms.
 
     Options:
       * overwrite (False) The optional parameter overwrite indicates whether an error should be
@@ -234,6 +234,8 @@ def save(filename, obj, overwrite=False, create_directories=False):
       * create_directories (False) The optional parameter create_directories indicates whether the
         function should attempt to create the directories in which the filename exists if they do
         not already exist.
+      * create_mode (0o755) The optional parameter create_mode specifies the mode given to
+        directories that are created by the save function (if any).
     '''
     if isinstance(filename, six.string_types):
         filename = os.path.expanduser(filename)
@@ -241,7 +243,7 @@ def save(filename, obj, overwrite=False, create_directories=False):
             raise ValueError('save would overwrite file %s' % filename)
         if create_directories:
             dname = os.path.dirname(os.path.realpath(filename))
-            if not os.path.isdir(dname): os.makedirs(dname)
+            if not os.path.isdir(dname): os.makedirs(dname, mode=create_mode)
         with open(filename, 'wb') as f:
             _save_stream(f, obj)
     else:
@@ -267,8 +269,8 @@ def load(filename, ureg='pimms'):
         orig_dfl_ureg = pint._DEFAULT_REGISTRY
         pint._APP_REGISTRY = ureg
         pint._DEFAULT_REGISTRY = ureg
-        try:    return load(filename, ureg=None)
-        except: raise
+        try:              return load(filename, ureg=None)
+        except Exception: raise
         finally:
             pint._APP_REGISTRY     = orig_app_ureg
             pint._DEFAULT_REGISTRY = orig_dfl_ureg
@@ -278,6 +280,159 @@ def load(filename, ureg='pimms'):
             return _load_stream(f)
     else:
         return _load_stream(filename)
+
+def _load_json(filename, to='auto'):
+    '''
+    _load_json(filename) yields the object represented by the json file or stream object filename.
+    
+    The optional argument to may be set to None to indicate that the JSON data should be returned
+    verbatim rather than parsed by neuropythy's denormalize system.
+    '''
+    import json
+    if is_str(filename):
+        try:
+            with gzip.open(filename, 'rt') as fl: return json.load(fl)
+        except Exception: pass
+        with open(filename, 'rt') as fl: return json.load(fl)
+    else: return json.load(filename)
+def to_jsonable(obj):
+    '''
+    to_jsonable(obj) attempts to convert the given obj into an object that can be encoded into
+      JSON using the json package's dumps() function. Essentially, this converts persistent
+      datatypes into the typical python datatypes (e.g., pyrsistent.pmap -> dict,
+      pyrsistent.pvec -> list). 
+    '''
+    if   is_map(obj): return dict({k: to_jsonable(v) for (k,v) in six.iteritems(obj)})
+    elif is_seq(obj): return [to_jsonable(u) for u in obj]
+    else: return obj
+def cache_filename(cache_path, params, suffix='.pp', create_mode=0o755):
+    '''
+    cache_filename(cache_path, params, ext) yields a path p such that p is a file in the given
+      directory cache_path that is associated with the given set of params such that a repeated
+      call to find_cache_file with the same arguments will return the same file for as long as
+      the cache_path is not cleared. The returned file has the given extention.
+    cache_filename(cache_path, params) uses the extention '.pp' (for pimms-pickle).
+    '''
+    import json
+    if not os.path.isdir(cache_path): raise ValueError('cache_path not found: %s' % (cache_path,))
+    if suffix is None: suffix = ''
+    # for this to work we need to be able to hash h...
+    try: h = qhash(params)
+    except Exception: h = None
+    if h is None: raise ValueError('could not qhash given parameters')
+    # ... and we need to be able to convert params into json...
+    try:
+        nparams = to_jsonable(params)
+        j = json.dumps(nparams)
+    except Exception: j = None
+    if j is None: raise ValueError('could not convert parameters into json')
+    # okay, the has determines the cache subdirectory:
+    hstr = '%+016x' % (h,)
+    hstr = ('p' if hstr[0] == '+' else 'n') + hstr[1:]
+    # see if this directory exists...
+    cache_path = os.path.join(cache_path, hstr)
+    if   not os.path.exists(cache_path): os.makedirs(cache_path, mode=create_mode)
+    elif not os.path.isdir(cache_path):  raise ValueError('params cache to a file, not a dir')
+    # okay, try to find the file:
+    k = 1
+    while True:
+        code = '%06x' % k
+        pfile = os.path.join(cache_path, 'key-' + code + '.json')
+        if os.path.isfile(pfile):
+            try:
+                with open(pfile, 'r') as fl: s = fl.read()
+                js = json.loads(s)
+                if nparams == js: break
+            except Exception: pass
+        else:
+            # write out this pfile then break
+            with open(pfile, 'w') as fl: fl.write(j)
+            break
+        k += 1
+    # okay, return the filename that goes with this code
+    return os.path.join(cache_path, code + suffix)
+
+def cache_lmap(cache_path, params, lmap, create_mode=0o755, key_translator=None):
+    '''
+    cache_lmap(cache_path, params, lmap) yields a lazy-map whose keys and values are identical to
+      the given map lmap except that the returned map attempts to load the lazy values in lmap
+      from cache prior to calculating them, and saves the lmap values out to cache if they must be
+      calculated.
+
+    Note that for any (key,val) pair in lmap, if either val cannot be saved via pimms.save() or if
+    key is not a valid filename, then that pair will not be cached. The optional argument
+    key_translator may be given (either a map or a function) that converts lmap's keys into
+    appropriate strings.
+
+    This function catches and ignores exceptions, so it is safe to wrap a map using cache_lmap, even
+    if the params are not hashable or the map's values cannot be saved via pimms.save; any such
+    values are simply returned without caching.
+    '''
+    if not is_map(lmap): raise ValueError('cache_map given non-map object of type %s'%(type(lmap),))
+    if not is_lazy_map(lmap): lmap = lazy_map(lmap)
+    params = persist(params)
+    ktr_key = '__pimms_cache_lmap_key_translation__'
+    # if ktr is given, make sure it will work:
+    if ktr_key in params: key_translator = params[ktr_key]
+    if key_translator is not None:
+        if pimms.is_map(key_translator):
+            ktr = {k:key_translator.get(k,k) for k in six.iterkeys(lmap)}
+        else: ktr = {k:key_translator(k) for k in six.iterkeys(lmap)}
+        params = pimms.assoc(params, ktr_key, ps.pmap(ktr))
+    else: ktr = ps.m()
+    # okay, create the layered lmap:
+    def _cache(k0):
+        if not lmap.is_lazy(k0): return lmap[k0]
+        if _cache.cdir is None:
+            try:
+                # find a directory for the lmap items:
+                _cache.cdir = cache_filename(cache_path, params, '', create_mode=create_mode)
+                # make the dir if necessary
+                if not os.path.isdir(cdir): os.makedirs(cdir, mode=create_mode)
+            except Exception: _cache.cdir = Ellipsis
+        k = ktr.get(k0,k0)
+        if _cache.cdir is Ellipsis: flnm = None
+        else:
+            try:
+                flnm = os.path.join(_cache.cdir, k + '.pp')
+                if os.path.isfile(flnm): return load(flnm)
+            except Exception: flnm = None
+        v = lmap[k0]
+        if flnm is None: return v
+        try: save(flnm, v)
+        except Exception: pass
+        return v
+    _cache.cdir = None
+    return lazy_map({k: curry(_cache, k) for k in six.iterkeys(lmap)})
+def cache_fn(cache_path, params, fn, create_mode=0o755):
+    '''
+    cache_fn(cache_path, params, fn) yields a function that is equivalent to the given function fn
+      except that the returned function first attempts to load the result of calling fn() from
+      cache and returns that value if found; if not, fn() is called and the result is cached, if
+      possible.
+
+    This function catches and ignores exceptions, so it is always safe to wrap a function using
+    cache_fn: even if the caching fails, the returned function will mimic fn.
+    '''
+    def _fn():
+        if _fn._fn is None: return _fn._result
+        # first, get the cache filename:
+        try:
+            # find a directory for the lmap items:
+            cfl = cache_filename(cache_path, params, create_mode=create_mode)
+            # load it if possible
+            if os.path.isfile(cfl): return load(cfl)
+        except Exception: cfl = Ellipsis
+        x = _fn._fn()
+        _fn._result = x
+        _fn._fn = None # allow garbage collection
+        if cfl is Ellipsis: return x
+        try: save(cfl, x)
+        except Exception: pass
+        return x
+    _fn._fn = fn
+    _fn._result = None
+    return _fn                
 
 def is_str(arg):
     '''
@@ -444,8 +599,8 @@ def is_array(u, dtype=None, dims=None):
     elif is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
     elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
     else:
-        try: u = np.asarray(u)
-        except: pass
+        try:              u = np.asarray(u)
+        except Exception: pass
         return is_nparray(u, dtype=dtype, dims=dims)
 def is_scalar(u, dtype=None):
     '''
@@ -502,14 +657,14 @@ def is_seq(arg):
     
     Note that strings are not considered sequences.
     '''
-    return isinstance(arg, (list_type, tuple_type, pyr.PVector, pyr.PList)) or is_nparray(arg)
+    return isinstance(arg, (list_type, tuple_type, ps.PVector, ps.PList)) or is_nparray(arg)
 def is_pseq(arg):
     '''
     is_pseq(arg) yields True if arg is a persistent vector, a persistent list, a tuple, or a numpy
       array with its writeable flag off.
     '''
     if is_nparray(arg): return arg.flags['WRITEABLE'] == False
-    return isinstance(arg, (tuple_type, pyr.PVector, pyr.PList))
+    return isinstance(arg, (tuple_type, ps.PVector, ps.PList))
     
 def is_int(arg):
     '''
@@ -707,6 +862,11 @@ def lazy_map(initial={}, pre_size=0):
     if is_lazy_map(initial): return initial
     if not initial: return _EMPTY_LMAP
     return _lazy_turbo_mapping(initial, pre_size)
+def lmap(initial={}, pre_size=0):
+    '''
+    lmap is an alias for lazy_map.
+    '''
+    return lazy_map(initial, pre_size)
 def is_lazy_map(m):
     '''
     is_lazy_map(m) yields True if m is an instance if LazyPMap and False otherwise. Note that this
@@ -716,6 +876,11 @@ def is_lazy_map(m):
     '''
     from .table import is_itable
     return isinstance(m, LazyPMap) or is_itable(m)
+def is_lmap(m):
+    '''
+    is_lmap(m) is identical to is_lazy_map(m).
+    '''
+    return is_lazy_map(m)
 def is_pmap(arg):
     '''
     is_pmap(x) yields True if x is a persistent map object and False otherwise. Note that this will

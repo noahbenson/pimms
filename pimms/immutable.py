@@ -140,9 +140,8 @@ def _imm_getattribute(self, name):
             # Note that there's a race condition that eventually needs to be handled here:
             # If dd[name] is set then a check fails, there may have been something that read the
             # improper value in the meantime
-            try:
-                _imm_check(self, [name])
-            except:
+            try: _imm_check(self, [name])
+            except Exception:
                 del dd[name]
                 raise
         # if those pass, then we're fine

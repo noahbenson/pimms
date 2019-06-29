@@ -419,19 +419,29 @@ def itable(*args, **kwargs):
         import pandas
         args = [{k:a[k].values for k in a.keys()} if isinstance(a, pandas.DataFrame) else a
                 for a in args]
-    except: pass
+    except Exception: pass
     # now we want to merge these together and make them one lazy map
     m0 = lazy_map(merge(args, kwargs))
     # see if we can deduce the row size from a non-lazy argument:
-    v = next((m0[k] for k in six.iterkeys(m0) if not m0.is_lazy(k)), None) if is_lazy_map(m0) else \
-        None
-    if v is None:
-        for k in six.iterkeys(m0):
-            try:
-                v = m0[k]
+    v = m0
+    for mm in (list(args) + [kwargs]):
+        if len(mm) == 0: continue
+        if not is_lazy_map(mm):
+            for k in six.iterkeys(mm):
+                try: v = mm[k]
+                except Exception: continue
                 break
-            except Exception: pass
-    return ITable(m0, n=(None if v is None else len(v)))
+        else:
+            for k in mm.iternormal():
+                try: v = mm[k]
+                except Exception: continue
+                break
+            for k in (mm.itermemoized() if v is m0 else []):
+                try: v = mm[k]
+                except Exception: continue
+                break
+        if v is not m0: break
+    return ITable(m0, n=(None if v is m0 else len(v)))
 def is_itable(arg):
     '''
     is_itable(x) yields True if x is an ITable object and False otherwise.

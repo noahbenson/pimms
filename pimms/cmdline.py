@@ -75,8 +75,8 @@ class CommandLineParser(object):
           it instead returns the string s.
         '''
         from ast import literal_eval
-        try:    return literal_eval(s)
-        except: return Ellipsis if s.strip() == '...' else s
+        try:              return literal_eval(s)
+        except Exception: return Ellipsis if s.strip() == '...' else s
     
     def __init__(self, instructions, value_parser=True, filters=None):
         'See help(CommandLineParser).'
@@ -471,8 +471,8 @@ def worklog(columns=None, bullet='  * ', stdout=Ellipsis, stderr=Ellipsis, verbo
         if the stdout option is Ellipsis.
     '''
     if columns is None:
-        try: columns = int(os.environ['COLUMNS'])
-        except: columns = 80
+        try:              columns = int(os.environ['COLUMNS'])
+        except Exception: columns = 80
     if stdout is Ellipsis:
         if verbose: stdout = sys.stdout
         else: stdout = None

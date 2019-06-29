@@ -120,7 +120,7 @@ The additional utility functions are provided as part of the pimms package:
   * imm_is_transient(imm) is identical to imm.is_transient() for an immutable object imm.
 '''
 
-from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge,
+from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lmap,
                           lazy_value_map, value_map, key_map, collect, flatten_maps,
                           is_persistent, is_map, is_pmap, is_lazy_map, is_str, is_class,
                           is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
@@ -129,7 +129,7 @@ from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge,
                           is_int, is_float, is_real, is_complex, is_number,
                           is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
                           imm_array, qhashform, qhash, save, load, io_formats, persist,
-                          assoc, dissoc, curry)
+                          assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)
 from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
                           imm_persist, imm_transient, imm_params, imm_values, imm_dict,
                           imm_is_persistent, imm_is_transient)
@@ -146,8 +146,8 @@ def reload_pimms():
     reload_pimms() reloads the entire pimms module and returns it.
     '''
     import sys, six
-    try:    from importlib import reload
-    except: from imp       import reload
+    try:              from importlib import reload
+    except Exception: from imp       import reload
     reload(sys.modules['pimms.util'])
     reload(sys.modules['pimms.table'])
     reload(sys.modules['pimms.immutable'])
@@ -156,5 +156,5 @@ def reload_pimms():
     reload(sys.modules['pimms'])
     return sys.modules['pimms']
 
-__version__ = '0.3.6'
+__version__ = '0.3.7'
 description = 'Lazy immutable library for Python built on top of pyrsistent'

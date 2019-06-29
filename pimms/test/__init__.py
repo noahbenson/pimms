@@ -44,7 +44,7 @@ class TestPimms(unittest.TestCase):
         sr = np.array(10.0)
         si = np.array(2)*pimms.units.deg
         l = [1, 2.0, 'abc']
-        lm = [[1,1], [2.0,2.0], [4,7.7]]
+        lx = [[1,1], [2.0,2.0], [4,7.7]]
         u = u'a unicode string of stuff'
         b = b'a byte string of stuff'
         f0 = lambda:np.linspace(0,100,117)
@@ -63,7 +63,7 @@ class TestPimms(unittest.TestCase):
         tpred(pimms.is_pmap, [lm,pm], [qr,qi,mr,vi,sr,si,l,u,b,f0,f1,d])
         # Numpy types require a little attention due to their optional arguments and the
         # complexities of the type relationships
-        tpred(pimms.is_nparray, [qr,qi,mr,vi,sr], [l,lm,u,b,f0,f1,d,pm,lm])
+        tpred(pimms.is_nparray, [qr,qi,mr,vi,sr], [l,lx,u,b,f0,f1,d,pm,lm])
         self.assertTrue(pimms.is_nparray(qr, 'real'))
         self.assertTrue(pimms.is_nparray(qr, 'any', 1))
         self.assertFalse(pimms.is_nparray(qr, 'any', 2))
@@ -74,17 +74,17 @@ class TestPimms(unittest.TestCase):
         self.assertTrue(pimms.is_nparray(mr, None, 2))
         self.assertFalse(pimms.is_nparray(mr, None, 1))
         self.assertFalse(pimms.is_nparray(vi, 'int', 2))
-        tpred(pimms.is_npscalar, [sr], [qr,qi,mr,vi,l,lm,u,b,f0,f1,d,pm,lm])
+        tpred(pimms.is_npscalar, [sr], [qr,qi,mr,vi,l,lx,u,b,f0,f1,d,pm,lm])
         self.assertTrue(pimms.is_npscalar(np.array(12.0), 'real'))
         self.assertFalse(pimms.is_npscalar(np.array(12.0), 'string'))
         self.assertTrue(pimms.is_npscalar(np.array(12.0), ('real','complex')))
         tpred(pimms.is_npmatrix, [mr, pimms.quant(mr, 'm/s')],
-              [sr,si,qr,qi,vi,l,lm,u,b,f0,f1,d,pm,lm])
+              [sr,si,qr,qi,vi,l,lx,u,b,f0,f1,d,pm,lm])
         self.assertTrue(pimms.is_npmatrix(mr, ('int','real','string')))
         self.assertTrue(pimms.is_npmatrix(mr, 'number'))
         self.assertFalse(pimms.is_npmatrix(mr, ('bool','string')))
         tpred(pimms.is_npvector, [qr,qi,vi,vi*pimms.units.mol,qr,qi],
-              [sr,si,mr,l,lm,u,b,f0,f1,d,pm,lm])
+              [sr,si,mr,l,lx,u,b,f0,f1,d,pm,lm])
         self.assertTrue(pimms.is_npvector(vi, 'real'))
         self.assertTrue(pimms.is_npvector(qi, 'int'))
         self.assertFalse(pimms.is_npvector(qr, ('bool','string')))
@@ -94,7 +94,7 @@ class TestPimms(unittest.TestCase):
         self.assertFalse(pimms.is_npvalue(np.array(5.6), ('unicode','bool')))
         self.assertFalse(pimms.is_npvalue(np.array([5.6]), ('unicode','real')))
         # Also the un-nump'ified versions
-        tpred(pimms.is_array, [qr,qi,vi,sr,si,mr,qr,qi,l,lm,u,b,f0,f1,d,pm,lm], [])
+        tpred(pimms.is_array, [qr,qi,vi,sr,si,mr,qr,qi,l,lx,u,b,f0,f1], [d,pm,lm])
         self.assertTrue(pimms.is_array(qr, 'real'))
         self.assertTrue(pimms.is_array(qr, 'any', 1))
         self.assertTrue(pimms.is_array(qr, 'any', 1))
@@ -106,15 +106,15 @@ class TestPimms(unittest.TestCase):
         self.assertFalse(pimms.is_array(mr, None, 1))
         self.assertFalse(pimms.is_array(vi, 'int', 2))
         self.assertFalse(pimms.is_array(l, 'number', 1))
-        self.assertTrue(pimms.is_array(lm, 'any', (1,2)))
-        tpred(pimms.is_scalar, [u,b,f0,f1,d,sr,si], [qr,qi,vi,mr,l,pm,lm])
+        self.assertTrue(pimms.is_array(lx, 'any', (1,2)))
+        tpred(pimms.is_scalar, [u,b,f0,f1,sr,si], [qr,qi,vi,mr,l,d,pm,lm,lx])
         tpred(pimms.is_int, [vi[0],si,1,10], [u,b,f0,f1,d,pm,lm,sr,qr,mr])
-        tpred(pimms.is_real, [vi[0],si,1,10,sr], [4j,u,b,f0,f1,d,pm,lm,mr,qr])
-        tpred(pimms.is_complex, [vi[0],si,1,10,sr,4j], [u,b,f0,f1,d,pm,lm,mr,qr])
-        tpred(pimms.is_number, [vi[0],si,1,10,sr], [u,b,f0,f1,d,pm,lm,mr,qr])
-        tpred(pimms.is_str, ['abc'], [vi,si,1,10,sr,qr,f0,f1,d,pm,lm,mr])
-        tpred(pimms.is_class, [str,int], [vi,si,1,10,sr,qr,u,b,f0,f1,d,pm,lm,mr])
-        tpred(pimms.is_quantity, [qr,qi,si], [vi,10,sr,u,b,f0,f1,d,pm,lm,mr])
+        tpred(pimms.is_real, [vi[0],si,1,10,sr], [4j,u,b,f0,f1,d,pm,lm,lx,mr,qr])
+        tpred(pimms.is_complex, [vi[0],si,1,10,sr,4j], [u,b,f0,f1,d,pm,lm,lx,mr,qr])
+        tpred(pimms.is_number, [vi[0],si,1,10,sr], [u,b,f0,f1,d,pm,lm,lx,mr,qr])
+        tpred(pimms.is_str, ['abc'], [vi,si,1,10,sr,qr,f0,f1,d,pm,lm,lx,mr])
+        tpred(pimms.is_class, [str,int], [vi,si,1,10,sr,qr,u,b,f0,f1,d,pm,lm,lx,mr])
+        tpred(pimms.is_quantity, [qr,qi,si], [vi,10,sr,u,b,f0,f1,d,pm,lm,lx,mr])
         tpred(pimms.is_unit,
               ('seconds', 's', 'mm', 'deg', pimms.units.seconds, pimms.units.s, pimms.units.mm,
                pimms.units.deg),
