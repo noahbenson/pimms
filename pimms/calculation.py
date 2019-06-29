@@ -569,7 +569,7 @@ class IMap(colls.Mapping):
         The translation is found from merging the list of 0 or more dictionary arguments given
         left-to-right followed by the keyword arguments.
         '''
-        d = merge_args(args, kwargs)
+        d = merge(args, kwargs)
         # make a copy of the plan first:
         new_plan = self.plan.tr(d)
         # now use that plan to re-initialize ourself
