@@ -8,7 +8,7 @@ import pyrsistent as ps, numpy as np, collections as colls
 from functools import reduce
 from .util  import (merge, is_pmap, is_str, is_map, is_lazy_map, is_vector, is_quantity, quant, mag,
                     units, qhash, save, load, is_nparray, getargspec_py27like, cache_filename,
-                    cache_lmap)
+                    cache_lmap, qhashform)
 from .table import (itable, is_itable)
 
 if six.PY2: tuple_type = types.TupleType
@@ -508,7 +508,7 @@ class IMap(colls.Mapping):
             memdat = self.plan._memoized_data
             try:
                 h = {k:self.afferents[k] for k in self.plan.afferent_dependencies[node.name]}
-                h = (node.name, ps.pmap(h))
+                h = qhashform((node.name, ps.pmap(h)))
                 if h in memdat:
                     # memoization success; set h to None so we don't re-memoize the value
                     (res, h, found) = (memdat[h], None, True)
@@ -516,11 +516,12 @@ class IMap(colls.Mapping):
                     cpath = self.afferents.get('cache_directory', None)
                     if cpath is not None:
                         ureg = self.afferents.get('unit_registry', 'pimms')
-                        cpath = cache_filename(cpath, h)
-                        if os.path.isfile(cpath):
-                            # set cpath to None to signal we don't need to cache the value out
-                            try: (res, cpath, found) = (load(cpath, ureg), None, True)
-                            except Exception: pass
+                        try:
+                            cpath = cache_filename(cpath, h)
+                            if os.path.isfile(cpath):
+                                # set cpath to None to signal we don't need to cache the value out
+                                (res, cpath, found) = (load(cpath, ureg), None, True)
+                        except Exception: cpath = None
                 else: cpath = None
             except Exception: raise#b(h, found) = (None, False)
         # ensure we have a result
