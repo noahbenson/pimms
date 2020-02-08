@@ -23,7 +23,7 @@ else:       list_type = list
 # We want to disable the awful pint warning fo numpy if it's present:
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    Quantity([])
+    pint.Quantity([])
 
 units = pint.UnitRegistry()
 if not hasattr(units, 'pixels'):
