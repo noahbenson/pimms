@@ -3,7 +3,7 @@
 # Utility classes for functional programming with pimms!
 # By Noah C. Benson
 
-import inspect, types, sys, six, pint, os, numbers
+import inspect, types, sys, six, pint, os, numbers, warnings
 import collections as colls, numpy as np, pyrsistent as ps
 import scipy.sparse as sps
 from functools import (reduce, partial)
