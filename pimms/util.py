@@ -20,12 +20,15 @@ else:       tuple_type = tuple
 if six.PY2: list_type = types.ListType
 else:       list_type = list
 
+# Setup pint / units:
+units = pint.UnitRegistry()
+
 # We want to disable the awful pint warning fo numpy if it's present:
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    pint.Quantity([])
+    units.Quantity([])
 
-units = pint.UnitRegistry()
+# Make sure there's a pixel unit
 if not hasattr(units, 'pixels'):
     units.define('pixel = [image_length] = px')
 
