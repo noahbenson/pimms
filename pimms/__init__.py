@@ -128,7 +128,7 @@ from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lm
                           is_tuple, is_list, is_set, is_seq, is_pseq,
                           is_int, is_float, is_real, is_complex, is_number,
                           is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
-                          imm_array, qhashform, qhash, save, load, io_formats, persist,
+                          imm_array, qhashform, qhash, digest, save, load, io_formats, persist,
                           assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)
 from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
                           imm_persist, imm_transient, imm_params, imm_values, imm_dict,
@@ -156,5 +156,5 @@ def reload_pimms():
     reload(sys.modules['pimms'])
     return sys.modules['pimms']
 
-__version__ = '0.3.9'
+__version__ = '0.3.10'
 description = 'Lazy immutable library for Python built on top of pyrsistent'
