@@ -25,14 +25,14 @@ class Calc(object):
     # This is a helper function used in __init__
     @staticmethod
     def _parse_doc(f, affs, effs):
+        from pimms import is_str
         # pull out the documentation, make it into a map of parameter data for both afferent and
         # efferent values
         res = {'afferent': {}, 'efferent': {}}
         try:
             s = f.__doc__
-            assert(isinstance(s, six.string_types))
-        except Exception:
-            return res
+            assert(is_str(s))
+        except Exception: return res
         lines = s.split('\n')
         marks = [re.search('^\s*@\s*([a-zA-Z_]\w*)\s+(.*)$', ln) for ln in lines]
         marks = [None if m is None else (m.group(1), m.group(2)) for m in marks]
@@ -503,35 +503,37 @@ class IMap(colls.Mapping):
         #IMap.indent = '  ' + IMap.indent #dbg
         #
         # We need to pause here and handle caching, if needed.
-        (res, h, found) = (None, None, False)
+        (res, h, hq, found) = (None, None, None, False)
         if ('memoize' in self.afferents and self.afferents['memoize']) and node.memoize:
             memdat = self.plan._memoized_data
-            try:
-                h = {k:self.afferents[k] for k in self.plan.afferent_dependencies[node.name]}
-                h = qhashform((node.name, ps.pmap(h)))
-                if h in memdat:
-                    # memoization success; set h to None so we don't re-memoize the value
-                    (res, h, found) = (memdat[h], None, True)
-                elif node.cache:
-                    cpath = self.afferents.get('cache_directory', None)
-                    if cpath is not None:
-                        ureg = self.afferents.get('unit_registry', 'pimms')
-                        try:
-                            cpath = cache_filename(cpath, h)
-                            if os.path.isfile(cpath):
-                                # set cpath to None to signal we don't need to cache the value out
-                                (res, cpath, found) = (load(cpath, ureg), None, True)
-                        except Exception: cpath = None
-                else: cpath = None
-            except Exception: raise#b(h, found) = (None, False)
+            #try:
+            h = {k:self.afferents[k] for k in self.plan.afferent_dependencies[node.name]}
+            h = (node.name, ps.pmap(h))
+            hq = qhashform(h)
+            if hq in memdat:
+                # memoization success; set h to None so we don't re-memoize the value
+                (res, h, found) = (memdat[hq], None, True)
+            elif node.cache:
+                cpath = self.afferents.get('cache_directory', None)
+                cpath = None if cpath is False or cpath == '' else cpath
+                if cpath is not None:
+                    ureg = self.afferents.get('unit_registry', 'pimms')
+                    try:
+                        cpath = cache_filename(cpath, h)
+                        if os.path.isfile(cpath):
+                            # set cpath to None to signal we don't need to cache the value out
+                            (res, cpath, found) = (load(cpath, ureg), None, True)
+                    except Exception: cpath = None
+            else: cpath = None
+            #except Exception: #(h, found) = (None, False)
         # ensure we have a result
         if not found: res = node(self)
         # process the result:
         effs = reduce(lambda m,v: m.set(v[0],v[1]), six.iteritems(res), self.efferents)
         object.__setattr__(self, 'efferents', effs)
         # Handle the caching if needed:
-        if h is not None:
-            memdat[h] = res
+        if hq is not None:
+            memdat[hq] = res
             #if cpath is None: print IMap.indent, 'hashed' #dbg
             if cpath is not None:
                 try: save(cpath, res)
@@ -612,13 +614,14 @@ def calc(*args, **kwargs):
     @calc(None) is a special instance in which the lazy argument is ignored, no efferent values are
       expected, and the calculation is always run when the afferent parameters are updated.
     '''
+    from pimms import is_str
     # parse out the only accepted keywords args:
     opt_names = ['lazy', 'meta', 'cache', 'memoize']
     opt_dflts = [True,   {},     False,   True]
     (lazy, meta, cache, mem) = [kwargs.get(nm,df) for (nm,df) in zip(opt_names, opt_dflts)]
     if len(kwargs) != len([k for k in opt_names if k in kwargs]):
         raise ValueError('calc accepts only the options lazy, meta, and cache')
-    if len(args) == 1 and not isinstance(args[0], six.string_types):
+    if len(args) == 1 and not is_str(args[0]):
         if isinstance(args[0], types.FunctionType):
             f = args[0]
             effs = (f.__name__,)
@@ -644,7 +647,7 @@ def calc(*args, **kwargs):
             raise ValueError('calc only accepts strings, None, or no argument')
     elif len(args) < 1:
         raise ValueError('calc should be used as a function decorator')
-    elif not all(isinstance(arg, six.string_types) for arg in args):
+    elif not all(is_str(arg) for arg in args):
         raise ValueError('@calc(...) requires that all arguments be keyword strings')
     else:
         effs = tuple(args)

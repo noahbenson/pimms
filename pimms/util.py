@@ -3,7 +3,7 @@
 # Utility classes for functional programming with pimms!
 # By Noah C. Benson
 
-import inspect, types, sys, six, pint, os, numbers
+import inspect, types, sys, six, pint, os, numbers, base64
 import collections as colls, numpy as np, pyrsistent as ps
 import scipy.sparse as sps
 from functools import (reduce, partial)
@@ -156,18 +156,30 @@ def like_units(a, b):
         return True
     except Exception:
         return False
-def qhashform(o):
+def qhashform(o, consistent=False):
     '''
     qhashform(o) yields a version of o, if possible, that yields a hash that can be reproduced
       across instances. This correctly handles quantities and numpy arrays, among other things.
     '''
-    if is_quantity(o): return ('__#quant', qhashform(mag(o)), str(o.u))
+    c = consistent
+    if is_quantity(o): return ('__#quant', qhashform(mag(o), consistent=c), str(o.u))
     elif isinstance(o, np.ndarray) and np.issubdtype(o.dtype, np.dtype(np.number).type):
-        return ('__#ndarray', o.tobytes())
-    elif isinstance(o, (set, frozenset)): return ('__#set', tuple([qhashform(x) for x in o]))
-    elif is_map(o): return ps.pmap({qhashform(k):qhashform(v) for (k,v) in six.iteritems(o)})
+        if consistent:
+            return ('__#ndarray', base64.b64encode(o.tobytes()).decode('utf-8'))
+        else:
+            return ('__#ndarray', o.tobytes())
+    elif is_set(o):
+        return ('__#set', tuple(sorted([qhashform(x, consistent=c) for x in o])))
+    elif is_map(o):
+        if consistent:
+            oo = sorted([qhashform(u, True) for u in six.iteritems(o)],
+                        key=lambda kv:kv[0])
+            return ('__#dict', tuple(oo))
+        else:
+            return ps.pmap({qhashform(k, consistent=c): qhashform(v, consistent=c)
+                            for (k,v) in six.iteritems(o)})
     elif is_str(o): return o
-    elif hasattr(o, '__iter__'): return tuple([qhashform(u) for u in o])
+    elif hasattr(o, '__iter__'): return tuple([qhashform(u, consistent=c) for u in o])
     else: return o
 def qhash(o):
     '''
@@ -175,7 +187,24 @@ def qhash(o):
       quantities in a useful way. It also correctly handles numpy arrays and various other normally
       mutable and/or unhashable objects.
     '''
-    return hash(qhashform(o))
+    o = qhashform(o, consistent)
+    return hash(o)
+def digest(o):
+    '''
+    digest(o) is like qhash(o) but it produces a consistent hex digest string. This function will
+      only work with objects whose consistent qhashform is JSONable. I.e., for an input object o,
+      json.dumps(to_jsonable(qhashform(o, consistent=True))) must succeed.
+    '''
+    
+    # we have to make the has ourselves; this is a pain and will fail for objects we don't 
+    # know about (i.e., things not handles by qform and not convertable to JSON)
+    import json, hashlib
+    try: jsstr = json.dumps(to_jsonable(qhashform(o, consistent=True)))
+    except Exception: jsstr = None
+    if jsstr is None:
+        raise ValueError('could not convert object into JSON (consistent hashing requested)')
+    return hashlib.sha256(jsstr.encode('utf-8')).hexdigest()
+    
 _pickle_load_options = {} if six.PY2 else {'encoding': 'latin1'}
 io_formats = colls.OrderedDict(
     [('numpy', {
@@ -317,18 +346,16 @@ def cache_filename(cache_path, params, suffix='.pp', create_mode=0o755):
     if not os.path.isdir(cache_path): raise ValueError('cache_path not found: %s' % (cache_path,))
     if suffix is None: suffix = ''
     # for this to work we need to be able to hash h...
-    try: h = qhash(params)
+    try: h = digest(params)
     except Exception: h = None
-    if h is None: raise ValueError('could not qhash given parameters')
-    # ... and we need to be able to convert params into json...
-    try:
-        nparams = to_jsonable(params)
-        j = json.dumps(nparams)
+    if h is None: raise ValueError('could not digest given parameters')
+    hform = qhashform(params, True)
+    # ...we need to be able to convert params into json...
+    try: j = json.dumps(to_jsonable(hform))
     except Exception: j = None
     if j is None: raise ValueError('could not convert parameters into json')
     # okay, the has determines the cache subdirectory:
-    hstr = '%+016x' % (h,)
-    hstr = ('p' if hstr[0] == '+' else 'n') + hstr[1:]
+    hstr = h
     # see if this directory exists...
     cache_path = os.path.join(cache_path, hstr)
     if   not os.path.exists(cache_path): os.makedirs(cache_path, mode=create_mode)
@@ -341,8 +368,7 @@ def cache_filename(cache_path, params, suffix='.pp', create_mode=0o755):
         if os.path.isfile(pfile):
             try:
                 with open(pfile, 'r') as fl: s = fl.read()
-                js = json.loads(s)
-                if nparams == js: break
+                if s == j: break
             except Exception: pass
         else:
             # write out this pfile then break
