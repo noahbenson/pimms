@@ -3,7 +3,7 @@
 # Utility classes for functional programming with pimms!
 # By Noah C. Benson
 
-import inspect, types, sys, six, pint, os, numbers, base64
+import inspect, types, sys, six, pint, os, numbers, warnings, base64
 import collections as colls, numpy as np, pyrsistent as ps
 import scipy.sparse as sps
 from functools import (reduce, partial)
@@ -20,7 +20,15 @@ else:       tuple_type = tuple
 if six.PY2: list_type = types.ListType
 else:       list_type = list
 
+# Setup pint / units:
 units = pint.UnitRegistry()
+
+# We want to disable the awful pint warning fo numpy if it's present:
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore")
+    units.Quantity([])
+
+# Make sure there's a pixel unit
 if not hasattr(units, 'pixels'):
     units.define('pixel = [image_length] = px')
 
