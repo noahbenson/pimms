@@ -15,6 +15,10 @@ else:
 try:              from six.moves import cPickle as pickle
 except Exception: import pickle
 
+# Python 2/3 compatibility
+try: collsABC = colls.abc
+except AttributeError: collsABC = colls
+
 if six.PY2: tuple_type = types.TupleType
 else:       tuple_type = tuple
 if six.PY2: list_type = types.ListType
@@ -674,7 +678,7 @@ def is_set(arg):
     '''
     is_set(arg) yields True if arg is a set or frozenset and False otherwise.
     '''
-    isinstance(arg, colls.Set)
+    isinstance(arg, collsABC.Set)
 def curry(f, *args0, **kwargs0):
     '''
     curry(f, ...) yields a function equivalent to f with all following arguments and keyword
@@ -756,7 +760,7 @@ def is_map(arg):
     '''
     is_map(x) yields True if x implements Python's builtin Mapping class.
     '''
-    return isinstance(arg, colls.Mapping)
+    return isinstance(arg, collsABC.Mapping)
 
 class LazyPMap(ps.PMap):
     '''
@@ -871,8 +875,8 @@ class LazyPMap(ps.PMap):
             return True
         else:
             return False
-colls.Mapping.register(LazyPMap)
-colls.Hashable.register(LazyPMap)
+collsABC.Mapping.register(LazyPMap)
+collsABC.Hashable.register(LazyPMap)
 def _lazy_turbo_mapping(initial, pre_size):
     '''
     _lazy_turbo_mapping is a blatant copy of the pyrsistent._pmap._turbo_mapping function, except
@@ -880,7 +884,7 @@ def _lazy_turbo_mapping(initial, pre_size):
     '''
     size = pre_size or (2 * len(initial)) or 8
     buckets = size * [None]
-    if not isinstance(initial, colls.Mapping): initial = dict(initial)
+    if not isinstance(initial, collsABC.Mapping): initial = dict(initial)
     for k, v in six.iteritems(initial):
         h = hash(k)
         index = h % size
