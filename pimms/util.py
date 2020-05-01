@@ -1042,7 +1042,7 @@ def merge(*args, **kwargs):
     if 'choose' in kwargs:
         choose_fn = kwargs['choose']
     if len(kwargs) > 1 or (len(kwargs) > 0 and 'choose' not in kwargs):
-        raise ValueError('Unidentified options given to merge: %s' (kwargs.keys(),))
+        raise ValueError('Unidentified options given to merge: %s' % (kwargs.keys(),))
     # collect the maps...
     maps = flatten_maps(*args)
     if len(maps) == 0: return ps.m()
