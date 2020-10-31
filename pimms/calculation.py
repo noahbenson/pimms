@@ -54,7 +54,7 @@ class Calc(object):
             if pname in affs:   (dest, dnm) = (affs, 'afferent')
             elif pname in effs: (dest, dnm) = (effs, 'efferent')
             else:
-                warnings.warn('document for unrecognized value %s' % pname)
+                warnings.warn('document for unrecognized value %s' % (pname,))
                 continue
             if pname in res[dnm]: res[dnm][pname] += '\n\n' + txt
             else:                 res[dnm][pname] = txt
@@ -87,7 +87,7 @@ class Calc(object):
         result = self.function(*args)
         if is_map(result):
             if len(result) != len(self.efferents) or not all(e in result for e in self.efferents):
-                raise ValueError('keys returned by %s did not match calc declaration' % self.name)
+                raise ValueError('keys returned by %s did not match calc declaration' % (self.name,))
         elif isinstance(result, tuple_type):
             result = {k:v for (k,v) in zip(self.efferents, result)}
         elif len(self.efferents) == 1:
@@ -96,7 +96,7 @@ class Calc(object):
             result = {}
         else:
             raise ValueError(
-                'Illegal return value from function call (%s): did not match efferents' % self.name)
+                'Illegal return value from function call (%s): did not match efferents' % (self.name,))
         return result
     def __setattr__(self, k, v):
         raise TypeError('Calc objects are immutable')
@@ -242,7 +242,7 @@ class Plan(object):
         while changed:
             changed = False
             for (k,v) in six.iteritems(deps):
-                if k in v: raise ValueError('self-loop detected in dependency graph (%s)' % k)
+                if k in v: raise ValueError('self-loop detected in dependency graph (%s)' % (k,))
                 new_set = v.union([depdep for dep in v for depdep in deps[dep] if depdep not in v])
                 if new_set != v:
                     changed = True
@@ -303,10 +303,10 @@ class Plan(object):
         adocs = {}
         for aff in affs:
             txt = aff
-            if aff in defaults: txt += ' (default: %s)' % defaults[aff]
+            if aff in defaults: txt += ' (default: %s)' % (defaults[aff],)
             for (nnm, node) in six.iteritems(nodes):
                 if aff not in node.afferent_docs: continue
-                txt += ('\n\n(%s) ' % nnm) + node.afferent_docs[aff]
+                txt += ('\n\n(%s) ' % (nnm,)) + node.afferent_docs[aff]
             adocs[aff] = txt
         # Then efferents:
         edocs = {}
@@ -314,7 +314,7 @@ class Plan(object):
             txt = eff
             for (nnm, node) in six.iteritems(nodes):
                 if eff not in node.efferent_docs: continue
-                txt += ('\n\n(%s) ' % nnm) + node.efferent_docs[eff]
+                txt += ('\n\n(%s) ' % (nnm,)) + node.efferent_docs[eff]
             edocs[eff] = txt
         object.__setattr__(self, 'afferent_docs', ps.pmap(adocs))
         object.__setattr__(self, 'efferent_docs', ps.pmap(edocs))
@@ -456,7 +456,7 @@ class IMap(colls.Mapping):
         if k in self.afferents:
             return self.afferents[k]
         elif k not in self.plan.efferents:
-            raise ValueError('Key \'%s\' not found in calc-dictionary' % k)
+            raise ValueError('Key \'%s\' not found in calc-dictionary' % (k,))
         else:
             # using get instead of 'if k in efferents: return ...' avoids the race-condition that
             # would otherwise cause problems when someone deletes an item from the cache using
@@ -486,11 +486,11 @@ class IMap(colls.Mapping):
         IMap's __delitem__ method allows one to clear the cached value of an efferent.
         '''
         if k in self.afferents:
-            raise TypeError('Cannot delete a parameter (%s) from a IMap' % k)
+            raise TypeError('Cannot delete a parameter (%s) from a IMap' % (k,))
         elif k in self.efferents:
             object.__setattr__(self, 'efferents', self.efferents.discard(k))
         elif k not in self.plan.efferents:
-            raise TypeError('IMap object has no item named \'%s\'' % k)
+            raise TypeError('IMap object has no item named \'%s\'' % (k,))
         # else we don't worry about it; not yet calculated.
     #indent = ' -' #dbg
     def _run_node(self, node):
@@ -700,7 +700,7 @@ def planfn(*args, **kwargs):
     elif len(args) == 2:          (params,result) = args
     elif is_str(args[0]):         (params,result) = (None,args[0])
     elif is_vector(args[0], str): (params,result) = (args[0],None)
-    else:                         raise ValueError('cannot interpret argument: %s' % args[0])
+    else:                         raise ValueError('cannot interpret argument: %s' % (args[0],))
     # okay, now, we make the calcs and the calc plan:
     calcs = {}
     for (k,v) in six.iteritems(kwargs):
