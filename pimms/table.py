@@ -10,7 +10,7 @@ from   functools                  import reduce
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
                                           is_quantity, is_unit, is_str, is_int, is_vector,
                                           quant, iquant, mag, unit, qhash, units, imm_array,
-                                          getargspec_py27like)
+                                          getargspec_py27like, rmerge)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -291,6 +291,12 @@ class ITable(colls.Mapping):
           map.
         '''
         return self.data.is_normal(k)
+    def lazyfn(self, k):
+        '''
+        itable.lazyfn(k) yields None if the key k is not lazy; otherwise, yields the function that
+          calculates the value for k. If a value has already been cached, then None is returned.
+        '''
+        return self.data.lazyfn(k)
     def iterkeys(self):
         return self.data.iterkeys()
     def iteritems(self):
@@ -421,27 +427,23 @@ def itable(*args, **kwargs):
                 for a in args]
     except Exception: pass
     # now we want to merge these together and make them one lazy map
-    m0 = lazy_map(merge(args, kwargs))
+    m0 = lazy_map(rmerge(*args, kwargs))
     # see if we can deduce the row size from a non-lazy argument:
-    v = m0
-    for mm in (list(args) + [kwargs]):
-        if len(mm) == 0: continue
-        if not is_lazy_map(mm):
-            for k in six.iterkeys(mm):
-                try: v = mm[k]
+    (v,vfound) = (None,False)
+    if is_lazy_map(m0):
+        for k in m0.iternormal():
+            (v,vfound) = (m0[k], True)
+            break
+        if not vfound:
+            for k in mm.itermemoized():
+                try: (v,vfound) = (m0[k], True)
                 except Exception: continue
                 break
-        else:
-            for k in mm.iternormal():
-                try: v = mm[k]
-                except Exception: continue
-                break
-            for k in (mm.itermemoized() if v is m0 else []):
-                try: v = mm[k]
-                except Exception: continue
-                break
-        if v is not m0: break
-    return ITable(m0, n=(None if v is m0 else len(v)))
+    else:
+        for k in six.iterkeys(mm):
+            (v,vfound) = (mm[k], True)
+            break
+    return ITable(m0, n=(len(v) if vfound else None))
 def is_itable(arg):
     '''
     is_itable(x) yields True if x is an ITable object and False otherwise.

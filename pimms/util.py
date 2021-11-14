@@ -919,7 +919,7 @@ class LazyPMap(ps.PMap):
             return True
     def lazyfn(self, k):
         '''
-        lmap._lazyfn(k) yields None if the key k is not lazy; otherwise, yields the function that
+        lmap.lazyfn(k) yields None if the key k is not lazy; otherwise, yields the function that
         calculates the value for k. If a value has already been cached, then None is returned.
         '''
         v = ps.PMap.__getitem__(self, k)
@@ -1142,11 +1142,14 @@ def lmerge(*args, **kwargs):
 
     See also merge, rmerge.
     '''
-    if len(args) == 0: return kwargs
+    from pimms import (is_itable, itable)
+    if len(args) == 0: return ps.pmap(kwargs)
     lm = any(is_lmap(m) for m in args)
+    if lm: it = any(is_itable(m) for m in args)
+    else:  it = False
     m = args[0]
-    res = ({k:(m.lazyfn(k) if m.is_lazy(k) else m[k]) for k in six.iterkeys(m)} if is_lmap(m) else
-           dict(m))
+    if is_lmap(m): res = {k:(m.lazyfn(k) if m.is_lazy(k) else m[k]) for k in six.iterkeys(m)}
+    else: res = dict(m)
     ms = args[1:] if len(kwargs) == 0 else (args[1:] + (kwargs,))
     for m in ms:
         if is_lmap(m):
@@ -1157,7 +1160,7 @@ def lmerge(*args, **kwargs):
             for (k,v) in six.iteritems(m):
                 if k not in res:
                     res[k] = v
-    return lmap(res) if lm else ps.pmap(res)
+    return itable(res) if it else lmap(res) if lm else ps.pmap(res)
 def rmerge(*args, **kwargs):
     '''
     rmerge(...) is equivalent to merge(...) except for two things: (1) any keyword arguments passed
@@ -1173,11 +1176,14 @@ def rmerge(*args, **kwargs):
 
     See also merge, lmerge.
     '''
-    if len(args) == 0: return kwargs
+    from pimms import (is_itable, itable)
+    if len(args) == 0: return ps.pmap(kwargs)
     lm = any(is_lmap(m) for m in args)
+    if lm: it = any(is_itable(m) for m in args)
+    else:  it = False
     m = args[0]
-    res = ({k:(m.lazyfn(k) if m.is_lazy(k) else m[k]) for k in six.iterkeys(m)} if is_lmap(m) else
-           dict(m))
+    if is_lmap(m): res = {k:(m.lazyfn(k) if m.is_lazy(k) else m[k]) for k in six.iterkeys(m)}
+    else: res = dict(m)
     ms = args[1:] if len(kwargs) == 0 else (args[1:] + (kwargs,))
     for m in ms:
         if is_lmap(m):
@@ -1186,7 +1192,7 @@ def rmerge(*args, **kwargs):
         else:
             for (k,v) in six.iteritems(m):
                 res[k] = v
-    return lmap(res) if lm else ps.pmap(res)
+    return itable(res) if it else lmap(res) if lm else ps.pmap(res)
 def is_persistent(arg):
     '''
     is_persistent(x) yields True if x is a persistent object and False if not.
