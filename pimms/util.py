@@ -552,6 +552,66 @@ def numpy_type(type_id):
     elif type_id is object:                  return _numpy_type_names['object']
     elif np.issubdtype(type_id, np.generic): return (type_id,)
     else: raise ValueError('Could not deduce numpy type for %s' % type_id)
+_numpy_best_type_names = {'bool':    np.bool_,
+                          'int':     np.integer,
+                          'integer': np.integer,
+                          'float':   np.floating,
+                          'real':    np.floating,
+                          'complex': np.complex_,
+                          'number':  np.complex_,
+                          'string':  (np.bytes_ if six.PY2 else np.unicode_),
+                          'unicode': np.unicode_,
+                          'bytes':   np.bytes_,
+                          'chars':   np.character,
+                          'object':  np.object_,
+                          'any':     np.object_}
+def numpy_best_type(type_id):
+    '''
+    numpy_best_type(type) yields a single valid numpy type that can best represent the type
+      specified in the given type argument. The type argument may be a numpy type such as 
+      numpy.signedinteger, in which case it is returned. Alternately, it may be a string
+      that labels a numpy type or a builtin type that should be translated to a numpy type
+      (see below).
+
+    Valid numpy type strings include:
+      * 'bool'
+      * 'int' / 'integer' (integers and booleans)
+      * 'float' / 'real' (integers, booleans, or floating-point)
+      * 'complex' / 'number' (integers, booleans, reals, or complex numbers)
+      * 'string' ('unicode' in Python 3, 'bytes' in Python 2)
+      * 'unicode'
+      * 'bytes'
+      * 'chars' (numpy.character)
+      * 'object'
+      * 'any'
+    Valid builtin types include:
+      * int (also long in Python 2), like 'int'
+      * float, like 'float'
+      * complex, like 'complex'
+      * str, like 'string'
+      * bytes, like 'bytes',
+      * unicode, like 'unicode'
+      * object, like 'object'
+      * None, like 'any'
+    '''
+    if is_str(type_id):
+        return _numpy_best_type_names[type_id.lower()]
+    elif isinstance(type_id, (list, tuple)):
+        return tuple([dt for s in type_id for dt in numpy_type(s)])
+    elif type_id is None:
+        return _numpy_best_type_names['any']
+    elif type_id in six.integer_types:       return _numpy_best_type_names['int']
+    elif type_id is float:                   return _numpy_best_type_names['float']
+    elif type_id is numbers.Real:            return _numpy_best_type_names['real']
+    elif type_id is complex:                 return _numpy_best_type_names['complex']
+    elif type_id is numbers.Complex:         return _numpy_best_type_names['complex']
+    elif type_id is bool:                    return _numpy_best_type_names['bool']
+    elif type_id is str:                     return _numpy_best_type_names['string']
+    elif type_id is unicode:                 return _numpy_best_type_names['unicode']
+    elif type_id is bytes:                   return _numpy_best_type_names['bytes']
+    elif type_id is object:                  return _numpy_best_type_names['object']
+    elif np.issubdtype(type_id, np.generic): return type_id
+    else: raise ValueError('Could not deduce numpy best-type for %s' % type_id)
 
 def is_nparray(u, dtype=None, dims=None):
     '''
@@ -636,8 +696,10 @@ def is_array(u, dtype=None, dims=None):
     if   is_map(u): return False # sometimes turns into a named-column array
     elif is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
     elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
+    elif is_nparray(u): return is_nparray(u, dtype=dtype, dims=dims)
     else:
-        try:              u = np.asarray(u)
+        npt = numpy_best_type(dtype)
+        try:              u = np.asarray(u, dtype=npt)
         except Exception: pass
         return is_nparray(u, dtype=dtype, dims=dims)
 def is_scalar(u, dtype=None):
@@ -855,6 +917,18 @@ class LazyPMap(ps.PMap):
             return False
         else:
             return True
+    def lazyfn(self, k):
+        '''
+        lmap._lazyfn(k) yields None if the key k is not lazy; otherwise, yields the function that
+        calculates the value for k. If a value has already been cached, then None is returned.
+        '''
+        v = ps.PMap.__getitem__(self, k)
+        if not isinstance(v, (types.FunctionType, partial)) or \
+           id(v) in self._memoized or \
+           [] != getargspec_py27like(v)[0]:
+            return None
+        else:
+            return v
     def is_memoized(self, k):
         '''
         lmap.is_memoized(k) yields True if k is a key in the given lazy map lmap that is both lazy
@@ -1068,7 +1142,22 @@ def lmerge(*args, **kwargs):
 
     See also merge, rmerge.
     '''
-    return merge(*(args + (kwargs,)), choose=_choose_first)
+    if len(args) == 0: return kwargs
+    lm = any(is_lmap(m) for m in args)
+    m = args[0]
+    res = ({k:(m.lazyfn(k) if m.is_lazy(k) else m[k]) for k in six.iterkeys(m)} if is_lmap(m) else
+           dict(m))
+    ms = args[1:] if len(kwargs) == 0 else (args[1:] + (kwargs,))
+    for m in ms:
+        if is_lmap(m):
+            for k in six.iterkeys(m):
+                if k not in res:
+                    res[k] = m.lazyfn(k) if m.is_lazy(k) else m[k]
+        else:
+            for (k,v) in six.iteritems(m):
+                if k not in res:
+                    res[k] = v
+    return lmap(res) if lm else ps.pmap(res)
 def rmerge(*args, **kwargs):
     '''
     rmerge(...) is equivalent to merge(...) except for two things: (1) any keyword arguments passed
@@ -1084,7 +1173,20 @@ def rmerge(*args, **kwargs):
 
     See also merge, lmerge.
     '''
-    return merge(*(args + (kwargs,)), choose=_choose_last)
+    if len(args) == 0: return kwargs
+    lm = any(is_lmap(m) for m in args)
+    m = args[0]
+    res = ({k:(m.lazyfn(k) if m.is_lazy(k) else m[k]) for k in six.iterkeys(m)} if is_lmap(m) else
+           dict(m))
+    ms = args[1:] if len(kwargs) == 0 else (args[1:] + (kwargs,))
+    for m in ms:
+        if is_lmap(m):
+            for k in six.iterkeys(m):
+                res[k] = m.lazyfn(k) if m.is_lazy(k) else m[k]
+        else:
+            for (k,v) in six.iteritems(m):
+                res[k] = v
+    return lmap(res) if lm else ps.pmap(res)
 def is_persistent(arg):
     '''
     is_persistent(x) yields True if x is a persistent object and False if not.
