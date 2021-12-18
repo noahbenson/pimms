@@ -697,6 +697,8 @@ def is_array(u, dtype=None, dims=None):
     elif is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
     elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
     elif is_nparray(u): return is_nparray(u, dtype=dtype, dims=dims)
+    elif is_tuple(dtype) or is_list(dtype):
+        return any(is_array(u, dtype=d, dims=dims) for d in dtype)
     else:
         npt = numpy_best_type(dtype)
         try:              u = np.asarray(u, dtype=npt)
