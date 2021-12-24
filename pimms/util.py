@@ -1,107 +1,26 @@
+# -*- coding: utf-8 -*-
 ####################################################################################################
 # pimms/util.py
-# Utility classes for functional programming with pimms!
+# Utility classes and functions for functional scientific programming with pimms!
 # By Noah C. Benson
 
-import inspect, types, sys, six, pint, os, numbers, warnings, base64
-import collections as colls, numpy as np, pyrsistent as ps
+# Dependencies #####################################################################################
+import inspect, types, sys, pint, os, numbers, warnings, base64
+import collections as colls, numpy as np, pyrsistent as pyr
 import scipy.sparse as sps
 from functools import (reduce, partial)
-if six.PY2:
-    try:              from cStringIO import StringIO as BytesIO
-    except Exception: from StringIO  import StringIO as BytesIO
-else:
-    from io import BytesIO
-try:              from six.moves import cPickle as pickle
-except Exception: import pickle
+from io import BytesIO
+try:
+    import cPickle as pickle
+except ModuleNotFoundError:
+    import pickle
 
-# Python 2/3 compatibility
-try: collsABC = colls.abc
-except AttributeError: collsABC = colls
+# Basic Object Types ###############################################################################
+pylist_type = list
+pytuple_type = tuple
+pyfn_type = types.FunctionType
+pyset_type = colls.abc.Set
 
-if six.PY2: tuple_type = types.TupleType
-else:       tuple_type = tuple
-if six.PY2: list_type = types.ListType
-else:       list_type = list
-
-# Setup pint / units:
-units = pint.UnitRegistry()
-
-# We want to disable the awful pint warning fo numpy if it's present:
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore")
-    units.Quantity([])
-
-# Make sure there's a pixel unit
-if not hasattr(units, 'pixels'):
-    units.define('pixel = [image_length] = px')
-
-if six.PY2:
-    def getargspec_py27like(f):
-        '''
-    getargspec_py27like(f) yields the results of calling inspect.getargspec(f) in Python 2.7, or the
-      equivalent in Python 3.
-    '''
-        return inspect.getargspec(f)
-else:
-    def getargspec_py27like(f):
-        '''
-    getargspec_py27like(f) yields the results of calling inspect.getargspec(f) in Python 2.7, or the
-      equivalent in Python 3.
-    '''
-        return inspect.getfullargspec(f)[:4]
-
-def is_unit(q):
-    '''
-    is_unit(q) yields True if q is a pint unit or a string that names a pint unit and False
-      otherwise.
-    '''
-    if isinstance(q, six.string_types):
-        try: return hasattr(units, q)
-        except Exception: return False
-    else:
-        cls = type(q)
-        return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
-def is_quantity(q):
-    '''
-    is_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) and False
-      otherwise.
-    '''
-    if isinstance(q, tuple):
-        return len(q) == 2 and is_unit(q[1])
-    else:
-        cls = type(q)
-        return cls.__module__.startswith('pint.') and cls.__name__ == 'Quantity'
-def unit(u):
-    '''
-    unit(u) yields the pimms-library unit object for the given unit object u (which may be from a
-      separate pint.UnitRegistry instance).
-    unit(uname) yields the unit object for the given unit name uname.
-    unit(None) yields None.
-    unit(q) yields the unit of the given quantity q.
-    '''
-    if u is None:    return None
-    elif is_unit(u): return getattr(units, str(u))
-    elif is_quantity(u):
-        if isinstance(u, tuple): return getattr(units, str(u[1]))
-        else: return getattr(units, str(u.u))
-    else:
-        raise ValueError('unrecotnized unit argument')
-def mag(val, u=Ellipsis):
-    '''
-    mag(scalar) yields scalar for the given scalar (numeric value without a unit).
-    mag(quant) yields the scalar magnitude of the quantity quant.
-    mag(scalar, u=u) yields scalar.
-    mag(quant, u=u) yields the given magnitude of the given quant after being translated into the
-      given unit u.
-
-    The quant arguments in the above list may be replaced with (scalar, unit) as in (10, 'degrees')
-    or (14, 'mm'). Note that mag always translates all lists and tuples into numpy ndarrays.
-    '''
-    if not is_quantity(val): return val
-    if isinstance(val, tuple):
-        val = units.Quantity(val[0], val[1])
-    return val.m if u is Ellipsis else val.to(unit(u)).m
 def imm_array(q):
     '''
     imm_array(val) yields a version of val that is wrapped in numpy's ndarray class. If val is a
@@ -188,7 +107,7 @@ def qhashform(o, consistent=False):
                         key=lambda kv:kv[0])
             return ('__#dict', tuple(oo))
         else:
-            return ps.pmap({qhashform(k, consistent=c): qhashform(v, consistent=c)
+            return pyr.pmap({qhashform(k, consistent=c): qhashform(v, consistent=c)
                             for (k,v) in six.iteritems(o)})
     elif is_str(o): return o
     elif hasattr(o, '__iter__'): return tuple([qhashform(u, consistent=c) for u in o])
@@ -416,8 +335,8 @@ def cache_lmap(cache_path, params, lmap, create_mode=0o755, key_translator=None)
         if pimms.is_map(key_translator):
             ktr = {k:key_translator.get(k,k) for k in six.iterkeys(lmap)}
         else: ktr = {k:key_translator(k) for k in six.iterkeys(lmap)}
-        params = pimms.assoc(params, ktr_key, ps.pmap(ktr))
-    else: ktr = ps.m()
+        params = pimms.assoc(params, ktr_key, pyr.pmap(ktr))
+    else: ktr = pyr.m()
     # okay, create the layered lmap:
     def _cache(k0):
         if not lmap.is_lazy(k0): return lmap[k0]
@@ -695,7 +614,7 @@ def is_array(u, dtype=None, dims=None):
     '''
     if   is_map(u): return False # sometimes turns into a named-column array
     elif is_quantity(u): return is_array(mag(u), dtype=dtype, dims=dims)
-    elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
+    elif spyr.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
     elif is_nparray(u): return is_nparray(u, dtype=dtype, dims=dims)
     elif is_tuple(dtype) or is_list(dtype):
         return any(is_array(u, dtype=d, dims=dims) for d in dtype)
@@ -732,22 +651,22 @@ def is_tuple(arg):
     '''
     is_tuple(arg) yields True if arg is a tuple and False otherwise.
     '''
-    return isinstance(arg, tuple_type)
+    return isinstance(arg, tuple)
 def is_list(arg):
     '''
     is_list(arg) yields True if arg is a list and False otherwise.
     '''
-    return isinstance(arg, list_type)
+    return isinstance(arg, list)
 def is_set(arg):
     '''
     is_set(arg) yields True if arg is a set or frozenset and False otherwise.
     '''
-    isinstance(arg, collsABC.Set)
+    isinstance(arg, pyset_type)
 def curry(f, *args0, **kwargs0):
     '''
     curry(f, ...) yields a function equivalent to f with all following arguments and keyword
       arguments passed. This is much like the partial function, but yields a function instead of
-      a partial object and thus is suitable for use with pimms lazy maps.
+      a partial object and thus is suitable for use with pimms lazy mapyr.
     '''
     def curried_f(*args, **kwargs): 
         return f(*(args0 + args), **merge(kwargs0, kwargs))
@@ -759,14 +678,14 @@ def is_seq(arg):
     
     Note that strings are not considered sequences.
     '''
-    return isinstance(arg, (list_type, tuple_type, ps.PVector, ps.PList)) or is_nparray(arg)
+    return isinstance(arg, (list, tuple, pyr.PVector, pyr.PList)) or is_nparray(arg)
 def is_pseq(arg):
     '''
     is_pseq(arg) yields True if arg is a persistent vector, a persistent list, a tuple, or a numpy
       array with its writeable flag off.
     '''
     if is_nparray(arg): return arg.flags['WRITEABLE'] == False
-    return isinstance(arg, (tuple_type, ps.PVector, ps.PList))
+    return isinstance(arg, (tuple, pyr.PVector, pyr.PList))
     
 def is_int(arg):
     '''
@@ -826,13 +745,13 @@ def is_map(arg):
     '''
     return isinstance(arg, collsABC.Mapping)
 
-class LazyPMap(ps.PMap):
+class LazyPMap(pyr.PMap):
     '''
     LazyPMap is an immutable map that is identical to pyrsistent's PMap, but that treats functions
     of 0 arguments, when values, as lazy values, and memoizes them as it goes.
     '''
     def __init__(self, *args, **kwargs):
-        self._memoized = ps.m()
+        self._memoized = pyr.m()
     def __repr__(self):
         s = ', '.join(['%s: %s' % (repr(k), '<lazy>' if self.is_lazy(k) else self[k])
                        for k in self.iterkeys()])
@@ -850,12 +769,12 @@ class LazyPMap(ps.PMap):
             object.__setattr__(self, '_memoized', self._memoized.set(vid, val))
             return val
     def __getitem__(self, k):
-        return self._examine_val(k, ps.PMap.__getitem__(self, k))
+        return self._examine_val(k, pyr.PMap.__getitem__(self, k))
     def iterkeys(self):
-        for (k,_) in ps.PMap.iteritems(self):
+        for (k,_) in pyr.PMap.iteritems(self):
             yield k
     def iteritems(self):
-        for (k,v) in ps.PMap.iteritems(self):
+        for (k,v) in pyr.PMap.iteritems(self):
             yield (k, self._examine_val(k, v))
     def iterlazy(self):
         '''
@@ -881,15 +800,15 @@ class LazyPMap(ps.PMap):
         for k in self.iterkeys():
             if self.is_normal(k):
                 yield k
-    class _LazyEvolver(ps.PMap._Evolver):
+    class _LazyEvolver(pyr.PMap._Evolver):
         def persistent(self):
             if self.is_dirty():
                 lmap = LazyPMap(self._size, self._buckets_evolver.persistent())
                 mems = self._original_pmap._memoized
-                for (k,v) in ps.PMap.iteritems(self._original_pmap):
+                for (k,v) in pyr.PMap.iteritems(self._original_pmap):
                     if not isinstance(v, (types.FunctionType, partial)): continue
                     vid = id(v)
-                    if vid not in mems or ps.PMap.__getitem__(lmap, k) is v: continue
+                    if vid not in mems or pyr.PMap.__getitem__(lmap, k) is v: continue
                     mems = mems.discard(vid)
                 object.__setattr__(lmap, '_memoized', mems)
                 self._original_pmap = lmap
@@ -901,7 +820,7 @@ class LazyPMap(ps.PMap):
         for map in maps:
             if isinstance(map, LazyPMap):
                 for key in map.iterkeys():
-                    value = ps.PMap.__getitem__(map, key)
+                    value = pyr.PMap.__getitem__(map, key)
                     evolver.set(key, update_fn(evolver[key], value) if key in evolver else value)
             else:
                 for key, value in map.items():
@@ -912,7 +831,7 @@ class LazyPMap(ps.PMap):
         lmap.is_lazy(k) yields True if the given k is lazy and unmemoized in the given lazy map,
         lmap, otherwise False.
         '''
-        v = ps.PMap.__getitem__(self, k)
+        v = pyr.PMap.__getitem__(self, k)
         if not isinstance(v, (types.FunctionType, partial)) or \
            id(v) in self._memoized or \
            [] != getargspec_py27like(v)[0]:
@@ -924,7 +843,7 @@ class LazyPMap(ps.PMap):
         lmap.lazyfn(k) yields None if the key k is not lazy; otherwise, yields the function that
         calculates the value for k. If a value has already been cached, then None is returned.
         '''
-        v = ps.PMap.__getitem__(self, k)
+        v = pyr.PMap.__getitem__(self, k)
         if not isinstance(v, (types.FunctionType, partial)) or \
            id(v) in self._memoized or \
            [] != getargspec_py27like(v)[0]:
@@ -936,7 +855,7 @@ class LazyPMap(ps.PMap):
         lmap.is_memoized(k) yields True if k is a key in the given lazy map lmap that is both lazy
         and already memoized.
         '''
-        v = ps.PMap.__getitem__(self, k)
+        v = pyr.PMap.__getitem__(self, k)
         if not isinstance(v, (types.FunctionType, partial)):
             return False
         else:
@@ -946,7 +865,7 @@ class LazyPMap(ps.PMap):
         lmap.is_normal(k) yields True if k is a key in the given lazy map lmap that is neither lazy
         nor a formerly-lazy memoized key.
         '''
-        v = ps.PMap.__getitem__(self, k)
+        v = pyr.PMap.__getitem__(self, k)
         if not isinstance(v, (types.FunctionType, partial)) or [] != getargspec_py27like(v)[0]:
             return True
         else:
@@ -967,11 +886,11 @@ def _lazy_turbo_mapping(initial, pre_size):
         bucket = buckets[index]
         if bucket: bucket.append((k, v))
         else:      buckets[index] = [(k, v)]
-    return LazyPMap(len(initial), ps.pvector().extend(buckets))
+    return LazyPMap(len(initial), pyr.pvector().extend(buckets))
 _EMPTY_LMAP = _lazy_turbo_mapping({}, 0)
 def lazy_map(initial={}, pre_size=0):
     '''
-    lazy_map is a blatant copy of the pyrsistent.pmap function, and is used to create lazy maps.
+    lazy_map is a blatant copy of the pyrsistent.pmap function, and is used to create lazy mapyr.
     '''
     if is_lazy_map(initial): return initial
     if not initial: return _EMPTY_LMAP
@@ -1002,7 +921,7 @@ def is_pmap(arg):
       pimms lazy map, a pimms itable object. If you want to check specifically if an object is a
       pyrsistent PMap object, use isinstance(arg, pyrsistent.PMap).
     '''
-    return isinstance(arg, ps.PMap) or is_lazy_map(arg)
+    return isinstance(arg, pyr.PMap) or is_lazy_map(arg)
 
 def lazy_value_map(f, m, *args, **kwargs):
     '''
@@ -1020,7 +939,7 @@ def lazy_value_map(f, m, *args, **kwargs):
     If the given mapping object is an ITable object, then an ITable object is returned.
     '''
     if not is_map(m): raise ValueError('Non-mapping object passed to lazy_value_map')
-    if not is_lazy_map(m) and not is_pmap(m): m = ps.pmap(m)
+    if not is_lazy_map(m) and not is_pmap(m): m = pyr.pmap(m)
     def curry_fn(k): return lambda:f(m[k], *args, **kwargs)
     m0 = {k:curry_fn(k) for k in six.iterkeys(m)}
     from .table import (is_itable, itable)
@@ -1037,7 +956,7 @@ def value_map(f, m, *args, **kwargs):
     persistent non-lazy map is returned.
     '''
     if is_lazy_map(m): return lazy_value_map(f, m, *args, **kwargs)
-    else:              return ps.pmap({k:f(v, *args, **kwargs) for (k,v) in six.iteritems(m)})
+    else:              return pyr.pmap({k:f(v, *args, **kwargs) for (k,v) in six.iteritems(m)})
 def key_map(f, m, *args, **kwargs):
     '''
     key_map(f, m) is equivalent to {f(k):v for (k,v) in m.items()} except that it returns a
@@ -1051,7 +970,7 @@ def key_map(f, m, *args, **kwargs):
         m0 = {f(k, *args, **kwargs):_curry_getval(k) for k in six.iterkeys(m)}
         return itable(m0) if is_itable(m) else lazy_map(m0)
     else:
-        return ps.pmap({f(k, *args, **kwargs):v for (k,v) in six.iteritems(m)})
+        return pyr.pmap({f(k, *args, **kwargs):v for (k,v) in six.iteritems(m)})
 def flatten_maps(*args, **kwargs):
     '''
     flatten_maps(*args, **kwags) yields a tuple of the maps in the given arguments; this flattens
@@ -1059,7 +978,7 @@ def flatten_maps(*args, **kwargs):
       optional keyword arguments passed make up the final map.
 
     This funtion does not evaluate any values of any of the maps and thus implicitly respects the
-    laziness of the provided maps.
+    laziness of the provided mapyr.
     '''
     def _recur(arg, work):
         if is_map(arg): work.append(arg)
@@ -1082,13 +1001,13 @@ def collect(*args, **kwargs):
     nested lists of maps to this function; all will be collected.
     '''
     args = flatten_maps(args, **kwargs)
-    if len(args) == 0: return ps.m()
+    if len(args) == 0: return pyr.m()
     m = {}
     for arg in args:
         for k in six.iterkeys(arg):
             if k in m: m[k].append(arg)
             else: m[k] = [arg]
-    return ps.pmap({k:tuple(v) for (k,v) in six.iteritems(m)})
+    return pyr.pmap({k:tuple(v) for (k,v) in six.iteritems(m)})
 def _choose_first(k, vs):
     '_choose_first(k, vs) yields vs[0][k].'
     return vs[0][k]
@@ -1119,9 +1038,9 @@ def merge(*args, **kwargs):
         choose_fn = kwargs['choose']
     if len(kwargs) > 1 or (len(kwargs) > 0 and 'choose' not in kwargs):
         raise ValueError('Unidentified options given to merge: %s' % (kwargs.keys(),))
-    # collect the maps...
+    # collect the mapyr...
     maps = flatten_maps(*args)
-    if len(maps) == 0: return ps.m()
+    if len(maps) == 0: return pyr.m()
     elif len(maps) == 1: return maps[0]
     coll = collect(maps)
     if choose_fn is None: choose_fn = _choose_last
@@ -1145,7 +1064,7 @@ def lmerge(*args, **kwargs):
     See also merge, rmerge.
     '''
     from pimms import (is_itable, itable)
-    if len(args) == 0: return ps.pmap(kwargs)
+    if len(args) == 0: return pyr.pmap(kwargs)
     lm = any(is_lmap(m) for m in args)
     if lm: it = any(is_itable(m) for m in args)
     else:  it = False
@@ -1162,7 +1081,7 @@ def lmerge(*args, **kwargs):
             for (k,v) in six.iteritems(m):
                 if k not in res:
                     res[k] = v
-    return itable(res) if it else lmap(res) if lm else ps.pmap(res)
+    return itable(res) if it else lmap(res) if lm else pyr.pmap(res)
 def rmerge(*args, **kwargs):
     '''
     rmerge(...) is equivalent to merge(...) except for two things: (1) any keyword arguments passed
@@ -1179,7 +1098,7 @@ def rmerge(*args, **kwargs):
     See also merge, lmerge.
     '''
     from pimms import (is_itable, itable)
-    if len(args) == 0: return ps.pmap(kwargs)
+    if len(args) == 0: return pyr.pmap(kwargs)
     lm = any(is_lmap(m) for m in args)
     if lm: it = any(is_itable(m) for m in args)
     else:  it = False
@@ -1194,7 +1113,7 @@ def rmerge(*args, **kwargs):
         else:
             for (k,v) in six.iteritems(m):
                 res[k] = v
-    return itable(res) if it else lmap(res) if lm else ps.pmap(res)
+    return itable(res) if it else lmap(res) if lm else pyr.pmap(res)
 def is_persistent(arg):
     '''
     is_persistent(x) yields True if x is a persistent object and False if not.
@@ -1215,7 +1134,7 @@ def is_persistent(arg):
     elif is_number(arg): return True
     elif is_pmap(arg): return True
     elif isinstance(arg, frozenset): return True
-    elif isinstance(arg, (ps.PVector, ps.PSet, ps.PList, ps.PRecord)): return True
+    elif isinstance(arg, (pyr.PVector, pyr.PSet, pyr.PList, pyr.PRecord)): return True
     else: return False
 def persist(arg, depth=Ellipsis, on_mutable=None):
     '''
@@ -1276,13 +1195,13 @@ def persist(arg, depth=Ellipsis, on_mutable=None):
         x.setflags(write=False)
         return x
     elif is_str(arg) or is_number(arg): return arg
-    elif isinstance(arg, ps.PVector):
+    elif isinstance(arg, pyr.PVector):
         if depth is Ellipsis or depth == 0: return arg
         for (k,v0) in zip(range(len(arg)), arg):
             v = precur(v0)
             if v0 is not v: arg = arg.set(k,v)
         return arg
-    elif isinstance(arg, ps.PSet):
+    elif isinstance(arg, pyr.PSet):
         if depth is Ellipsis or depth == 0: return arg
         for v0 in arg:
             v = precur(v0)
@@ -1292,7 +1211,7 @@ def persist(arg, depth=Ellipsis, on_mutable=None):
         if depth is Ellipsis or depth == 0: return arg
         return key_map(precur, value_map(precur, arg))
     elif is_map(arg):
-        if not is_pmap(arg): arg = ps.pmap(arg)
+        if not is_pmap(arg): arg = pyr.pmap(arg)
         if depth == 0: return arg
         return key_map(precur, value_map(precur, arg))
     elif isinstance(arg, frozenset):
@@ -1345,9 +1264,9 @@ def dissoc(m, *args, **kw):
             for k in args:
                 if k in m: del m[k]
         return m
-    elif isinstance(m, tuple_type):
+    elif isinstance(m, tuple):
         return m if len(args) == 0 else tuple(dissoc(list(m), *args, error=err))
-    elif isinstance(m, list_type):
+    elif isinstance(m, list):
         if len(args) == 0: return m
         n = len(m)
         if err:
@@ -1399,10 +1318,10 @@ def assoc(m, *args, **kw):
     elif is_map(m):
         for (k,v) in args: m[k] = v
         return m
-    elif isinstance(m, tuple_type):
+    elif isinstance(m, tuple):
         args = list(args)
         return m if len(args) == 0 else tuple(assoc(list(m), *args, **kw))
-    elif isinstance(m, list_type):
+    elif isinstance(m, list):
         n0 = len(m)
         n = n0
         for (k,v) in args:
