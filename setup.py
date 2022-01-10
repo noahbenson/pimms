@@ -2,21 +2,54 @@
 ####################################################################################################
 
 from setuptools import (setup, Extension)
+import os
 
+base_path = os.path.dirname(__file__)
+with open(os.path.join(base_path, 'requirements.txt'), 'r') as fl:
+    requirements = fl.read().split('\n')
+with open(os.path.join(base_path, 'pimms', '__init__.py'), 'r') as fl:
+    init_lines = fl.read().split('\n')
+version = None
+desc = None
+for ln in init_lines:
+    if ln.startswith('__version__ = '):
+        version = ln.split("'")
+        if len(version) != 3: version = ln.split('"')
+        version = version[1]
+    elif ln.startswith('description = '):
+        desc = ln.split("'")
+        if len(desc) != 3: desc = ln.split('"')
+        desc = desc[1]
 setup(
     name='pimms',
-    version='0.3.18',
-    description='Python immutable data structures library',
-    keywords='persistent immutable functional',
+    version=version,
+    description=desc,
+    keywords='persistent immutable functional scientific workflow',
     author='Noah C. Benson',
-    author_email='nben@nyu.edu',
+    author_email='nben@uw.edu',
     url='https://github.com/noahbenson/pimms/',
-    license='GPLv3',
-    packages=['pimms', 'pimms.test'],
+    download_url='https://github.com/noahbenson/pimms',
+    classifiers=[
+        'Development Status :: 3 - Alpha',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: Developers',
+        'License :: OSI Approved :: MIT',
+        'Programming Language :: Python :: 3',
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9',
+        'Topic :: Software Development',
+        'Topic :: Software Development :: Libraries',
+        'Topic :: Software Development :: Libraries :: Python Modules',
+        'Topic :: Scientific/Engineering',
+        'Topic :: Scientific/Engineering :: Information Analysis',
+        'Operating System :: Microsoft :: Windows',
+        'Operating System :: POSIX',
+        'Operating System :: Unix',
+        'Operating System :: MacOS'],
+    license='MIT',
+    packages=['pimms.doc', 'pimms.types', 'pimms.math', 'pimms', 'pimms.test'],
     #ext_modules=[Extension('pimms.c_util', ['pimms/c_util.c'])],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
-    install_requires=['pyrsistent>=0.11',
-                      'six>=1.10',
-                      'numpy>=1.2',
-                      'pint>=0.7'])
+    install_requires=requirements)

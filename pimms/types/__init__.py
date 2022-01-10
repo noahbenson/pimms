@@ -60,7 +60,6 @@ from ._quant import (
     to_quant,
     quant,
     mag,
-    UnitRegistry
 )
 
 from ._numeric import (

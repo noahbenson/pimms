@@ -120,17 +120,163 @@ def is_quant(obj, unit=None, ureg=None):
             return False
     return True if unit is None else obj.is_compatible_with(unit)
 
+# Numerical Collection Suport ######################################################################
+# Numerical collections include numpy arrays and torch tensors. These objects are handled similarly
+# due to their overall functional similarity, and certain support functions are used for both.
+def _numcoll_match(numcoll_shape, numcol_dtype, ndim, shape, dtype):
+    """Checks that the actual numcoll shape and the actual numcol dtype match
+    the requirements of the ndim, shape, and dtype parameters.
+    """
+    # Parse the shape int front and back requirements and whether middle values are allowed.
+    shape_sh = np.shape(shape)
+    if shape is None:
+        (sh_pre, sh_mid, sh_suf) = ((), True, ())
+    elif shape == ():
+        (sh_pre, sh_mid, sh_suf) = ((), False, ())
+    elif shape_sh == ():
+        (sh_pre, sh_mid, sh_suf) = ((shape,), False, ())
+    else:
+        # We add things to the prefix until we get to an ellipsis...
+        sh_pre = []
+        for d in shape:
+            if d is Ellipsis: break
+            sh_pre.append(d)
+        sh_pre = tuple(sh_pre)
+        # We might have finished with just that; otherwise, note the ellipsis and move on.
+        if len(sh_pre) == len(shape):
+            (sh_mid, sh_suf) = (False, ())
+        else:
+            sh_suf = []
+            for d in reversed(shape):
+                if d is Ellipsis: break
+                sh_suf.append(d)
+            sh_suf = tuple(sh_suf) # We leave this reversed!
+            sh_mid = len(sh_suf) + len(sh_pre) < len(shape)
+        assert len(sh_suf) + len(sh_pre) + int(sh_mid) == len(shape), \
+            "only one Ellipsis may be used in the shape filter"
+    # Parse ndim.
+    if not (is_tuple(ndim) or is_set(ndim) or is_list(ndim) or ndim is None):
+        ndim = (ndim,)
+    # See if we match in terms of ndim and shape
+    sh = numcoll_shape
+    if ndim is not None and len(sh) not in ndim:
+        return False
+    ndim = len(sh)
+    if ndim < len(sh_pre) + len(sh_suf):
+        return False
+    (npre, nsuf) = (0,0)
+    for (s,p) in zip(sh, sh_pre):
+        if p != -1 and p != s: return False
+        npre += 1
+    for (s,p) in zip(reversed(sh), sh_suf):
+        if p != -1 and p != s: return False
+        nsuf += 1
+    # If there are extras in the middle and we don't allow them, we fail the match.
+    if not sh_mid and nsuf + npre != ndim: return False
+    # See if we match the dtype.
+    if dtype is not None:
+        if is_numpydtype(numcoll_dtype):
+            if is_sequence(dtype) or is_set(dtype): dtype = [to_numpydtype(dt) for dt in dtype]
+            else: dtype = [to_numpydtype(dtype)]
+        elif is_torchdtype(numcoll_dtype):
+            if is_sequence(dtype) or is_set(dtype): dtype = [to_torchdtype(dt) for dt in dtype]
+            else: dtype = [to_torchdtype(dtype)]
+        if numcoll_dtype not in dtype: return False
+    # We match everything!
+    return True
+
 # Numpy Arrays #####################################################################################
+# For testing whether numpy arrays or pytorch tensors have the appropriate dimensionality, shape,
+# and dtype, we use some helper functions.
+from numpy import dtype as numpy_dtype
+@docwrap
+def is_numpydtype(dt):
+    """Returns `True` for a NumPy dtype object and `False` otherwise.
+
+    `is_numpydtype(obj)` returns `True` if the given object `obj` is an instance
+    of the `numpy.dtype` class.
+
+    Parameters
+    ----------
+    obj : object
+        The object whose quality as a NumPy `dtype` object is to be assessed.
+
+    Returns
+    -------
+    boolean
+        `True` if `obj` is a valid `numpy.dtype`, otherwise `False`.
+    """
+    return isinstance(dt, numpy_dtype)
+@docwrap
+def like_numpydtype(dt):
+    """Returns `True` for any object that can be converted into a numpy `dtype`.
+
+    `like_numpydtype(obj)` returns `True` if the given object `obj` is an
+    instance of the `numpy.dtype` class, is a string that can be used to
+    construct a `numpy.dtype` object, or is a `torch.dtype` object.
+
+    Parameters
+    ----------
+    obj : object
+        The object whose quality as a NumPy `dtype` object is to be assessed.
+
+    Returns
+    -------
+    boolean
+        `True` if `obj` can be converted into a valid numpy `dtype`, otherwise
+        `False`.
+    """
+    if   is_numpydtype(dt): return True
+    elif is_torchdtype(dt): return True
+    else:
+        try: return is_numpydtype(np.dtype(dt))
+        except TypeError: return False
+@docwrap
+def to_numpydtype(dt):
+    """Returns a `numpy.dtype` object equivalent to the given argument `dt`.
+
+    `to_numpydtype(obj)` attempts to coerce the given `obj` into a `numpy.dtype`
+    object. If `obj` is already a `numpy.dtype` object, then `obj` itself is
+    returned. If the object cannot be converted into a `numpy.dtype` object,
+    then an error is raised.
+
+    The following kinds of objects can be converted into a `numpy.dtype` (see
+    also `like_numpydtype()`):
+     * `numpy.dtype` objects;
+     * `torch.dtype` objects;
+     * `None` (the default `numpy.dtype`);
+     * strings that name `numpy.dtype` objects; or
+     * any object that can be passed to `numpy.dtype()`, such as `numpy.int32`.
+
+    Parameters
+    ----------
+    obj : object
+        The object whose quality as a NumPy `dtype` object is to be assessed.
+
+    Returns
+    -------
+    numpy.dtype
+        The `numpy.dtype` object that is equivalent to the argument `dt`.
+
+    Raises
+    ------
+    TypeError
+        If the given argument `dt` cannot be converted into a `numpy.dtype`
+        object.
+    """
+    if   is_numpydtype(dt): return dt
+    elif is_torchdtype(dt): return torch.tensor([], dtype=dt).numpy().dtype
+    else: return np.dtype(dt)
 from numpy import ndarray
 @docwrap
-def is_ndarray(obj, dtype=None, ureg=None, unit=Ellipsis):
+def is_numpyarray(obj, dtype=None, shape=None, ndim=None):
     """Returns `True` if an object is a `numpy.ndarray` object, else `False`.
 
-    `is_ndarray(obj)` returns `True` if the given object `obj` is an instance of
-    the `numpy.ndarray`. Additional constraints may be placed on the object via
-    the optional argments.
+    `is_numpyarray(obj)` returns `True` if the given object `obj` is an instance
+    of the `numpy.ndarray`. Additional constraints may be placed on the object
+    via the optional argments.
 
-    Note that the `is_ndarray()` function is intended as a simple test of
+    Note that the `is_numpyarray()` function is intended as a simple test of
     whether an object is a NumPy array; it does not recognize `Quantity`
     objects; for that, see `is_array` and `is_numeric`.
 
@@ -144,7 +290,22 @@ def is_ndarray(obj, dtype=None, ureg=None, unit=Ellipsis):
         parameter if either `dtype` is `None` (the default) or if `obj.dtype` is
         a sub-dtype of `dtype` according to `numpy.issubdtype`. Alternately,
         `dtype` can be a tuple, in which case, `obj` is considered valid if its
-        dtype is a sub-dtype of any of the dtypes in `dtype`.
+        dtype is any of the dtypes in `dtype`.
+    ndim : int or tuple or ints or None, optional
+        The number of dimensions that the object must have in order to be
+        considered a valid numpy array. If `None`, then any number of dimensions
+        is acceptable (this is the default). If this is an integer, then the
+        number of dimensions must be exactly that integer. If this is a list or
+        tuple of integers, then the dimensionality must be one of these numbers.
+    shape : int or tuple of ints or None, optional
+        If the `shape` parameter is not `None`, then the given `obj` must have a shape
+        shape that matches the parameter value `sh`. The value `sh` must be a
+        tuple that is equal to the `obj`'s shape tuple with the following
+        additional rules: a `-1` value in the `sh` tuple will match any value in
+        the `obj`'s shape tuple, and a single `Ellipsis` may appear in `sh`,
+        which matches any number of values in the `obj`'s shape tuple. The
+        default value of `None` indicates that no restriction should be applied
+        to the `obj`'s shape.
 
     Returns
     -------
@@ -153,15 +314,159 @@ def is_ndarray(obj, dtype=None, ureg=None, unit=Ellipsis):
     """
     # First, let's do the easy things
     if not isinstance(obj, ndarray): return False
-    if dtype is None: return True
-    dt = obj.dtype
-    from numpy import issubdtype, dtype as to_dtype
-    if is_tuple(dtype):
-        for dtype in dtype:
-            if issubdtype(dt, to_dtype(dtype)): return True
+    if dtype is None and shape is None and ndim is None: return True
+    return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
+
+# PyTorch Tensors ##################################################################################
+# If PyTorch isn't imported, that's fine, we just write our methods to generate errors.
+try:
+    import torch
+    @docwrap(indent=8)
+    def is_torchtype(dt):
+        """Returns `True` for a PyTroch `dtype` object and `False` otherwise.
+        
+        `is_torchdtype(obj)` returns `True` if the given object `obj` is an instance
+        of the `torch.dtype` class.
+        
+        Parameters
+        ----------
+        obj : object
+            The object whose quality as a PyTorch `dtype` object is to be assessed.
+        
+        Returns
+        -------
+        boolean
+            `True` if `obj` is a valid `torch.dtype`, otherwise `False`.
+        """
+        return isinstance(dt, torch.dtype)
+    @docwrap(indent=8)
+    def like_torchdtype(dt):
+        """Returns `True` for any object that can be converted into a `torch.dtype`.
+        
+        `like_torchdtype(obj)` returns `True` if the given object `obj` is an
+        instance of the `torch.dtype` class, is a string that names a
+        `torch.dtype` object, or is a `numpy.dtype` object that is compatible
+        with PyTorch. Note that `None` is equivalent to `torch`'s default dtype.
+        
+        Parameters
+        ----------
+        obj : object
+            The object whose quality as a PyTorch `dtype` object is to be assessed.
+        
+        Returns
+        -------
+        boolean
+            `True` if `obj` can be converted into a valid `torch.dtype`, otherwise
+            `False`.
+
+        """
+        if is_torchdtype(dt):
+            return True
+        elif is_numpydtype(dt):
+            try: return None is not torch.from_numpy(np.array([], dtype=dt))
+            except TypeError: return False
+        elif is_str(dt):
+            try: return is_torchdtype(getattr(torch, dt))
+            except AttributeError: return False
+        elif dt is None:
+            return True
+        else:
+            try: return None is not torch.from_numpy(np.array([], dtype=npdt))
+            except Exception: return False
+    #TODO #here -- finish the below pytorch functions
+    @docwrap(indent=8)
+    def to_torchdtype(dt):
+        """Returns a `torch.dtype` object equivalent to the given argument `dt`.
+    
+        `to_torchdtype(obj)` attempts to coerce the given `obj` into a `torch.dtype`
+        object. If `obj` is already a `torch.dtype` object, then `obj` itself is
+        returned. If the object cannot be converted into a `torch.dtype` object,
+        then an error is raised.
+    
+        The following kinds of objects can be converted into a `torch.dtype` (see
+        also `like_numpydtype()`):
+         * `torch.dtype` objects;
+         * `numpy.dtype` objects with compatible (numeric) types;
+         * strings that name `torch.dtype` objects; or
+         * any object that can be passed to `numpy.dtype()`, such as `numpy.int32`,
+           that also creates a compatible (numeric) type.
+    
+        Parameters
+        ----------
+        obj : object
+            The object whose quality as a NumPy `dtype` object is to be assessed.
+    
+        Returns
+        -------
+        numpy.dtype
+            The `numpy.dtype` object that is equivalent to the argument `dt`.
+    
+        Raises
+        ------
+        TypeError
+            If the given argument `dt` cannot be converted into a `numpy.dtype`
+            object.
+        """
+        if   is_numpydtype(dt): return dt
+        elif is_torchdtype(dt): return torch.tensor([], dtype=dt).numpy().dtype
+        else: return np.dtype(dt)
+    @docwrap(indent=8)
+    def is_torchtensor(obj, dtype=None, shape=None, ndim=None):
+        """Returns `True` if an object is a `torch.tensor` object, else `False`.
+    
+        `is_torchtensor(obj)` returns `True` if the given object `obj` is an
+        instance of the `numpy.ndarray`. Additional constraints may be placed on the
+        object via the optional argments.
+    
+        Note that the `is_torchtensor()` function is intended as a simple test of
+        whether an object is a PyTorch tennsor; it does not recognize `Quantity`
+        objects; for that, see `is_tensor` and `is_numeric`.
+    
+        Parameters
+        ----------
+        obj : object
+            The object whose quality as a NumPy array object is to be assessed.
+        dtype : NumPy dtype-like or None, optional
+            The NumPy `dtype` that is required of the `obj` in order to be
+            considered a valid `ndarray`. The `obj.dtype` matches the given `dtype`
+            parameter if either `dtype` is `None` (the default) or if `obj.dtype` is
+            a sub-dtype of `dtype` according to `numpy.issubdtype`. Alternately,
+            `dtype` can be a tuple, in which case, `obj` is considered valid if its
+            dtype is any of the dtypes in `dtype`.
+        ndim : int or tuple or ints or None, optional
+            The number of dimensions that the object must have in order to be
+            considered a valid numpy array. If `None`, then any number of dimensions
+            is acceptable (this is the default). If this is an integer, then the
+            number of dimensions must be exactly that integer. If this is a list or
+            tuple of integers, then the dimensionality must be one of these numbers.
+        shape : int or tuple of ints or None, optional
+            If the `shape` parameter is not `None`, then the given `obj` must have a shape
+            shape that matches the parameter value `sh`. The value `sh` must be a
+            tuple that is equal to the `obj`'s shape tuple with the following
+            additional rules: a `-1` value in the `sh` tuple will match any value in
+            the `obj`'s shape tuple, and a single `Ellipsis` may appear in `sh`,
+            which matches any number of values in the `obj`'s shape tuple. The
+            default value of `None` indicates that no restriction should be applied
+            to the `obj`'s shape.
+    
+        Returns
+        -------
+        boolean
+            `True` if `obj` is a valid numpy array, otherwise `False`.
+        """
+        # First, let's do the easy things
+        if not torch.is_tensor(obj): return False
+        if dtype is None and shape is None and ndim is None: return True
+        return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
+except ModuleNotFoundError:
+    Tensor = None
+    torch_is_tensor = None
+    toorch_dtype = None
+    def is_torchtensor(obj, dtype=None, shape=None, ndim=None):
+        """Returns `False` (`torch` was not found)."""
         return False
-    else:
-        return issubdtype(dt, to_dtype(dtype))
+    
+
 
 # Strings ##########################################################################################
 @docwrap

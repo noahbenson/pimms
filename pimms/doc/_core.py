@@ -32,9 +32,9 @@ docproc.patterns['Outputs'] = _re_compile(
     docproc.patterns['Parameters'].pattern
        .replace('Parameters', 'Outputs')
        .replace('----------', '-------'))
-def _docwrap(f, fnname):
+def _docwrap(f, fnname, indent=4):
     ff = f
-    ff = docproc.with_indent(4)(ff)
+    ff = docproc.with_indent(indent)(ff)
     ff = docproc.get_sections(base=fnname, sections=docproc.param_like_sections)(ff)
     ff = _wraps(f)(ff)
     # Post-process the documentation sections.
@@ -48,7 +48,7 @@ def _docwrap(f, fnname):
             pname = ln.split(':')[0].strip()
             docproc.keep_param(k, pname)        
     return ff
-def docwrap(f):
+def docwrap(f=None, indent=4):
     """Applies standard doc-string processing to the decorated function.
 
     The `pimms.docwrap` decorator applies a standard set of pre-processing to
@@ -61,7 +61,9 @@ def docwrap(f):
     the decorated function is instead placed under the base-name `name`.
     """
     # If we've been given a string, then we've been called as @docwrap(name) instead of @docwrap.
+    if f is None:
+        return lambda fn: _docwrap(fn, fn.__module__ + '.' + fn.__name__), indent=indent)
     if isinstance(f, str):
-        return lambda fn: _docwrap(fn, f)
+        return lambda fn: _docwrap(fn, f, indent=indent)
     else:
-        return _docwrap(f, f.__module__ + '.' + f.__name__)
+        return _docwrap(f, f.__module__ + '.' + f.__name__, indent=indent)

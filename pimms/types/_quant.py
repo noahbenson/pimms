@@ -12,13 +12,31 @@ import docrep
 
 from pint import DimensionalityError
 from ..doc import docwrap
-from ._core import (is_ureg, is_unit, is_quant)
+from ._core import (is_ureg, is_unit, is_quant, is_numpyarray, is_torchtensor)
 
 # Quantity and UnitRegistry Classes ################################################################
 # Because we want a type of quantity that plays nicely with pytorch tensors as well as numpy arrays,
 # we overload the Quantity and UnitRegistry types from pint.
-#here #TODO: make Quantity work nicely with array/tensor, write promote()-type function.
+# In the Quantity overload class, we overload all of the mathematical operations so that they work
+# with either numpy- or torch-based Quantities.
+
 class Quantity(pint.Quantity):
+    # Addition and subtraction are handled via these functions:
+    def _iadd_sub(self, other, op):
+        """Perform addition or subtraction operation in-place and return the result.
+
+        The `pimms.Quantity` class makes this function compatible with NumPy arrays
+        and with PyTorch tensors.
+
+        Parameters
+        ----------
+        other : pint.Quantity or any type accepted by :func:`_to_magnitude`
+            object to be added to / subtracted from self
+        op : function
+            operator function (e.g. operator.add, operator.isub)
+        """
+        # We need to promote the types.
+
     def __mul__(self, other):
         return pint.Quantity.__mul__(self, other)
 def _build_quantity_class(reg, BaseClass):
@@ -39,7 +57,7 @@ class UnitRegistry(pint.UnitRegistry):
         self.Group = pint.systems.build_group_class(self)
         self.System = pint.systems.build_system_class(self)
 units = UnitRegistry()
-"""pint.UnitRegistry: the registry for units tracked by pimms.
+"""UnitRegistry: the registry for units tracked by pimms.
 
 `pimms.units` is a global `pint`-module unit registry that can be used as a
 single global place for tracking units. Pimms functions that interact with units

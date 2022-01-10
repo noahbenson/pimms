@@ -188,5 +188,5 @@ def reload_pimms():
     reload(sys.modules['pimms'])
     return sys.modules['pimms']
 
-__version__ = '1.0.0'
+__version__ = '1.0.0rc1'
 description = 'Lazy immutable library for Python built on top of pyrsistent'
