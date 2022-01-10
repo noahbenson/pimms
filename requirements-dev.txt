@@ -1,0 +1,7 @@
+pyrsistent >= 0.17.3
+numpy >= 1.20.3
+scipy >= 1.7.3
+pint >= 0.18.0
+docrep >= 0.3.2
+torch >= 1.9.1
+
