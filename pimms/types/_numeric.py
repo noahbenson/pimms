@@ -10,7 +10,6 @@ import collections as colls, numpy as np, pyrsistent as pyr
 import scipy.sparse as sps
 
 from ..doc import docwrap
-from ._core import is_ndarray
 
 # Numerical Types ##################################################################################
 from numbers import Number
@@ -69,7 +68,7 @@ def is_real(obj):
     boolean
         `True` if `obj` is an instance of `Real`, otherwise `False`.
     """
-    return isinstance(obj, Real) or is_ndarray(obj, ndim=0, dtype=np.floating)
+    return isinstance(obj, Real)
 from numbers import Complex
 @docwrap
 def is_complex(obj):

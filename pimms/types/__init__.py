@@ -14,8 +14,20 @@ the type hierarchy as Pimms interprets it.
 """
 
 from ._core import (
-    is_ndarray,
+    is_array,
+    to_array,
+    is_tensor,
+    to_tensor,
+    is_numeric,
+    to_numeric,
+    is_sparse,
+    to_sparse,
+    is_dense,
+    to_dense,
     is_str,
+    strnorm,
+    strcmp,
+    streq,
     is_ureg,
     is_unit,
     is_quant,
@@ -47,21 +59,6 @@ from ._core import (
     is_pmap,
 )
 
-from ._quant import (
-    Quantity,
-    UnitRegistry,
-    units,
-    default_units,
-    like_unit,
-    to_unit,
-    unit,
-    alike_units,
-    like_quant,
-    to_quant,
-    quant,
-    mag,
-)
-
 from ._numeric import (
     is_number,
     is_integer,
@@ -73,4 +70,17 @@ from ._numeric import (
     is_scalar,
     is_vector,
     is_matrix,
+)
+
+from ._quant import (
+    Quantity,
+    UnitRegistry,
+    default_units,
+    like_unit,
+    alike_units,
+    unit,
+    quant,
+    mag,
+    to_quants,
+    promote,
 )

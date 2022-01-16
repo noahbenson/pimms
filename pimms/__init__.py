@@ -153,6 +153,20 @@ The additional utility functions are provided as part of the pimms package:
     object `imm`.
 '''
 
+# We want to import everything from types; it is a clean namespace.
+from .types import *
+# Import the Global UnitRegistry object to the global pimms scope.
+from .types._quantity import _initial_global_ureg as units
+"""UnitRegistry: the registry for units tracked by pimms.
+
+`pimms.units` is a global `pint`-module unit registry that can be used as a
+single global place for tracking units. Pimms functions that interact with units
+generally take an argument `ureg` that can be used to modify this registry.
+Additionally, the default registry (this object, `pimms.units`) can be
+temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
+"""
+
+
 from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lmap,
                           lazy_value_map, value_map, key_map, collect, flatten_maps,
                           is_persistent, is_map, is_pmap, is_lazy_map, is_str, is_class,

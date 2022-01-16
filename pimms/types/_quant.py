@@ -10,16 +10,18 @@ import collections as colls, numpy as np, pyrsistent as pyr
 import scipy.sparse as sps
 import docrep
 
-from pint import DimensionalityError
-from ..doc import docwrap
-from ._core import (is_ureg, is_unit, is_quant, is_numpyarray, is_torchtensor)
+from pint   import DimensionalityError
+from ..doc  import docwrap
+from ._core import (alttorch, checktorch,
+                    is_set, is_str, is_ureg, is_unit, is_quant,
+                    is_array, is_tensor, is_numeric, is_sparse,
+                    to_array, to_tensor, to_numeric)
 
 # Quantity and UnitRegistry Classes ################################################################
 # Because we want a type of quantity that plays nicely with pytorch tensors as well as numpy arrays,
 # we overload the Quantity and UnitRegistry types from pint.
 # In the Quantity overload class, we overload all of the mathematical operations so that they work
 # with either numpy- or torch-based Quantities.
-
 class Quantity(pint.Quantity):
     # Addition and subtraction are handled via these functions:
     def _iadd_sub(self, other, op):
@@ -35,8 +37,8 @@ class Quantity(pint.Quantity):
         op : function
             operator function (e.g. operator.add, operator.isub)
         """
-        # We need to promote the types.
-
+        # We may need to promote the types.
+        if 
     def __mul__(self, other):
         return pint.Quantity.__mul__(self, other)
 def _build_quantity_class(reg, BaseClass):
@@ -56,15 +58,6 @@ class UnitRegistry(pint.UnitRegistry):
         # Then we do the SystemRegistry._init_dynamic_classes method:
         self.Group = pint.systems.build_group_class(self)
         self.System = pint.systems.build_system_class(self)
-units = UnitRegistry()
-"""UnitRegistry: the registry for units tracked by pimms.
-
-`pimms.units` is a global `pint`-module unit registry that can be used as a
-single global place for tracking units. Pimms functions that interact with units
-generally take an argument `ureg` that can be used to modify this registry.
-Additionally, the default registry (this object, `pimms.units`) can be
-temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
-"""
 class default_ureg(object):
     """Context manager for setting the default `pimms` unit registry.
 
@@ -80,23 +73,25 @@ class default_ureg(object):
         if not is_ureg(ureg): raise TypeError("ureg must be a pint.UnitRegistry")
         object.__setattr__(self, 'original', None)
     def __enter__(self):
-        global units
-        object.__setattr__(self, 'original', units)
-        units = ureg
+        import pimms
+        object.__setattr__(self, 'original', pimms.units)
+        pimms.units = ureg
         return ureg
     def __exit__(self, exc_type, exc_val, exc_tb):
-        global units
-        units = self.original
+        import pimms
+        pimms.units = self.original
         return False
     def __setattr__(self, name, val):
         raise TypeError("cannot change the original units registry")
-# We want to disable the awful pint warning fo numpy if it's present:
+_initial_global_ureg = UnitRegistry()
+# We want to disable the awful pint warning for numpy if it's present:
 with warnings.catch_warnings():
     warnings.simplefilter("ignore")
-    units.Quantity([])
+    _initial_global_ureg.Quantity([])
 # Make sure there's a pixel unit
-if not hasattr(units, 'pixels'):
-    units.define('pixel = [image_length] = px')
+if not hasattr(_initial_global_ureg, 'pixels'):
+    _initial_global_ureg.define('pixel = [image_length] = px')
+@docwrap
 def like_unit(q, ureg=None):
     """Returns `True` if `q` is or names a `pint` unit and `False` otherwise.
 
@@ -117,8 +112,12 @@ def like_unit(q, ureg=None):
         `True` if `q` is a `pint` unit or a string naming a `pint` unit and
         `False` otherwise.
     """
-    return isinstance(q, Unit) or (is_str(q) and hasattr(units, q))
-def to_unit(obj):
+    if isinstance(q, Unit): return True
+    if not is_str(q): return False
+    if ureg is None or ureg is Ellipsis: from pimms import units as ureg
+    return hasattr(ureg, q)
+@docwrap
+def unit(obj, ureg=Ellipsis):
     """Converts the argument into a a `Unit` object.
 
     `unit(u)` returns the `pimms`-library unit object for the given unit object
@@ -135,6 +134,11 @@ def to_unit(obj):
     ----------
     obj : object
         The object that is to be converted to a unit.
+    ureg : UnitRegistry or None or Ellipsis, optional
+        The unit registry to convert the object into. If `Ellipsis` (the
+        default), then `pimms.units` is used. If `None`, then the unit registry
+        for `obj` is used if `obj` is a quantity or unit already, and
+        `pimms.units` is used if not. Otherwise, must be a unit registry.
 
     Returns
     -------
@@ -146,28 +150,20 @@ def to_unit(obj):
     TypeError
         When the argument cannot be converted to a `Unit` object.
     """
-    if u is None:    return None
-    elif is_unit(u): return getattr(units, str(u))
-    elif is_quantity(u):
-        if isinstance(u, tuple): return getattr(units, str(u[1]))
-        else: return getattr(units, str(u.u))
+    if ureg is Ellipsis: from pimms import units as ureg
+    if obj is None: return ureg.dimensionless
+    if is_quant(obj): u = u.u
+    if is_unit(obj):
+        if ureg is None or ureg is obj._REGISTRY:
+            return obj
+        else:
+            return getattr(ureg, str(obj))
+    elif is_str(obj):
+        if ureg is None: from pimms import units as ureg
+        return getattr(ureg, obj)
     else:
-        raise ValueError('unrecotnized unit argument')
-def to_unit(u):
-    '''
-    unit(u) yields the pimms-library unit object for the given unit object u (which may be from a
-      separate pint.UnitRegistry instance).
-    unit(uname) yields the unit object for the given unit name uname.
-    unit(None) yields None.
-    unit(q) yields the unit of the given quantity q.
-    '''
-    if u is None:    return None
-    elif is_unit(u): return getattr(units, str(u))
-    elif is_quantity(u):
-        if isinstance(u, tuple): return getattr(units, str(u[1]))
-        else: return getattr(units, str(u.u))
-    else:
-        raise ValueError('unrecotnized unit argument')
+        raise ValueError(f'unrecognized unit argument: {obj}')
+@docwrap
 def alike_units(a, b, ureg=None):
     """Returns `True` if the arguments are alike units, otherwise `False`.
 
@@ -192,79 +188,169 @@ def alike_units(a, b, ureg=None):
     boolean
         `True` if the units `a` and `b` are alike and `False` otherwise.
     """
-    if ureg is None: ureg = units
+    if ureg is None: from pimms import units as ureg
     return ureg.is_compatible_with(a, b)
-def like_quant(obj, unit=Ellipsis, ureg=Ellipsis):
-    """Returns `True` for objects that can be converted into `pint` quantities.
+@docwrap
+def quant(mag, units=Ellipsis, ureg=None):
+    """Returns a `Quantity` object with the given magnitude and units.
 
-    `like_quant(q)` returns `True` if `q` is a `pint` quantity or an object that
-    can be converted into a `pint` quantity and `False` otherwise. The optional
-    parameter `unit` may additionally specify a unit that `obj` must be
-    compatible with.
+    `quant(mag, units)` returns a `Quantity` object with the given magnitude and
+    units. If `mag` is alreaady a `Quantity`, then it is converted into the
+    given units and returned (a copy of `mag` is made only if necessary); if the
+    units of `mag` in this case are not compatible with `units`, then an error
+    is raised. If `mag` is not a quantity, then the given `units` are used to
+    create the quantity.
 
-    The following kinds of objects can be converted into quantities:
-     * `Quantity` objects are already quantities;
-     * any number, set, array, or tensor can be represented as a dimensionless
-       quantity; or
-     * a 2-tuple `(mag, unit)` where `mag` is a numeric magnitude value and
-       `unit` is a string representing a valid unit.
+    The value `units=None` is equivalent to `units='dimensionless'`. 
+
+    `quant(mag)` is equivalent to `quant(mag, Ellipsis)`. Both return `mag` if
+    `mag` is already a `Quantity`; otherwise they return a quantity with
+    dimensionless units.
 
     Parameters
     ----------
-    obj : object
-        The object whose quality as a quantity is to be assessed.
-    unit : UnitLike or True or False or None or Ellipsis, optional
-        The unit that the object must have in order to be considered valid. This
-        may be a `pint` unit or unit-name (see also `pimms.unit`), a list or
-        tuple of such units/unit-names, `True`, `False`, `None`, or
-        `Ellipsis`. If `True`, then the object must have a unit, but it doesn't
-        matter what the unit is. If `False`, then the object must not have a
-        unit (note that for `True` and `False` values, a dimesionless object is
-        different from an object without an attached unit). If `Ellipsis`, then
-        either an object with a unit or without a unit is accepted (this is the
-        default).  Otherwise, the object must have a unit equivalent to the unit
-        or to one of the units given. A value of `None` is interpreted as a unit
-        that can either be dimensionless or an object without any unit; i.e., it
-        is equivalent to `(False, 'dimensionless')`.
-    ureg : pint.UnitRegistry or None, optional
-        The `pint` `UnitRegistry` object to use for units. If `None`, then
-        `pimms.units` is used. If the value `Ellipsis` is given (the default),
-        then `Quantity` objects from any unit registry are considered valid.
+    mag : object
+        The magnitude to be given a unit.
+    units : unit-like or None or Ellipsis, optional
+        The units to use in the returned quantity. If `Ellipsis` (the default),
+        then dimensionless units are assumed unless the `mag` argument already
+        is a quantity with its own units.
+    ureg : UnitRegistry or None or Ellipsis
+        The `pint` `UnitRegistry` object to use for units. If `ureg` is
+        `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
+        default), then no specific coersion to a `UnitRegistry` is performed.
 
     Returns
     -------
-    boolean
-        `True` if `obj` is a `pint` quantity or quantity-like object whose units
-        are compatible with the requested `unit` and `False` otherwise.
+    pint.Quantity
+        A quantity object representing the given magnitude and units.
     """
-    if ureg is Ellipsis:
-        ureg = units
-        # In this case, we allow any quantity type.
-        if isinstance(obj, pint.Quantity): return True
+    if ureg is Ellipsis: from pimms import units as ureg
+    if is_quant(mag):
+        if ureg is None: ureg = mag._REGISTRY
+        q = mag if units is Ellipsis else mag.to(units)
     else:
-        if ureg is None: ureg = units
-        if isinstance(obj, ureg.Quantity): return True
-    if (is_tuple(obj)      and
-        len(obj) == 2      and
-        is_numeric(obj[0]) and
-        is_str(obj[1])     and
-        hasattr(ureg, obj[1])
-    ): return True
-    if is_numeric(obj): return True
-    if is_set(obj): return True
-    return False
-def mag(val, u=Ellipsis):
-    '''
-    mag(scalar) yields scalar for the given scalar (numeric value without a unit).
-    mag(quant) yields the scalar magnitude of the quantity quant.
-    mag(scalar, u=u) yields scalar.
-    mag(quant, u=u) yields the given magnitude of the given quant after being translated into the
-      given unit u.
+        if units is Ellipsis: units = None
+        if ureg is None: from pimms import units as ureg
+        q = ureg.Quantity(mag, units)
+    if q._REGISTRY is not ureg:
+        return ureg.Quantity(q.m, q.u)
+    else:
+        return q
+@docwrap
+def to_quants(*args, units=Ellipsis, ureg=None):
+    """Converts each argument in a list to a quantity.
 
-    The quant arguments in the above list may be replaced with (scalar, unit) as in (10, 'degrees')
-    or (14, 'mm'). Note that mag always translates all lists and tuples into numpy ndarrays.
-    '''
-    if not is_quantity(val): return val
-    if isinstance(val, tuple):
-        val = units.Quantity(val[0], val[1])
-    return val.m if u is Ellipsis else val.to(unit(u)).m
+    `to_quants(*lst, **kw)` returns `[quant(el, **kw) for el in lst]`.
+
+    Parameters
+    ----------
+    *args
+        The list of arguments to be converted into quantities.
+    %(pimms.types._quant.quant.units)s
+    %(pimms.types._quant.quant.ureg)s
+
+    Returns
+    -------
+    list of Quantity objects
+        A list of the arguments, each converted into quantities.
+    """
+    return [quant(el, units=units, ureg=ureg) for el in args]
+def mag(val, units=Ellipsis):
+    """Returns the magnitude of the given object.
+
+    `mag(quantity)` returns the magnitude of the given quantity, regardless of
+    the quantity's units.
+
+    `mag(obj)`, for a non-quantity object `obj`, simply returns `obj`.
+
+    `mag(arg, units)` returns `arg.to(units)` of `arg` is a quantity and returns
+    `arg` if `arg` is not a quantity.
+
+    `mag(arg, Ellipsis)` is equivalent to `mag(arg)`.
+
+    If `mag(quantity, units)` is given a quantity not compatible with the given
+    units, then an error is raised.
+
+    Parameters
+    ----------
+    val : object
+        The object that is to be converted into a magnitude.
+    units : unit-like or None or Ellipsis, optional
+        The units in which the magnitude of the argument `val` should be
+        returned. The default argument of `Ellipsis` indicates that the value's
+        native units, if any, should be used.
+
+    Returns
+    -------
+    object
+        The magnitude of `val` in the requested units, if `val` is a quantity,
+        or `val` itself, if it is not a quantity.
+
+    Raises
+    ------
+    DimensionaltyError
+        If the given `val` is a quantity whose units are not compatible with the
+        `units` parameter.
+    """
+    if is_quant(val): 
+        return val.m if units is Ellipsis else val.m_as(units)
+    else:
+        return val
+
+# Array-type Promotion #############################################################################
+# Promotion ########################################################################################
+def _array_promote(*args, ureg=None):
+    return [to_array(el, quant=True, ureg=ureg) for el in args]
+@alttorch(_array_promote)
+@docwrap
+def promote(*args, ureg=None):
+    """Promotes all arguments into quantities with compatible magnitudes.
+
+    `promote(a, b, c...)` converts all of the passed arguments into numerical
+    quantity objects and returns them as a tuple. The returned arguments will
+    all have compatible (promoted) types or magnitude types.
+
+    Promotion is determined based on the object type. If any of the objects are
+    PyTorch tensors or quantities with tensor magnitudes, then all of the
+    returned quantities will have for their magnitudes PyTorch tensors with the
+    same profile (e.g, device) as the tensor argument(s). Otherwise, the
+    returned quantities will converted into array types. The purpose of this
+    promotion is to ensure that all arguments can be combined into an expression
+    (PyTorch tensor operations generally require that all arguments are
+    tensors).
+
+    Parameters
+    ----------
+    *args
+        The arguments that are to be promoted.
+    ureg : pint.UnitRegistry or None, optional
+        The `pint` `UnitRegistry` object to use for units. If `ureg` is
+        `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
+        default), then no specific coersion to a `UnitRegistry` is performed.
+
+    Returns
+    -------
+    list of numeric objects
+        A list of the arguments after each has been promoted.
+    """
+    if ureg is None: from pimms import units as ureg
+    # We can start by converting the args into a list of quantities.
+    qs = to_quants(args, ureg=ureg)
+    # Basic question: are any of them tensors?
+    first_tensor = next((q for q in qs if torch.is_tensor(q.m)), None)
+    # If there isn't any, qs is fine as-is.
+    if first_tensor is None: return qs
+    device = first_tensor.device
+    # Otherwise, we need to turn them all into tensors like this one.
+    for (ii,q) in enumerate(qs):
+        if q is first_tensor: continue
+        mag = q.m
+        mag = to_tensor(mag, device=device)
+        if mag is not q.m:
+            if q is args[ii]:
+                qs[ii] = q.__class__(mag, q.u)
+            else:
+                q.m = mag
+    # That's all that is needed.
+    return qs
