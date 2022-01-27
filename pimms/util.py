@@ -632,7 +632,7 @@ def is_nparray(u, dtype=None, dims=None):
     elif not isinstance(u, np.ndarray): return False
     # it's an array... check dtype
     if dtype is not None:
-        if not any(np.issubdtype(u.dtype, d) for d in numpy_type(dtype)): return False
+        if not any(np.issubdtype(u.dtype, np.dtype(d)) for d in numpy_type(dtype)): return False
     # okay, the dtype is fine; check the dims
     if dims is None: return True
     if isinstance(dims, (tuple,list)): return len(u.shape) in dims
@@ -698,10 +698,13 @@ def is_array(u, dtype=None, dims=None):
     elif sps.issparse(u): return is_nparray(u[[],[]].toarray(), dtype=dtype, dims=dims)
     elif is_nparray(u): return is_nparray(u, dtype=dtype, dims=dims)
     else:
-        npt = numpy_best_type(dtype)
-        try:              u = np.asarray(u, dtype=npt)
-        except Exception: pass
-        return is_nparray(u, dtype=dtype, dims=dims)
+        npts = numpy_best_type(dtype)
+        if not isinstance(npts, (list_type,tuple_type)): npts = [npts]
+        for npt in npts:
+            try:              u = np.asarray(u, dtype=npt)
+            except Exception: continue
+            if is_nparray(u, dtype=dtype, dims=dims):
+                return True
 def is_scalar(u, dtype=None):
     '''
     is_scalar(u) is equivalent to is_npscalar(np.asarray(u)).
@@ -740,7 +743,7 @@ def is_set(arg):
     '''
     is_set(arg) yields True if arg is a set or frozenset and False otherwise.
     '''
-    isinstance(arg, collsABC.Set)
+    return isinstance(arg, collsABC.Set)
 def curry(f, *args0, **kwargs0):
     '''
     curry(f, ...) yields a function equivalent to f with all following arguments and keyword
