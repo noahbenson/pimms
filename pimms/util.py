@@ -632,7 +632,9 @@ def is_nparray(u, dtype=None, dims=None):
     elif not isinstance(u, np.ndarray): return False
     # it's an array... check dtype
     if dtype is not None:
-        if not any(np.issubdtype(u.dtype, np.dtype(d)) for d in numpy_type(dtype)): return False
+        if (not any(np.issubdtype(u.dtype, d) for d in numpy_type(dtype)) and
+            not any(np.issubdtype(u.dtype, np.dtype(d)) for d in numpy_type(dtype))):
+            return False
     # okay, the dtype is fine; check the dims
     if dims is None: return True
     if isinstance(dims, (tuple,list)): return len(u.shape) in dims

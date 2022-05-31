@@ -4,15 +4,19 @@
 # By Noah C. Benson
 
 import copy, types, os, sys, re, warnings, pickle, pint, six
-import pyrsistent as ps, numpy as np, collections as colls
+import pyrsistent as ps, numpy as np
 from functools import reduce
 from .util  import (merge, is_pmap, is_str, is_map, is_lazy_map, is_vector, is_quantity, quant, mag,
                     units, qhash, save, load, is_nparray, getargspec_py27like, cache_filename,
                     cache_lmap, qhashform)
 from .table import (itable, is_itable)
 
-if six.PY2: tuple_type = types.TupleType
-else:       tuple_type = tuple
+if six.PY2:
+    import collections as colls
+    tuple_type = types.TupleType
+else:
+    import collections.abc as colls
+    tuple_type = tuple
 
 ####################################################################################################
 # The Calc, Plan, and IMap classes
