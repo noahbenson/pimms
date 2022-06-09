@@ -1,21 +1,41 @@
 # -*- coding: utf-8 -*-
-####################################################################################################
+################################################################################
 # pimms/types/_core.py
-# Core implementation of the utility classes for the various types that are managed by pimms.
+#
+# Core implementation of the utility classes for the various types that are
+# managed by pimms.
+#
 # By Noah C. Benson
+#
+# Notes
+# -----
+#
+# * A lot of the methods of the Quantity class (which overloads the pint.Quantity class) have been
+#   overloaded for the sole purpose of extending their particular functionality to the PyTorch
+#   tensor and SciPy sparse matrix types.
+# * In many cases, these methods only need to overloaded to handle a single case in which the normal
+#   operation doesn't work. For example, __abs__ must be overloaded because, while abs(np_array),
+#   abs(sp_sparse_matrix) and abs(dense_tensor) all work fine, abs(sparse_tensor) currently raises
+#   an exception. In this case, the default pint.Quantity.__abs__ method would be just fine except
+#   for the sparse tensor type, However, PyTorch will likely implement the abs() method for sparse
+#   tensors soon, and when that happens, we should just replace delete the overloaded method.
+# * Deficiencies in particular libraries, as described in the above bullet, should be tagged with
+#   one or more of the following hashtags in a comment: #numpy-fix, #scipy-fix, #torch-fix,
+#   #torch-sparse-fix, #torch-dense-fix.
 
 # Dependencies #####################################################################################
-import inspect, types, sys, pint, os, numbers, warnings, base64
+import inspect, types, sys, pint, os, numbers, warnings, base64, operator
 import collections as colls, numpy as np, pyrsistent as pyr
 import scipy.sparse as sps
 import docrep
 
 from pint   import DimensionalityError
 from ..doc  import docwrap
-from ._core import (alttorch, checktorch,
+from ._core import (alttorch, checktorch, scipy__is_sparse,
+                    torch__is_tensor, torch,
                     is_set, is_str, is_ureg, is_unit, is_quant,
-                    is_array, is_tensor, is_numeric, is_sparse,
-                    to_array, to_tensor, to_numeric)
+                    is_array, is_tensor, is_numeric, is_sparse, to_sparse,
+                    to_array, to_tensor, to_numeric, to_sparse, to_dense)
 
 # Quantity and UnitRegistry Classes ################################################################
 # Because we want a type of quantity that plays nicely with pytorch tensors as well as numpy arrays,
@@ -23,6 +43,23 @@ from ._core import (alttorch, checktorch,
 # In the Quantity overload class, we overload all of the mathematical operations so that they work
 # with either numpy- or torch-based Quantities.
 class Quantity(pint.Quantity):
+    @property
+    def T(self):
+        mag = self._magnitude
+        # #torch-sparse-fix #here #TODO
+        return self.__class__(self._magnitude.T, self._units)
+    def __abs__(self):
+        mag = self._magnitude
+        # #torch-sparse-fix
+        # We need to handle the sparse-tensor case specially. Since abs() doesn't change zeros,
+        # however, it's not terribly hard.
+        if not torch__is_tensor(mag) or not mag.is_sparse:
+            return pint.Quantity.__abs__(self)
+        new_mag = mag.clone().detach().coalesce()
+        vals = new_mag.values()
+        torch.abs(vals, out=vals)
+        return new_mag
+        
     # Addition and subtraction are handled via these functions:
     def _iadd_sub(self, other, op):
         """Perform addition or subtraction operation in-place and return the result.
@@ -37,10 +74,164 @@ class Quantity(pint.Quantity):
         op : function
             operator function (e.g. operator.add, operator.isub)
         """
-        # We may need to promote the types.
-        if 
-    def __mul__(self, other):
-        return pint.Quantity.__mul__(self, other)
+        # We may need to promote the types or change the operation somewhat depending on whether the
+        # arguments are tensors, scipy sparse matrices, or not.
+        self_istensor = is_tensor(self)
+        other_istensor = is_tensor(other)
+        if self_istensor:
+            if not other_istensor:
+                (self, other) = promote(self, other)
+        # Having put the arguments in appropriate formats, the operation can proceed.
+        return pint.Quantity._iadd_sub(self, other, op)
+    def _add_sub(self, other, op):
+        """Perform addition or subtraction operation and return the result.
+
+        The `pimms.Quantity` class makes this function compatible with NumPy arrays
+        and with PyTorch tensors.
+
+        Parameters
+        ----------
+        other : pint.Quantity or any type accepted by :func:`_to_magnitude`
+            object to be added to / subtracted from self
+        op : function
+            operator function (e.g. operator.add, operator.isub)
+        """
+        # We may need to promote the types or change the operation somewhat depending on whether the
+        # arguments are tensors, scipy sparse matrices, or not.
+        self_istensor = is_tensor(self)
+        other_istensor = is_tensor(other)
+        if self_istensor:
+            if not other_istensor:
+                (self, other) = promote(self, other)
+        # Having put the arguments in appropriate formats, the operation can proceed.
+        res = pint.Quantity._add_sub(self, other, op)
+        # If res is a numpy.matrix, then we fix that into an array.
+        if is_quant(res):
+            if isinstance(res.m, np.matrix):
+                res = res.__class__(np.asarray(res.m), res.u)
+        elif isinstance(res.m, np.matrix):
+            res.m = np.asarray(res.m)
+        # Return this corrected object.
+        return res
+    # Addition and subtraction are handled via these functions:
+    def _imul_div(self, other, mag_op, unit_op=None):
+        """Perform multiplication or division operations in-place and return
+        the result.
+
+        The `pimms.Quantity` class makes this function compatible with NumPy
+        arrays and with PyTorch tensors.
+
+        Parameters
+        ----------
+        other : pint.Quantity or any type accepted by :func:`_to_magnitude`
+            Object that `self` should be multiplied / divided by.
+        mag_op : function
+            Operator function to perform on the magnitudes (e.g.,
+            `operator.mul`).
+        unit_op : function or None
+            Operator function to perform on the units; if `None`, then the
+            `mag_op` value is used.
+        """
+        if   mag_op is operator.mul: mag_op = operator.imul
+        elif mag_op is operator.truediv: mag_op = operator.itruediv
+        # We may need to promote the types or change the operation somewhat depending on whether the
+        # arguments are tensors, scipy sparse matrices, or not.
+        self_istensor = is_tensor(self)
+        other_istensor = is_tensor(other)
+        if self_istensor:
+            if not other_istensor:
+                (self, other) = promote(self, other)
+        elif is_sparse(self):
+            raise TypeError("scipy sparse matrices do not support in-place"
+                            " multiplication or division")
+        elif is_sparse(other) and mag_op is operator.itruediv:
+            other = 1 / to_dense(other)
+            return pint.Quantity._imul_div(self. other, operator.imul)
+        # We can just perform the normal _imul_div once the above filters have been applied.
+        return pint.Quantity._imul_div(self, other, mag_op, unit_op)
+    def _mul_div(self, other, mag_op, unit_op=None):
+        """Perform multiplication or division operations and return the result.
+
+        The `pimms.Quantity` class makes this function compatible with NumPy
+        arrays and with PyTorch tensors.
+
+        Parameters
+        ----------
+        other : pint.Quantity or any type accepted by :func:`_to_magnitude`
+            Object that `self` should be multiplied / divided by.
+        mag_op : function
+            Operator function to perform on the magnitudes (e.g.,
+            `operator.mul`).
+        unit_op : function or None
+            Operator function to perform on the units; if `None`, then the
+            `mag_op` value is used.
+        """
+        if   mag_op is operator.imul: mag_op = operator.mul
+        elif mag_op is operator.itruediv: mag_op = operator.truediv
+        # We may need to promote the types or change the operation somewhat depending on whether the
+        # arguments are tensors, scipy sparse matrices, or not.
+        self_istensor = is_tensor(self)
+        other_istensor = is_tensor(other)
+        if self_istensor or other_istensor:
+            if not (self_istensor and other_istensor):
+                (self, other) = promote(self, other)
+            return pint.Quantity._mul_div(self, other, op)
+        elif is_sparse(other) and mag_op is operator.truediv:
+            # If we are dividing by a sparse matrix, so we need to make the matrix dense then recur.
+            other = 1 / to_dense(other)
+            return self._mul_div(other, operator.mul)
+        elif is_sparse(self):
+            # We run this multiplication here because it requires the .multiply() method instead of
+            # the basic * / mul operator, which is performed by pint.
+            if is_quant(other):
+                omag = other.m
+                ounit = other.u
+            else:
+                omag = other
+                ounit = self._REGISTRY.dimensionless
+            # Perform the operation.
+            if mag_op is operator.mul:
+                resmag = self.m.multiply(omag)
+            elif mag_op is operator.truediv:
+                resmag = self.m.multiply(1 / omag)
+            else:
+                raise TypeError("op must be operator.mul or operator.div")
+            resunit = mag_op(self.u, ounit)
+            # If the magnitude is a numpy matrix, fix that.
+            if isinstance(resmag, np.matrix): resmag = np.asarray(resmag)
+            # Return the new quantity.
+            return self._REGISTRY.Quantity(resmag, self.u)
+        else:
+            return pint.Quantity._mul_div(self, other, op)
+    def __matmul__(self, other):
+        # We need to handle tensors, but if we have scipy sparse matrices and arrays mixed together,
+        # that is ultimately just fine.
+        cls = self.__class__
+        (self, other) = promote(self, other)
+        units = self.u * other.u
+        if is_tensor(self):
+            if is_sparse(other):
+                raise TypeError("PyTorch does not currently support tensor multiplication with "
+                                " sparse tensors on the right of the multiplication symbol")
+            mag = torch.matmul(self.m, other.m)
+        else:
+            mag = self.m @ other.m
+            if isinstance(mag, np.matrix): mag = np.asarray(mag)
+        return cls(mag, units)
+    def __rmatmul__(self, other):
+        cls = self.__class__
+        (self, other) = promote(self, other)
+        units = self.u * other.u
+        if is_tensor(self):
+            if is_sparse(self):
+                raise TypeError("PyTorch does not currently support tensor multiplication with "
+                                " sparse tensors on the right of the multiplication symbol")
+            mag = torch.matmul(other.m, self.m)
+        else:
+            mag = other.m @ self.m
+            if isinstance(mag, np.matrix): mag = np.asarray(mag)
+        return cls(mag, units)
+
 def _build_quantity_class(reg, BaseClass):
     class Quantity(BaseClass):
         _REGISTRY = reg
