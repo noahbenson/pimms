@@ -1,19 +1,23 @@
 # -*- coding: utf-8 -*-
-####################################################################################################
+################################################################################
 # pimms/types/_core.py
-# Core implementation of the utility classes for the various types that are managed by pimms.
-# By Noah C. Benson
+#
+# Core implementation of the utility classes for the various types that are
+# managed by pimms.
+#
+# @author Noah C. Benson
 
-# Dependencies #####################################################################################
+# Dependencies #################################################################
 import pint, os
 import numpy as np
 import scipy.sparse as sps
 from ..doc import docwrap
 
-# Units ############################################################################################
-# Units are fundamentally treated as part of the pimms type-system. Pimms functios that deal with
-# an object's type typically take an option `unit` that can be used to change the function's
-# behavior depending on the units attached to an object.
+# Units ########################################################################
+# Units are fundamentally treated as part of the pimms type-system. Pimms
+# functios that deal with an object's type typically take an option `unit` that
+# can be used to change the function's behavior depending on the units attached
+# to an object.
 # Setup pint / units:
 from pint import UnitRegistry
 @docwrap
@@ -119,14 +123,16 @@ def is_quant(obj, unit=None, ureg=None):
             return False
     return True if unit is None else obj.is_compatible_with(unit)
 
-# Numerical Collection Suport ######################################################################
-# Numerical collections include numpy arrays and torch tensors. These objects are handled similarly
-# due to their overall functional similarity, and certain support functions are used for both.
+# Numerical Collection Suport ##################################################
+# Numerical collections include numpy arrays and torch tensors. These objects
+# are handled similarly due to their overall functional similarity, and certain
+# support functions are used for both.
 def _numcoll_match(numcoll_shape, numcol_dtype, ndim, shape, dtype):
     """Checks that the actual numcoll shape and the actual numcol dtype match
     the requirements of the ndim, shape, and dtype parameters.
     """
-    # Parse the shape int front and back requirements and whether middle values are allowed.
+    # Parse the shape int front and back requirements and whether middle values
+    # are allowed.
     shape_sh = np.shape(shape)
     if shape is None:
         (sh_pre, sh_mid, sh_suf) = ((), True, ())
@@ -141,7 +147,8 @@ def _numcoll_match(numcoll_shape, numcol_dtype, ndim, shape, dtype):
             if d is Ellipsis: break
             sh_pre.append(d)
         sh_pre = tuple(sh_pre)
-        # We might have finished with just that; otherwise, note the ellipsis and move on.
+        # We might have finished with just that; otherwise, note the ellipsis
+        # and move on.
         if len(sh_pre) == len(shape):
             (sh_mid, sh_suf) = (False, ())
         else:
@@ -170,23 +177,26 @@ def _numcoll_match(numcoll_shape, numcol_dtype, ndim, shape, dtype):
     for (s,p) in zip(reversed(sh), sh_suf):
         if p != -1 and p != s: return False
         nsuf += 1
-    # If there are extras in the middle and we don't allow them, we fail the match.
+    # If there are extras in the middle and we don't allow them, we fail the
+    # match.
     if not sh_mid and nsuf + npre != ndim: return False
     # See if we match the dtype.
     if dtype is not None:
         if is_numpydtype(numcoll_dtype):
-            if is_seq(dtype) or is_set(dtype): dtype = [to_numpydtype(dt) for dt in dtype]
+            if is_seq(dtype) or is_set(dtype):
+                dtype = [to_numpydtype(dt) for dt in dtype]
             else: dtype = [to_numpydtype(dtype)]
         elif is_torchdtype(numcoll_dtype):
-            if is_seq(dtype) or is_set(dtype): dtype = [to_torchdtype(dt) for dt in dtype]
+            if is_seq(dtype) or is_set(dtype):
+                dtype = [to_torchdtype(dt) for dt in dtype]
             else: dtype = [to_torchdtype(dtype)]
         if numcoll_dtype not in dtype: return False
     # We match everything!
     return True
 
-# Numpy Arrays #####################################################################################
-# For testing whether numpy arrays or pytorch tensors have the appropriate dimensionality, shape,
-# and dtype, we use some helper functions.
+# Numpy Arrays #################################################################
+# For testing whether numpy arrays or pytorch tensors have the appropriate
+# dimensionality, shape, and dtype, we use some helper functions.
 from numpy import dtype as numpy_dtype
 @docwrap
 def is_numpydtype(dt):
@@ -278,8 +288,9 @@ def is_array(obj,
     `pint.Quantity` object whose magnitude is one of these. Additional
     constraints may be placed on the object via the optional argments.
 
-    Note that to `pimms`, both `numpy.ndarray` arrays and `scipy.sparse` matrices are
-    considered "arrays". This behavior can be changed with the `sparse` parameter.
+    Note that to `pimms`, both `numpy.ndarray` arrays and `scipy.sparse`
+    matrices are considered "arrays". This behavior can be changed with the
+    `sparse` parameter.
 
     Parameters
     ----------
@@ -354,14 +365,15 @@ def is_array(obj,
         if quant is True: return False
         if ureg is None: from pimms import units as ureg
         u = None
-    # At this point we want to check if this is a valid numpy array or scipy sparse matrix; however
-    # how we handle the answer to this question depends on the sparse parameter.
+    # At this point we want to check if this is a valid numpy array or scipy
+    # sparse matrix; however how we handle the answer to this question depends
+    # on the sparse parameter.
     if sparse is True:
-        if not scipy_issparse(obj): return False
+        if not scipy__is_sparse(obj): return False
     elif sparse is False:
         if not isinstance(obj, ndarray): return False
     elif sparse is None:
-        if not (isinstance(obj, ndarray) or scipy_issparse(obj)): return False
+        if not (isinstance(obj, ndarray) or scipy__is_sparse(obj)): return False
     elif is_str(sparse):
         sparse = strnorm(sparse.strip(), case=True, unicode=False)
         if sparse == 'bsr':
@@ -385,13 +397,15 @@ def is_array(obj,
     # Check that the object is read-only
     if readonly is not None:
         if readonly is True:
-            if scipy_issparse(obj) or obj.flags['WRITEABLE']: return False
+            if scipy__is_sparse(obj) or obj.flags['WRITEABLE']: return False
         elif readonly is False:
-            if not scipy_issparse(obj) and not obj.flags['WRITEABLE']: return False
+            if not scipy__is_sparse(obj) and not obj.flags['WRITEABLE']:
+                return False
         else:
-            raise ValueError(f"invalid value for parameter readonly: {readonly}")
+            raise ValueError(f"invalid parameter readonly: {readonly}")
     # Next, check compatibility of the units.
-    if units is not Ellipsis and not ureg.is_compatible_with(u, units): return False
+    if units is not Ellipsis and not ureg.is_compatible_with(u, units):
+        return False
     # Check the match to the numeric collection last.
     if dtype is None and shape is None and ndim is None: return True
     return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
@@ -483,18 +497,21 @@ def to_array(obj,
         q = None
         if ureg is None: ureg = pimms.units
         if quant is None: quant = False
-    # Translate obj depending on whether it's a pytorch array / scipy sparse matrix.
-    # We need to think about whether the output array is being requested in sparse
-    # format. If so, we handle the conversion differently.
-    obj_is_spsparse = scipy_issparse(obj)
-    obj_is_tensor = not obj_is_spsparse and torch is not None and torch.is_tensor(obj)
+    # Translate obj depending on whether it's a pytorch array / scipy sparse
+    # matrix.  We need to think about whether the output array is being
+    # requested in sparse format. If so, we handle the conversion differently.
+    obj_is_spsparse = scipy__is_sparse(obj)
+    obj_is_tensor = not obj_is_spsparse and torch__is_tensor(obj)
     obj_is_sparse = obj_is_spsparse or (obj_is_tensor and obj.is_sparse)
     newarr = False # True means we own the memory of arr; False means we don't.
     if sparse is not False and (sparse is not None or obj_is_sparse):
         if sparse is None or sparse is True:
-            sparse = (('csr' if obj.layout == torch.sparse_csr else 'coo') if obj_is_tensor else
-                      type(obj).__name__[:3]                               if obj_is_sparse else
-                      'coo')
+            if obj_is_tensor:
+                sparse = ('csr' if obj.layout == torch.sparse_csr else 'coo')
+            elif obj_is_sparse:
+                sparse = type(obj).__name__[:3]
+            else:
+                sprase = 'coo'
         sparse = strnorm(sparse.strip(), case=True, unicode=False)
         mtype = (sps.bsr_matrix if sparse == 'bsr' else
                  sps.coo_matrix if sparse == 'coo' else
@@ -518,7 +535,8 @@ def to_array(obj,
                 if uu is not vv: newarr = True
                 arr = mtype((vv, tuple(ii)), shape=arr.shape)
             else:
-                # We're creating a scipy sparse output from another scipy sparse matrix.
+                # We're creating a scipy sparse output from another scipy sparse
+                # matrix.
                 (rr,cc,uu) = sps.find(obj)
                 vv = np.array(uu, dtyp=dtype, order=order, copy=copy)
                 if mtype is type(obj) and uu is vv:
@@ -535,17 +553,20 @@ def to_array(obj,
             # We just call the appropriate constructor.
             arr = mtype(arr)
             newarr = True
-        # We mark sparse as True so that below we know that the output is sparse.
+        # We mark sparse as True so that below we know that the output is
+        # sparse.
         sparse = True
     else:
         # We are creating a dense array output.
         if obj_is_sparse:
             # We are creating a dense array output from a sparse input.
             if obj_is_tensor:
-                # We are creating a dense array output from a sparse tensor input.
+                # We are creating a dense array output from a sparse tensor
+                # input.
                 arr = obj.todense().detach().numpy()
             else:
-                # We are creating a dense array output from a scipy sparse matrix input.
+                # We are creating a dense array output from a scipy sparse
+                # matrix input.
                 arr = obj.todense()
             # In both of these cases, a copy has already been made.
             arr = np.asarray(arr, dtype=dtype, order=order)
@@ -553,21 +574,25 @@ def to_array(obj,
         else:
             # We are creating a dense array output from a dense input.
             if obj_is_tensor:
-                # We are creating a dense array output from a dense tensor input.
+                # We are creating a dense array output from a dense tensor
+                # input.
                 arr = obj.detach().numpy()
             else:
                 arr = obj
-            # Whether we call array() or asarray() depends on the copy parameter.
+            # Whether we call array() or asarray() depends on the copy
+            # parameter.
             tmp = np.array(arr, dtype=dtype, order=order, copy=copy)
             newarr = tmp is not arr
             arr = tmp
-        # We mark sparse as False so that below we know that the output is dense.
+        # We mark sparse as False so that below we know that the output is
+        # dense.
         sparse = False
-    # If a read-only array is requested, we either return the object itself (if it is already a
-    # read-only array), or we make a copy and make it read-only.
+    # If a read-only array is requested, we either return the object itself (if
+    # it is already a read-only array), or we make a copy and make it read-only.
     if readonly is not None:
         if readonly is True:
-            if sparse: raise ValueError("scipy sparse matrices cannot be made read-only")
+            if sparse:
+                raise ValueError("scipy sparse matrices cannot be read-only")
             if arr.flags['WRITEABLE']:
                 if not newarr: arr = np.array(arr)
                 arr.flags['WRITEABLE'] = False
@@ -592,7 +617,8 @@ def to_array(obj,
             # We return the current array/magnitude whatever its units.
             return arr
         elif q is None:
-            # We just pretend this was already in the given units (i.e., ignore units).
+            # We just pretend this was already in the given units (i.e., ignore
+            # units).
             return arr
         else:
             if obj is not arr: q = ureg.Quantity(arr, q.u)
@@ -601,17 +627,19 @@ def to_array(obj,
     else:
         raise ValueError(f"invalid value for quant: {quant}")
 
-# PyTorch Tensors ##################################################################################
-# If PyTorch isn't imported, that's fine, we just write our methods to generate errors. We want
-# these errors to explain the problem, so we create our own error type, then have a wrapper for the
-# functions that follow that automatically raise the error when torch isn't found.
+# PyTorch Tensors ##############################################################
+# If PyTorch isn't imported, that's fine, we just write our methods to generate
+# errors. We want these errors to explain the problem, so we create our own
+# error type, then have a wrapper for the functions that follow that
+# automatically raise the error when torch isn't found.
 class TorchNotFound(Exception):
     """Exception raised when PyTorch is requested but is not installed."""
     def __str__(self):
         return ("PyTorch not found.\n\n"
                 "The Pimms Library does not require PyTorch, but it must\n"
                 "be installed for certain operations to work.\n\n"
-                "See https://pytorch.org/get-started/locally/ for help installing PyTorch.")
+                "See https://pytorch.org/get-started/locally/ for help\n"
+                "installing PyTorch.")
     @staticmethod
     def raise_self(*args, **kw):
         """Raises a `TorchNotFound` error."""
@@ -619,6 +647,7 @@ class TorchNotFound(Exception):
 try:
     import torch
     from torch import Tensor
+    from torch import is_tensor as torch__is_tensor
     @docwrap(indent=8)
     def checktorch(f):
         """Decorator, ensures that PyTorch functions throw an error when torch
@@ -648,6 +677,8 @@ try:
 except (ModuleNotFoundError, ImportError) as e:
     torch = None
     Tensor = None
+    def torch__is_tensor(obj):
+        return False
     def checktorch(f):
         """Decorator, ensures that PyTorch functions throw an error when torch
         isn't found.
@@ -676,9 +707,10 @@ except (ModuleNotFoundError, ImportError) as e:
         """
         from functools import wraps
         return (lambda f: wraps(f)(f_alt))
-# At this point, either torch has been imported or it hasn't, but either way, we can use @checktorch
-# to make sure that errors are thrown when torch isn't present. Otherwise, we can just write the
-# functions assuming that torch is imported.
+# At this point, either torch has been imported or it hasn't, but either way, we
+# can use @checktorch to make sure that errors are thrown when torch isn't
+# present. Otherwise, we can just write the functions assuming that torch is
+# imported.
 @docwrap
 @alttorch(lambda dt: False)
 def is_torchdtype(dt):
@@ -804,9 +836,9 @@ def is_tensor(obj,
         of dimensions must be exactly that integer. If this is a list or tuple
         of integers, then the dimensionality must be one of these numbers.
     shape : int or tuple of ints or None, optional
-        If the `shape` parameter is not `None`, then the given `obj` must have a shape
-        shape that matches the parameter value `sh`. The value `sh` must be a
-        tuple that is equal to the `obj`'s shape tuple with the following
+        If the `shape` parameter is not `None`, then the given `obj` must have a
+        shape shape that matches the parameter value `sh`. The value `sh` must
+        be a tuple that is equal to the `obj`'s shape tuple with the following
         additional rules: a `-1` value in the `sh` tuple will match any value in
         the `obj`'s shape tuple, and a single `Ellipsis` may appear in `sh`,
         which matches any number of values in the `obj`'s shape tuple. The
@@ -829,10 +861,10 @@ def is_tensor(obj,
         is a string, then it must be either `'coo'` or `'csr'`, indicating the
         required sparse array type.
     quant : boolean, optional
-        Whether `Quantity` objects should be considered valid tensors or not.  If
-        `quant=True` then `obj` is considered a valid array only when `obj` is a
-        quantity object with a `torch` tensor as the magnitude. If `False`, then
-        `obj` must be a `torch` tensor itself and not a `Quantity` to be
+        Whether `Quantity` objects should be considered valid tensors or not.
+        If `quant=True` then `obj` is considered a valid array only when `obj`
+        is a quantity object with a `torch` tensor as the magnitude. If `False`,
+        then `obj` must be a `torch` tensor itself and not a `Quantity` to be
         considered valid. If `None` (the default), then either quantities or
         `torch` tensors are considered valid.
     units : unit-like or Ellipsis, optional
@@ -880,7 +912,8 @@ def is_tensor(obj,
         if obj.layout != torch.sparse_csr: return False
     elif sparse is not None:
         raise ValueErroor(f"invalid sparse parameter: {sparse}")
-    if units is not Ellipsis and not ureg.is_compatible_with(u, units): return False
+    if units is not Ellipsis and not ureg.is_compatible_with(u, units):
+        return False
     # Check the match to the numeric collection last.
     if dtype is None and shape is None and ndim is None: return True
     return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
@@ -969,29 +1002,34 @@ def to_tensor(obj,
         q = None
         if ureg is None: ureg = pimms.units
         if quant is None: quant = False
-    # Translate obj depending on whether it's a pytorch tensor already or a scipy sparse matrix.
+    # Translate obj depending on whether it's a pytorch tensor already or a
+    # scipy sparse matrix.
     if torch.is_tensor(obj):
         if requires_grad is None: requires_grad = obj.requires_grad
         if device is None: device = obj.device
         if copy or requires_grad != obj.requires_grad:
-            arr = torch.tensor(obj, dtype=dtype, device=device, requires_grad=requires_grad)
+            arr = torch.tensor(obj, dtype=dtype, device=device,
+                               requires_grad=requires_grad)
         else:
             arr = torch.as_tensor(obj, dtype=dtype, device=device)
         arr = obj
-    elif scipy_issparse(obj):
+    elif scipy__is_sparse(obj):
         if requires_grad is None: requires_grad = False
         (rows, cols, vals) = sps.find(obj)
         # Process these into a PyTorch COO matrix.
         ii = torch.tensor([rows, cols], dtype=torch.long, device=device)
         arr = torch.sparse_coo_tensor(ii, vals, obj.shape,
-                                      dtype=dtype, device=device, requires_grad=requires_grad)
+                                      dtype=dtype, device=device,
+                                      requires_grad=requires_grad)
         # Convert to a CSR tensor if we were given a CSR matrix.
         if isinstance(obj, sps.csr_matrix): arr = arr.to_sparse_csr()
     elif copy or requires_grad is True:
-        arr = torch.tensor(arr, dtype=dtype, device=devce, requires_grad=requires_grad)
+        arr = torch.tensor(arr, dtype=dtype, device=devce,
+                           requires_grad=requires_grad)
     else:
         arr = torch.as_tensor(arr, dtype=dtype, device=device)
-    # If there is an instruction regarding the output's sparsity, handle that now.
+    # If there is an instruction regarding the output's sparsity, handle that
+    # now.
     if sparse is True:
         # arr must be sparse (COO by default); make sure it is.
         if not arr.is_sparse: arr = arr.to_sparse()
@@ -1006,7 +1044,8 @@ def to_tensor(obj,
         if arr.layout is not torch.sparse_coo:
             arr = arr.coalesce()
             arr = torch.sparse_coo_tensor(arr.indices(), arr.vales(), arr.shape,
-                                          dtype=dtype, device=device, requires_grad=requires_grad)
+                                          dtype=dtype, device=device,
+                                          requires_grad=requires_grad)
     elif sparse is not None:
         raise ValueError(f"invalid value for parameter sparse: {sparse}")
     # Next, we switch on whether we are being asked to return a quantity or not.
@@ -1025,7 +1064,8 @@ def to_tensor(obj,
             # We return the current array/magnitude whatever its units.
             return arr
         elif q is None:
-            # We just pretend this was already in the given units (i.e., ignore units).
+            # We just pretend this was already in the given units (i.e., ignore
+            # units).
             return arr
         else:
             if obj is not arr: q = ureg.Quantity(arr, q.u)
@@ -1034,7 +1074,7 @@ def to_tensor(obj,
     else:
         raise ValueError(f"invalid value for quant: {quant}")
 
-# General Numeric Collection Functions #############################################################
+# General Numeric Collection Functions #########################################
 @docwrap
 def is_numeric(obj,
                dtype=None, shape=None, ndim=None,
@@ -1089,7 +1129,7 @@ def is_numeric(obj,
         either quantities or numerical objects are considered valid.
     units : unit-like or Ellipsis, optional
         A unit with which the object obj's units must be compatible in order for
-        `obj` to be considered a valid numerical objbect. An `obj` that is not a
+        `obj` to be considered a valid numerical object. An `obj` that is not a
         quantity is considered to have dimensionless units. If `units=Ellipsis`
         (the default), then the object's units are ignored.
     ureg : UnitRegistry or None or Ellipsis, optional
@@ -1103,7 +1143,7 @@ def is_numeric(obj,
     boolean
         `True` if `obj` is a valid numerical object, otherwise `False`.
     """
-    if torch is not None and torch.is_tensor(obj):
+    if torch__is_tensor(obj):
         return is_tensor(obj,
                          dtype=dtype, shape=shape, ndim=ndim,
                          sparse=sparse, quant=quant, units=units, ureg=ureg)
@@ -1182,7 +1222,7 @@ def to_numeric(obj,
         If invalid parameter values are given or if the parameters conflict.
 
     """
-    if torch is not None and torch.is_tensor(obj):
+    if torch__is_tensor(obj):
         return to_tensor(obj,
                          dtype=dtype, shape=shape, ndim=ndim,
                          sparse=sparse, quant=quant, units=units, ureg=ureg)
@@ -1192,8 +1232,8 @@ def to_numeric(obj,
                         sparse=sparse, quant=quant, units=units, ureg=ureg)
 
 
-# Sparse Matrices and Dense Collections#############################################################
-from scipy.sparse import issparse as scipy_issparse
+# Sparse Matrices and Dense Collections#########################################
+from scipy.sparse import issparse as scipy__is_sparse
 @docwrap
 def is_sparse(obj,
               dtype=None, shape=None, ndim=None,
@@ -1318,7 +1358,7 @@ def to_dense(obj,
                       dtype=dtype, shape=shape, ndim=ndim,
                       quant=quant, ureg=ureg, units=units)
 
-# Strings ##########################################################################################
+# Strings ######################################################################
 @docwrap
 def is_str(obj):
     """Returns `True` if an object is a string and `False` otherwise.
@@ -1375,6 +1415,25 @@ def strnorm(s, case=False, unicode=True):
     elif case:
         s = s.casefold()
     return s
+def _strbinop_prp(a, b, case=True, unicode=None, strip=False):
+    if not is_str(a) or not is_str(b): return None
+    # We do case normalization when case comparison is *not* requested
+    casenorm = not bool(case)
+    # When unicode is None, we do its normalization only when case normalization
+    # is being done.
+    if unicode is None: unicode = casenorm
+    # We now perform normalization if it is required.
+    if unicode or casenorm:
+        a = strnorm(a, case=casenorm, unicode=unicode)
+        b = strnorm(b, case=casenorm, unicode=unicode)
+    # If we requested stripping, do that now.
+    if strip is True:
+        a = a.strip()
+        b = b.strip()
+    elif strip is not False:
+        a = a.strip(strip)
+        b = b.strip(strip)
+    return (a,b)
 @docwrap
 def strcmp(a, b, case=True, unicode=None, strip=False, split=False):
     """Determines if the given objects are equal strings and compares them.
@@ -1425,24 +1484,11 @@ def strcmp(a, b, case=True, unicode=None, strip=False, split=False):
         if `a` is lexicographically greater than `b`, subject to the constraints
         of the optional parameters.
     """
-    if not is_str(a) or not is_str(b): return None
-    # We do case normalization when case comparison is *not* requested
-    casenorm = not bool(case)
-    # When unicode is None, we do its normalization only when case normalization is being done.
-    if unicode is None: unicode = casenorm
-    # We now perform normalization if it is required.
-    if unicode or casenorm:
-        a = strnorm(a, case=casenorm, unicode=unicode)
-        b = strnorm(b, case=casenorm, unicode=unicode)
-    # If we requested stripping, do that now.
-    if strip is not False:
-        if strip is True:
-            a = a.strip()
-            b = b.strip()
-        else:
-            a = a.strip(strip)
-            b = b.strip(strip)
-    # If straightforward non-split comparison is requested, we can just return the comparison
+    prep = _strbinop_prep(a, b, case=case, unicode=unicode, strip=strip)
+    if prep is None: return None
+    else: (a, b) = prep
+    # If straightforward non-split comparison is requested, we can just return
+    # the comparison
     if split is False:
         return (-1 if a < b else 1 if a > b else 0)
     # Otherwise, we split then do a list comparison.
@@ -1452,7 +1498,8 @@ def strcmp(a, b, case=True, unicode=None, strip=False, split=False):
     else:
         a = a.split(split)
         b = b.split(split)
-    # We do this efficiently, by first comparing elements in order, then lenghts.
+    # We do this efficiently, by first comparing elements in order, then
+    # lenghts.
     for (aa,bb) in zip(a,b):
         if   aa < bb: return -1
         elif aa > bb: return 1
@@ -1480,8 +1527,57 @@ def streq(a, b, case=True, unicode=None, strip=False, split=False):
     """
     cmpval = strcmp(a, b, case=case, unicode=unicode, strip=strip, split=split)
     return cmpval == 0
+@docwrap
+def strends(a, b, case=True, unicode=None, strip=False):
+    """Determines if the string `a` ends with the string `b` or not.
 
-# Builtin Python Abstract Types ####################################################################
+    `strends(a, b)` returns `True` if `a` and `b` are both strings and if `a`
+    ends with `b`, subject to the constraints of the parameters.
+
+    Parameters
+    ----------
+    %(pimms.types._core.strcmp.parameters.case)s
+    %(pimms.types._core.strcmp.parameters.unicode)s
+    %(pimms.types._core.strcmp.parameters.strip)s
+
+    Returns
+    -------
+    boolean
+        `True` if `a` and `b` are both strings and if `a` ends with `b`,
+        subject to the constraints of the optional parameters.
+    """
+    prep = _strbinop_prep(a, b, case=case, unicode=unicode, strip=strip)
+    if prep is None: return None
+    else: (a, b) = prep
+    # Check the ending
+    return a.endswith(b)
+@docwrap
+def strstarts(a, b, case=True, unicode=None, strip=False):
+    """Determines if the string `a` starts with the string `b` or not.
+
+    `strstarts(a, b)` returns `True` if `a` and `b` are both strings
+    and if `a` starts with `b`, subject to the constraints of the
+    parameters.
+
+    Parameters
+    ----------
+    %(pimms.types._core.strcmp.parameters.case)s
+    %(pimms.types._core.strcmp.parameters.unicode)s
+    %(pimms.types._core.strcmp.parameters.strip)s
+
+    Returns
+    -------
+    boolean
+        `True` if `a` and `b` are both strings and if `a` starts with `b`,
+        subject to the constraints of the optional parameters.
+    """
+    prep = _strbinop_prep(a, b, case=case, unicode=unicode, strip=strip)
+    if prep is None: return None
+    else: (a, b) = prep
+    # Check the beginning.
+    return a.startswith(b)
+
+# Builtin Python Abstract Types ################################################
 from collections.abc import Callable
 @docwrap
 def is_callable(obj):
@@ -1489,6 +1585,10 @@ def is_callable(obj):
 
     `is_callable(obj)` returns `True` if the given object `obj` is an instance
     of the `collections.abc.Callable` type.
+
+    Note that this function is included in `pimms` for historical
+    reasons, but it should not generally be used, as the `callable()`
+    function is a built-in Python function that does the same thing.
 
     Parameters
     ----------
@@ -1499,8 +1599,48 @@ def is_callable(obj):
     -------
     boolean
         `True` if `obj` is an instance of `Callable`, otherwise `False`.
+
     """
     return isinstance(obj, Callable)
+def void_callable(f):
+    """Returns `True` if and only if the argument `f` can be called as `f()`.
+
+    `void_callable(f)` returns `True` when `f` can be called without any
+    arguments and `False` otherwise. This does not guarantee that `f` will
+    succeed, but it guarantees that `f` doesn't require a first
+    argument. Objects are void-callable whenever they are both callable and have
+    no required parameters or when they are a type whose `__init__` function has
+    only the `self` parameter as a required parameter.
+
+    Note that for built-in functions, it cannot be determined if they are
+    void-callable or not except by trying to call them directly; for such
+    objects, `None` is returned.
+
+    Parameters
+    ----------
+    f : object
+        The object whose quality as a void-callable function is to be assessed.
+
+    Returns
+    -------
+    boolean
+        `True` if `f` can be called as `f()` and `False` otherwise; if
+        `f` is a built-in function then `None` is returned.
+    """
+    if not callable(f):
+        return False
+    if isinstance(f, type):
+        try: spec = inspect.getfullargspec(f.__init__)
+        except TypeError: return None
+        narg = len(spec.args)
+        ndef = 0 if spec.defaults is None else len(spec.defaults)
+        return narg - ndef == 1
+    else:
+        try: spec = inspect.getfullargspec(f.__init__)
+        except TypeError: return None
+        narg = len(spec.args)
+        ndef = 0 if spec.defaults is None else len(spec.defaults)
+        return narg == ndef
 from collections.abc import Sized
 @docwrap
 def is_sized(obj, unit=Ellipsis):
@@ -1652,13 +1792,14 @@ from collections.abc import MutableSequence
 def is_mseq(obj):
     """Returns `True` if an object is a mutable sequence, otherwise `False`.
 
-    `is_mseq(obj)` returns `True` if the given object `obj` is an instance of the
-    `collections.abc.MutableSequence` type.
+    `is_mseq(obj)` returns `True` if the given object `obj` is an instance of
+    the `collections.abc.MutableSequence` type.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as an `MutableSequence` object is to be assessed.
+        The object whose quality as an `MutableSequence` object is to be
+        assessed.
 
     Returns
     -------
@@ -1709,8 +1850,8 @@ from collections.abc import MutableSet
 def is_mset(obj):
     """Returns `True` if an object is a mutable set, otherwise `False`.
 
-    `is_mset(obj)` returns `True` if the given object `obj` is an instance of the
-    `collections.abc.MutableSet` type.
+    `is_mset(obj)` returns `True` if the given object `obj` is an instance of
+    the `collections.abc.MutableSet` type.
 
     Parameters
     ----------
@@ -1747,13 +1888,14 @@ from collections.abc import MutableMapping
 def is_mmap(obj):
     """Returns `True` if an object is a mutable mapping, otherwise `False`.
 
-    `is_mmap(obj)` returns `True` if the given object `obj` is an instance of the
-    `collections.abc.MutableMapping` type.
+    `is_mmap(obj)` returns `True` if the given object `obj` is an instance of
+    the `collections.abc.MutableMapping` type.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as an `MutableMapping` object is to be assessed.
+        The object whose quality as an `MutableMapping` object is to be
+        assessed.
 
     Returns
     -------
@@ -1781,7 +1923,7 @@ def is_hashable(obj):
     """
     return isinstance(obj, Hashable)
 
-# Builtin Python Concrete Types ####################################################################
+# Builtin Python Concrete Types ################################################
 @docwrap
 def is_list(obj):
     """Returns `True` if an object is a `list` object.
@@ -1843,6 +1985,8 @@ def is_frozenset(obj):
     `is_frozenset(obj)` returns `True` if the given object `obj` is an instance
     of the `frozenset` type.
 
+    `is_fset(obj)` is an alias for `is_frozenset(obj)`.
+
     Parameters
     ----------
     obj : object
@@ -1854,6 +1998,7 @@ def is_frozenset(obj):
         `True` if `obj` is an instance of `frozenset`, otherwise `False`.
     """
     return isinstance(obj, frozenset)
+is_fset = is_frozenset
 @docwrap
 def is_dict(obj):
     """Returns `True` if an object is a `dict` object.
@@ -1896,7 +2041,7 @@ def is_odict(obj):
 from collections import defaultdict
 @docwrap
 def is_ddict(obj):
-    """Returns `True` if an object is an `defaultdict` object.
+    """Returns `True` if an object is a `defaultdict` object.
 
     `is_ddict(obj)` returns `True` if the given object `obj` is an instance of
     the `collections.defaultdict` type.
@@ -1904,7 +2049,7 @@ def is_ddict(obj):
     Parameters
     ----------
     obj : object
-        The object whose quality as an `defaultdict` object is to be assessed.
+        The object whose quality as a `defaultdict` object is to be assessed.
 
     Returns
     -------
@@ -1913,81 +2058,240 @@ def is_ddict(obj):
 
     """
     return isinstance(obj, defaultdict)
-
-# Persistent Types #################################################################################
-from pyrsistent import PVector
+from frozendict import frozendict
 @docwrap
-def is_pvector(obj):
-    """Returns `True` if an object is an `PVector` object.
+def is_frozendict(obj):
+    """Returns `True` if an object is a `frozendict` object.
 
-    `is_pvector(obj)` returns `True` if the given object `obj` is an instance of
-    the `pyrsistent.PVector` type.
+    `is_frozendict(obj)` returns `True` if the given object `obj` is an instance
+    of the `frozendict.frozendict` type.
+
+    `is_fdict(obj)` is an alias for `is_frozendict(obj)`.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as an `PVector` object is to be assessed.
+        The object whose quality as a `frozendict` object is to be assessed.
 
     Returns
     -------
     boolean
-        `True` if `obj` is an instance of `PVector`, otherwise `False`.
+        `True` if `obj` is an instance of `frozendict`, otherwise `False`.
     """
-    return isinstance(obj, PVector)
-from pyrsistent import PList
+    return isinstance(obj, frozendict)
+is_fdict = is_frozendict
+from frozendict import FrozenOrderedDict
 @docwrap
-def is_plist(obj):
-    """Returns `True` if an object is an `PList` object.
+def is_fodict(obj):
+    """Returns `True` if an object is a `FrozenOrderedDict` object.
 
-    `is_plist(obj)` returns `True` if the given object `obj` is an instance of
-    the `pyrsistent.PList` type.
+    `is_fodict(obj)` returns `True` if the given object `obj` is an instance of
+    the `frozendict.FrozenOrderedDict` type.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as an `PList` object is to be assessed.
+        The object whose quality as a `FrozenOrderedDict` object is to be
+        assessed.
 
     Returns
     -------
     boolean
-        `True` if `obj` is an instance of `PList`, otherwise `False`.
+        `True` if `obj` is an instance of `FrozenOrderedDict`, otherwise
+        `False`.
     """
-    return isinstance(obj, PList)
-from pyrsistent import PSet
-@docwrap
-def is_pset(obj):
-    """Returns `True` if an object is an `PSet` object.
+    return isinstance(obj, FrozenOrderedDict)
+def hashsafe(obj):
+    """Returns `hash(obj)` if `obj` is hashable, otherwise returns `None`.
 
-    `is_pset(obj)` returns `True` if the given object `obj` is an instance of
-    the `pyrsistent.PSet` type.
+    See also `is_hashable`; note that a fairly reliable test of immutability
+    versus mutability for a Python object is whether it is hashable.
+    
+    Parameters
+    ----------
+    obj : object
+        The object to be hashed.
+
+    Returns
+    -------
+    int
+        If the object is hashable, returns the hashcode.
+    None
+        If the object is not hashable, returns `None`.
+    """
+    try:              return hash(obj)
+    except TypeError: return None
+def is_hashable(obj):
+    """Returns `True` if `obj` is hashable and `False` otherwise.
+
+    `is_hashable(obj)` is equivalent to `hashsafe(obj) is not None`.
+
+    Note that in Python, all builtin immutable types are hashable while all
+    builtin mutable types are not.
+    """
+    return hashsafe(obj) is not None
+def is_frozen(obj):
+    """Returns `True` if an object is a `frozendict`, `frozenset`, or `tuple`.
+
+    `is_frozen(obj)` returns `True` if the given object `obj` is an instance
+    of the `frozendict.frozendict`, `frozenset`, or `tuple` types, all of which
+    are "frozen" (immutable).
+
+    In addition to being one of the above types, an object is considered frozen
+    if it is a `numpy` array whose `'WRITEABLE'` flag has been set to `False`.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as an `PSet` object is to be assessed.
+        The object whose quality as an frozen object is to be assessed.
 
     Returns
     -------
     boolean
-        `True` if `obj` is an instance of `PSet`, otherwise `False`.
+        `True` if `obj` is frozen, otherwise `False`.    
     """
-    return isinstance(obj, PSet)
-from pyrsistent import PMap
-@docwrap
-def is_pmap(obj):
-    """Returns `True` if an object is an `PMap` object.
+    if   isinstance(obj, is_frozen.frozen_types): return True
+    elif isinstance(obj, ndarray): return not obj.flags['WRITEABLE']
+    else: return False
+is_frozen.frozen_types = (tuple, frozenset, frozendict)
+def is_thawed(obj):
+    """Returns `True` if an object is a `dict`, `set`, or `list`.
 
-    `is_pmap(obj)` returns `True` if the given object `obj` is an instance of
-    the `pyrsistent.PMap` type.
+    `is_thawed(obj)` returns `True` if the given object `obj` is an instance of
+    the `dict`, `set`, or `list` types, all of which are "thawed" (mutable)
+    instances of other frozen types.
+
+    In addition to being one of the above types, an object is considered thawed
+    if it is a `numpy` array whose `'WRITEABLE'` flag has been set to `True`.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as an `PMap` object is to be assessed.
+        The object whose quality as an thawed object is to be assessed.
 
     Returns
     -------
     boolean
-        `True` if `obj` is an instance of `PMap`, otherwise `False`.
+        `True` if `obj` is thawed, otherwise `False`.
     """
-    return isinstance(obj, PMap)
+    if   isinstance(obj, is_thawed.thawed_types): return True
+    elif isinstance(obj, ndarray): return obj.flags['WRITEABLE']
+    else: return False
+is_thawed.thawed_types = (list, set, dict)
+def frozenarray(arr, copy=None, subok=False):
+    """Returns a copy of the given NumPy array that is read-only.
+
+    If the argument `arr` is already a NumPy `ndarray` with its `'WRITEABLE'`
+    flag set to `False`, then `arr` is returned; otherwise, a copy is made, its
+    write-flag is set to `False`, and it is returned.
+
+    If `arr` is not a NumPy array, it is first converted into one.
+
+    Parameters
+    ----------
+    arr : array-like
+        The NumPy array to freeze or an object to convert into a frozen NumPy
+        array.
+    copy : boolean or None, optional
+        If `True` or `False`, then forces the array to be copied or not copied;
+        if `None`, then a copy is made if the object is writeable and no copy
+        is made otherwise.
+    subok : boolean, optional
+        If True, then sub-classes will be passed-through, otherwise the returned
+        array will be forced to be a base-class array (defaults to False).
+
+    Returns
+    -------
+    numpy.ndarray
+        A read-only copy of `arr` (or `arr` itself if it is already read-only).
+
+    Raises
+    ------
+    TypeError
+        If `arr` is not a NumPy array.
+    """
+    if not isinstance(arr, ndarray):
+        if copy is None: copy = True
+        arr = np.array(arr, copy=copy, subok=subok)
+        copy = False
+    rw = arr.flags['WRITEABLE']
+    if copy is None: copy = rw
+    if copy: arr = np.copy(arr, subok=subok)
+    if rw: arr.setflags(write=False)
+    return arr
+def freeze(obj):
+    """Converts certain collections into frozen (immutable) versions.
+
+    This function converts `list`s into `tuple`s, `set`s into `frozenset`s, and
+    `dict`s into `frozendict`s. If given a NumPy array whose writeable flag is
+    set, it returns a duplicate copy that is read-only. If the given object is
+    already one of these frozen types, it is returned as-it. Otherwise, an error
+    is raised.
+
+    Parameters
+    ----------
+    obj : object
+        The object to be frozen.
+
+    Returns
+    -------
+    object
+        A frozen version of `obj` if `obj` is not already frozen, and `obj`
+        if it is already frozen.
+
+    Raises
+    ------
+    TypeError
+        If the type of the object is not recognized.
+    """
+    if is_frozen(obj):
+        return obj
+    for (base, conv_fn) in freeze.freeze_types.items():
+        if isinstance(obj, base):
+            return conv_fn(obj)
+    raise TypeError(f"cannot freeze object of type {type(obj)}")
+freeze.freeze_types = {list:        tuple,
+                       set:         frozenset,
+                       ndarray:     frozenarray,
+                       OrderedDict: FrozenOrderedDict,
+                       dict:        frozendict}
+def thaw(obj, copy=False):
+    """Converts certain frozen collections into thawed (mutable) versions.
+
+    This function converts `tuple`s into `list`s, `frozenset`s into `set`s, and
+    `frozendict`s into `dict`s. If given a NumPy array whose writeable flag is
+    unset, it returns a duplicate copy that is writeable. If the given object is
+    already one of these thawed types, it is returned. Otherwise, an error is
+    raised.
+
+    Parameters
+    ----------
+    obj : object
+        The object to be thawed.
+
+    Returns
+    -------
+    object : object
+        A thawed copy of `obj`. Note that if `obj` is already a thawed object,
+        a duplicate is returned if and only if the `copy` option is `True`.
+    copy : boolean, optional
+        Whether to return a copy of `object` if `object` is already a thawed
+        type. The default is `False`, indicating that the object should be
+        returned as-is if it is thawed.
+
+    Raises
+    ------
+    TypeError
+        If the type of the object is not recognized.
+    """
+    if is_thawed(obj):
+        return obj.copy() if copy else obj
+    for (base, conv_fn) in that.thawed_types.items():
+        if isinstance(obj, base):
+            return conv_fn(obj)
+    raise TypeError(f"cannot thaw object of type {type(obj)}")
+thaw.thawed_types = {tuple:             list,
+                     frozenset:         set,
+                     ndarray:           array,
+                     FrozenOrderedDict: OrderedDict,
+                     frozendict:        dict}

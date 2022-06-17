@@ -62,7 +62,7 @@ def docwrap(f=None, indent=4):
     """
     # If we've been given a string, then we've been called as @docwrap(name) instead of @docwrap.
     if f is None:
-        return lambda fn: _docwrap(fn, fn.__module__ + '.' + fn.__name__), indent=indent)
+        return lambda fn: _docwrap(fn, fn.__module__ + '.' + fn.__name__, indent=indent)
     if isinstance(f, str):
         return lambda fn: _docwrap(fn, f, indent=indent)
     else:

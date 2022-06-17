@@ -1,4 +1,4 @@
-pyrsistent >= 0.17.3
+frozendict >= 2.3.2
 numpy >= 1.20.3
 scipy >= 1.7.3
 pint >= 0.18.0

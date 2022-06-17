@@ -1,18 +1,21 @@
-####################################################################################################
+# -*- coding: utf-8 -*-
+################################################################################
 # pimms/__init__.py
 #
 # This source-code file is part of the pimms library.
 #
-# The pimms library is free software: you can redistribute it and/or modify it under the terms of
-# the GNU General Public License as published by the Free Software Foundation, either version 3 of
-# the License, or (at your option) any later version.
+# The pimms library is free software: you can redistribute it and/or modify it
+# under the terms of the GNU General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
 # 
-# This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
-# even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-# General Public License for more details.
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
+# details.
 # 
-# You should have received a copy of the GNU General Public License along with this program.  If
-# not, see <http://www.gnu.org/licenses/>.
+# You should have received a copy of the GNU General Public License along with
+# this program.  If not, see <http://www.gnu.org/licenses/>.
 
 '''The Python Immutables and scientific utilities library.
 
@@ -166,26 +169,28 @@ Additionally, the default registry (this object, `pimms.units`) can be
 temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
 """
 
+# We also want to import everything in the lazydict module.
+from .lazydict import *
 
-from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lmap,
-                          lazy_value_map, value_map, key_map, collect, flatten_maps,
-                          is_persistent, is_map, is_pmap, is_lazy_map, is_str, is_class,
-                          is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
-                          is_array, is_scalar, is_vector, is_matrix,
-                          is_tuple, is_list, is_set, is_seq, is_pseq,
-                          is_int, is_float, is_real, is_complex, is_number,
-                          is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
-                          imm_array, qhashform, qhash, digest, save, load, io_formats, persist,
-                          assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)
-from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
-                          imm_persist, imm_transient, imm_params, imm_values, imm_dict,
-                          imm_is_persistent, imm_is_transient)
-from .calculation import (calc,    plan,    imap,
-                          Calc,    Plan,    IMap,
-                          is_calc, is_plan, is_imap, planfn)
-from .table       import (itable, is_itable, ITable)
-from .cmdline     import (argv_parse, argv_parser, to_argv_schema, CommandLineParser,
-                          WorkLog, worklog)
+#from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lmap,
+#                          lazy_value_map, value_map, key_map, collect, flatten_maps,
+#                          is_persistent, is_map, is_pmap, is_lazy_map, is_str, is_class,
+#                          is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
+#                          is_array, is_scalar, is_vector, is_matrix,
+#                          is_tuple, is_list, is_set, is_seq, is_pseq,
+#                          is_int, is_float, is_real, is_complex, is_number,
+#                          is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
+#                          imm_array, qhashform, qhash, digest, save, load, io_formats, persist,
+#                          assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)
+#from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
+#                          imm_persist, imm_transient, imm_params, imm_values, imm_dict,
+#                          imm_is_persistent, imm_is_transient)
+#from .calculation import (calc,    plan,    imap,
+#                          Calc,    Plan,    IMap,
+#                          is_calc, is_plan, is_imap, planfn)
+#from .table       import (itable, is_itable, ITable)
+#from .cmdline     import (argv_parse, argv_parser, to_argv_schema, CommandLineParser,
+#                          WorkLog, worklog)
 
 def reload_pimms():
     '''
@@ -203,4 +208,4 @@ def reload_pimms():
     return sys.modules['pimms']
 
 __version__ = '1.0.0rc1'
-description = 'Lazy immutable library for Python built on top of pyrsistent'
+description = 'Lazy immutable scientific library for Python'

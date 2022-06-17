@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-####################################################################################################
+################################################################################
 # pimms/types/__init__.py
 # Utility classes for the various types that are managed by pimms.
 # By Noah C. Benson
@@ -10,7 +10,6 @@ The `pimms.types` module contains two kinds of type definitions: basic Python
 definitions and Pimms hierarchy definitions. The former represent the basic
 Python data types collected in a single namespace while the latter represent
 the type hierarchy as Pimms interprets it.
-
 """
 
 from ._core import (
@@ -28,10 +27,13 @@ from ._core import (
     strnorm,
     strcmp,
     streq,
+    strstarts,
+    strends,
     is_ureg,
     is_unit,
     is_quant,
     is_callable,
+    void_callable,
     is_sized,
     is_container,
     is_iterable,
@@ -50,13 +52,21 @@ from ._core import (
     is_list,
     is_pyset,
     is_frozenset,
+    is_fset,
     is_dict,
     is_odict,
     is_ddict,
-    is_pvector,
-    is_plist,
-    is_pset,
-    is_pmap,
+    frozendict,
+    is_frozendict,
+    is_fdict,
+    is_fodict,
+    hashsafe,
+    is_hashable,
+    is_frozen,
+    is_thawed,
+    frozenarray,
+    freeze,
+    thaw,
 )
 
 from ._numeric import (
@@ -73,8 +83,6 @@ from ._numeric import (
 )
 
 from ._quant import (
-    Quantity,
-    UnitRegistry,
     default_units,
     like_unit,
     alike_units,

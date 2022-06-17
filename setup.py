@@ -1,5 +1,5 @@
 #! /usr/bin/env python
-####################################################################################################
+################################################################################
 
 from setuptools import (setup, Extension)
 import os
@@ -49,7 +49,6 @@ setup(
         'Operating System :: MacOS'],
     license='MIT',
     packages=['pimms.doc', 'pimms.types', 'pimms.math', 'pimms', 'pimms.test'],
-    #ext_modules=[Extension('pimms.c_util', ['pimms/c_util.c'])],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
     install_requires=requirements)

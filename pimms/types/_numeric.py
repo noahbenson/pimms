@@ -1,17 +1,15 @@
 # -*- coding: utf-8 -*-
-####################################################################################################
-# pimms/types/_core.py
-# Core implementation of the utility classes for the various types that are managed by pimms.
-# By Noah C. Benson
+################################################################################
+# pimms/types/_numeric.py
+#
+# General numeric type utilities for pimms.
+#
+# @author Noah C. Benson
 
-# Dependencies #####################################################################################
-import inspect, types, sys, pint, os, numbers, warnings, base64
-import collections as colls, numpy as np, pyrsistent as pyr
-import scipy.sparse as sps
-
+# Dependencies #################################################################
 from ..doc import docwrap
 
-# Numerical Types ##################################################################################
+# Numerical Types ##############################################################
 from numbers import Number
 @docwrap
 def is_number(obj):
