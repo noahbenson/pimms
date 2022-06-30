@@ -4,5 +4,5 @@
 # The documentation tools used by pimms.
 # By Noah C. Benson
 
-from ._core import (docwrap, docproc)
+from ._core import (docwrap, docproc, make_docproc)
 

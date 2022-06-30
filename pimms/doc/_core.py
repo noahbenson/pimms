@@ -1,16 +1,33 @@
 # -*- coding: utf-8 -*-
-####################################################################################################
+################################################################################
 # pimms/doc/_core.py
 # Implementation of the documentation tools used by pimms.
 # By Noah C. Benson
 
-# Dependencies #####################################################################################
+# Dependencies #################################################################
 from re import compile as _re_compile
 from functools import wraps as _wraps
 from docrep import DocstringProcessor as _DocstringProcessor
 
-# The Document Processor ###########################################################################
-docproc = _DocstringProcessor()
+# The Document Processor #######################################################
+def make_docproc():
+    """Creates and returns a document preprocessor."""
+    docproc = _DocstringProcessor()
+    # We need to add a few features to the docproc's members so that we can
+    # process the Inputs and Outputs sections when present.
+    docproc.param_like_sections = (docproc.param_like_sections
+                                   + ['Inputs','Outputs'])
+    docproc.patterns['Inputs'] = _re_compile(
+        docproc.patterns['Parameters'].pattern
+            .replace('Parameters', 'Inputs')
+            .replace('----------', '------'))
+    docproc.patterns['Outputs'] = _re_compile(
+        docproc.patterns['Parameters'].pattern
+            .replace('Parameters', 'Outputs')
+            .replace('----------', '-------'))
+    return docproc
+
+docproc = make_docproc()
 """The `docrep.DocstringProcessor` object used by `pimms`.
 
 This object is used to process all of the doc-strings in the `pimms` library;
@@ -21,21 +38,12 @@ using the `sections=('Parameters', 'Returns', 'Raises', 'Examples', 'Inputs',
 'Outputs')` parameter and the `with_indent(4)` decorator. The base-name for the
 function `f` is `f.__module__ + '.' + f.__name__`.
 """
-# We need to add a few features to the docproc's members so that we can process the Inputs and
-# Outputs sections when present.
-docproc.param_like_sections = docproc.param_like_sections + ['Inputs', 'Outputs']
-docproc.patterns['Inputs'] = _re_compile(
-    docproc.patterns['Parameters'].pattern
-       .replace('Parameters', 'Inputs')
-       .replace('----------', '------'))
-docproc.patterns['Outputs'] = _re_compile(
-    docproc.patterns['Parameters'].pattern
-       .replace('Parameters', 'Outputs')
-       .replace('----------', '-------'))
-def _docwrap(f, fnname, indent=4):
+
+def _docwrap(f, fnname, indent=4, proc=docproc):
     ff = f
     ff = docproc.with_indent(indent)(ff)
-    ff = docproc.get_sections(base=fnname, sections=docproc.param_like_sections)(ff)
+    fd = docproc.get_sections(base=fnname, sections=docproc.param_like_sections)
+    ff = fd(ff)
     ff = _wraps(f)(ff)
     # Post-process the documentation sections.
     for section in ['parameters', 'other_parameters', 'inputs', 'outputs']:
@@ -46,9 +54,9 @@ def _docwrap(f, fnname, indent=4):
             # Skip lines that start with whitespace.
             if ln[0].strip() == '': continue
             pname = ln.split(':')[0].strip()
-            docproc.keep_param(k, pname)        
+            docproc.keep_params(k, pname)
     return ff
-def docwrap(f=None, indent=4):
+def docwrap(f=None, indent=4, proc=docproc):
     """Applies standard doc-string processing to the decorated function.
 
     The `pimms.docwrap` decorator applies a standard set of pre-processing to
@@ -60,10 +68,13 @@ def docwrap(f=None, indent=4):
     When called as `@docwrap(name)` for a string `name`, the documentation for
     the decorated function is instead placed under the base-name `name`.
     """
-    # If we've been given a string, then we've been called as @docwrap(name) instead of @docwrap.
+    # If we've been given a string, then we've been called as @docwrap(name)
+    # instead of @docwrap.
     if f is None:
-        return lambda fn: _docwrap(fn, fn.__module__ + '.' + fn.__name__, indent=indent)
+        return lambda fn: _docwrap(fn, fn.__module__ + '.' + fn.__name__,
+                                   indent=indent, proc=proc)
     if isinstance(f, str):
-        return lambda fn: _docwrap(fn, f, indent=indent)
+        return lambda fn: _docwrap(fn, f, indent=indent, proc=proc)
     else:
-        return _docwrap(f, f.__module__ + '.' + f.__name__, indent=indent)
+        return _docwrap(f, f.__module__ + '.' + f.__name__,
+                        indent=indent, proc=proc)
