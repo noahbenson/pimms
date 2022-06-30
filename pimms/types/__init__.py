@@ -29,6 +29,9 @@ from ._core import (
     streq,
     strstarts,
     strends,
+    strissym,
+    striskey,
+    strisvar,
     is_ureg,
     is_unit,
     is_quant,
@@ -74,16 +77,10 @@ from ._numeric import (
     is_integer,
     is_real,
     is_complex,
-    is_array,
-    is_tensor,
-    is_numeric,
-    is_scalar,
-    is_vector,
-    is_matrix,
 )
 
-from ._quant import (
-    default_units,
+from ._quantity import (
+    default_ureg,
     like_unit,
     alike_units,
     unit,

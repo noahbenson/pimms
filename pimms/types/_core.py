@@ -11,6 +11,7 @@
 import pint, os
 import numpy as np
 import scipy.sparse as sps
+
 from ..doc import docwrap
 
 # Units ########################################################################
@@ -1105,7 +1106,7 @@ def is_numeric(obj,
         dimensions must be exactly that integer. If this is a list or tuple of
         integers, then the dimensionality must be one of these numbers.
     shape : int or tuple of ints or None, optional
-        If the `shape` parameter is not `None`, then the given `obj` must have a shape
+        If the `shape` parameter is not `None`, then the given `obj` must have a
         shape that matches the parameter value `sh`. The value `sh` must be a
         tuple that is equal to the `obj`'s shape tuple with the following
         additional rules: a `-1` value in the `sh` tuple will match any value in
@@ -1151,6 +1152,7 @@ def is_numeric(obj,
         return is_array(obj,
                         dtype=dtype, shape=shape, ndim=ndim,
                         sparse=sparse, quant=quant, units=units, ureg=ureg)
+@docwrap
 def to_numeric(obj,
                dtype=None, copy=False,
                sparse=None, quant=None, ureg=None, units=Ellipsis):
@@ -1249,12 +1251,12 @@ def is_sparse(obj,
     ----------
     obj : object
         The object whose quality as a sparse numerical object is to be assessed.
-    %(pimms.types._core.is_numeric.dtype)s
-    %(pimms.types._core.is_numeric.ndim)s
-    %(pimms.types._core.is_numeric.shape)s
-    %(pimms.types._core.is_numeric.quant)s
-    %(pimms.types._core.is_numeric.ureg)s
-    %(pimms.types._core.is_numeric.units)s
+    %(pimms.types._core.is_numeric.parameters.dtype)s
+    %(pimms.types._core.is_numeric.parameters.ndim)s
+    %(pimms.types._core.is_numeric.parameters.shape)s
+    %(pimms.types._core.is_numeric.parameters.quant)s
+    %(pimms.types._core.is_numeric.parameters.ureg)s
+    %(pimms.types._core.is_numeric.parameters.units)s
 
     Returns
     -------
@@ -1280,12 +1282,12 @@ def to_sparse(obj,
     ----------
     obj : object
         The object that is to be converted into a sparse representation.
-    %(pimms.types._core.to_numeric.dtype)s
-    %(pimms.types._core.to_numeric.ndim)s
-    %(pimms.types._core.to_numeric.shape)s
-    %(pimms.types._core.to_numeric.quant)s
-    %(pimms.types._core.to_numeric.ureg)s
-    %(pimms.types._core.to_numeric.units)s
+    %(pimms.types._core.to_numeric.parameters.dtype)s
+    %(pimms.types._core.is_numeric.parameters.ndim)s
+    %(pimms.types._core.is_numeric.parameters.shape)s
+    %(pimms.types._core.to_numeric.parameters.quant)s
+    %(pimms.types._core.to_numeric.parameters.ureg)s
+    %(pimms.types._core.to_numeric.parameters.units)s
 
     Returns
     -------
@@ -1310,12 +1312,12 @@ def is_dense(obj,
     ----------
     obj : object
         The object whose quality as a dense numerical object is to be assessed.
-    %(pimms.types._core.is_numeric.dtype)s
-    %(pimms.types._core.is_numeric.ndim)s
-    %(pimms.types._core.is_numeric.shape)s
-    %(pimms.types._core.is_numeric.quant)s
-    %(pimms.types._core.is_numeric.ureg)s
-    %(pimms.types._core.is_numeric.units)s
+    %(pimms.types._core.is_numeric.parameters.dtype)s
+    %(pimms.types._core.is_numeric.parameters.ndim)s
+    %(pimms.types._core.is_numeric.parameters.shape)s
+    %(pimms.types._core.is_numeric.parameters.quant)s
+    %(pimms.types._core.is_numeric.parameters.ureg)s
+    %(pimms.types._core.is_numeric.parameters.units)s
 
     Returns
     -------
@@ -1342,12 +1344,12 @@ def to_dense(obj,
     ----------
     obj : object
         The object that is to be converted into a dense representation.
-    %(pimms.types._core.to_numeric.dtype)s
-    %(pimms.types._core.to_numeric.ndim)s
-    %(pimms.types._core.to_numeric.shape)s
-    %(pimms.types._core.to_numeric.quant)s
-    %(pimms.types._core.to_numeric.ureg)s
-    %(pimms.types._core.to_numeric.units)s
+    %(pimms.types._core.to_numeric.parameters.dtype)s
+    %(pimms.types._core.is_numeric.parameters.ndim)s
+    %(pimms.types._core.is_numeric.parameters.shape)s
+    %(pimms.types._core.to_numeric.parameters.quant)s
+    %(pimms.types._core.to_numeric.parameters.ureg)s
+    %(pimms.types._core.to_numeric.parameters.units)s
 
     Returns
     -------
@@ -1576,6 +1578,39 @@ def strstarts(a, b, case=True, unicode=None, strip=False):
     else: (a, b) = prep
     # Check the beginning.
     return a.startswith(b)
+@docwrap
+def strissym(s):
+    """Determines if the given string is a valid symbol (identifier).
+
+    `strissym(s)` returns `True` if `s` is both a string and a valid identifier.
+    Otherwise, it returns `False`.
+
+    See also: `striskey`, `strisvar`
+    """
+    return is_str(s) and s.isidentifier()
+@docwrap
+def striskey(s):
+    """Determines if the given string is a valid keyword.
+
+    `strissym(s)` returns `True` if `s` is both a string and a valid keyword
+    (such as `'if'` or `'while'`). Otherwise, it returns `False`.
+
+    See also: `strissym`, `strisvar`
+    """
+    from keyword import iskeyword
+    return is_str(s) and iskeyword(s)
+@docwrap
+def strisvar(s):
+    """Determines if the given string is a valid variable name.
+
+    `strissym(s)` returns `True` if `s` is both a string and a valid name
+    (i.e., a symbol but not a keyword). Otherwise, it returns `False`.
+
+    See also: `strissym`, `striskey`
+    """
+    from keyword import iskeyword
+    return is_str(s) and not iskeyword(s)
+
 
 # Builtin Python Abstract Types ################################################
 from collections.abc import Callable
@@ -2290,8 +2325,10 @@ def thaw(obj, copy=False):
         if isinstance(obj, base):
             return conv_fn(obj)
     raise TypeError(f"cannot thaw object of type {type(obj)}")
+import numpy
 thaw.thawed_types = {tuple:             list,
                      frozenset:         set,
-                     ndarray:           array,
+                     ndarray:           numpy.array,
                      FrozenOrderedDict: OrderedDict,
                      frozendict:        dict}
+del numpy
