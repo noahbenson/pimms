@@ -156,6 +156,14 @@ The additional utility functions are provided as part of the pimms package:
     object `imm`.
 '''
 
+# We import frozendict as an alias.
+from frozendict import frozendict
+from frozendict import frozendict as fdict
+from frozendict import FrozenOrderedDict as fodict
+
+# The doc namespace contains docwrap, docproc, and make_docproc, of which we
+# only want to import the first two.
+from .doc import (docwrap, docproc)
 # We want to import everything from types; it is a clean namespace.
 from .types import *
 # Import the Global UnitRegistry object to the global pimms scope.
@@ -172,24 +180,17 @@ temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
 # We also want to import everything in the lazydict module.
 from .lazydict import *
 
-#from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lmap,
-#                          lazy_value_map, value_map, key_map, collect, flatten_maps,
-#                          is_persistent, is_map, is_pmap, is_lazy_map, is_str, is_class,
-#                          is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
-#                          is_array, is_scalar, is_vector, is_matrix,
-#                          is_tuple, is_list, is_set, is_seq, is_pseq,
-#                          is_int, is_float, is_real, is_complex, is_number,
-#                          is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
-#                          imm_array, qhashform, qhash, digest, save, load, io_formats, persist,
-#                          assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)
-#from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
-#                          imm_persist, imm_transient, imm_params, imm_values, imm_dict,
+#from .immutable   import (immutable, require, value, param, option, is_imm,
+#                          is_imm_type, imm_copy,
+#                          imm_persist, imm_transient, imm_params, imm_values,
+#                          imm_dict,
 #                          imm_is_persistent, imm_is_transient)
 #from .calculation import (calc,    plan,    imap,
 #                          Calc,    Plan,    IMap,
 #                          is_calc, is_plan, is_imap, planfn)
 #from .table       import (itable, is_itable, ITable)
-#from .cmdline     import (argv_parse, argv_parser, to_argv_schema, CommandLineParser,
+#from .cmdline     import (argv_parse, argv_parser, to_argv_schema,
+#                          CommandLineParser,
 #                          WorkLog, worklog)
 
 def reload_pimms():

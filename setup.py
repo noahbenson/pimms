@@ -1,7 +1,7 @@
 #! /usr/bin/env python
 ################################################################################
 
-from setuptools import (setup, Extension)
+from setuptools import setup
 import os
 
 base_path = os.path.dirname(__file__)
@@ -27,7 +27,7 @@ setup(
     keywords='persistent immutable functional scientific workflow',
     author='Noah C. Benson',
     author_email='nben@uw.edu',
-    url='https://github.com/noahbenson/pimms/',
+    url='https://github.com/noahbenson/pimms',
     download_url='https://github.com/noahbenson/pimms',
     classifiers=[
         'Development Status :: 3 - Alpha',
