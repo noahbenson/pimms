@@ -12,7 +12,11 @@ The `pimms.lazydict` module contains the definition of the lazydict (or ldict)
 type and the various utility functions that go with it.
 """
 
-from ._core import (Delay, delay, weak_delay, wdelay, is_delay, undelay,
+from ._core import (Delay, delay, weak_delay, wdelay,
+                    is_delay, is_dask_delayed, is_delayed, undelay,
                     lazydict, ldict, is_lazydict, is_ldict,
-                    keymap, valmap, itemmap, merge, rmerge)
+                    lazykeymap, lazyvalmap, lazyitemmap,
+                    keymap, valmap, itemmap,
+                    dictmap, frozendictmap, fdictmap, lazydictmap, ldictmap,
+                    merge, rmerge, assoc, dissoc)
 
