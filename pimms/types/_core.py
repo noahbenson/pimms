@@ -1637,6 +1637,26 @@ def is_callable(obj):
 
     """
     return isinstance(obj, Callable)
+from types import LambdaType
+@docwrap
+def is_lambda(obj):
+    """Returns `True` if an object is a lambda function, otherwise `False`.
+
+    `is_lambda(obj)` returns `True` if the given object `obj` is an instance
+    of the `types.LambdaType` type.
+
+    Parameters
+    ----------
+    obj : object
+        The object whose quality as a `LambdaType` object is to be assessed.
+
+    Returns
+    -------
+    boolean
+        `True` if `obj` is an instance of `LambdaType`, otherwise `False`.
+
+    """
+    return isinstance(obj, LambdaType)
 from collections.abc import Sized
 @docwrap
 def is_sized(obj, unit=Ellipsis):
