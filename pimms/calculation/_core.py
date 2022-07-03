@@ -17,7 +17,8 @@ from inspect import getfullargspec
 from ..doc import (docwrap, docproc, make_docproc)
 from ..types import (is_fdict, is_str, is_number, is_tuple, is_dict, is_array,
                      is_integer, strisvar, is_map)
-from ..lazydict import (merge, lazydict, is_ldict, ldict, frozendict, delay)
+from ..lazydict import (merge, lazydict, is_ldict, ldict, frozendict, delay,
+                        valmap, undelay)
 fdict = frozendict
 
 
@@ -846,6 +847,10 @@ class plan(frozendict):
     def __call__(self, *args, **kwargs):
         # Make and return a plandict with these parameters.
         return plandict(self, *args, **kwargs)
+    def __str__(self):
+        return f"plan(<{len(self.calcs)} calcs>, <{len(self.inputs)} params>)"
+    def __repr__(self):
+        return f"plan(<{len(self.calcs)} calcs>, <{len(self.inputs)} params>)"
 @docwrap
 def is_plan(arg):
     """Determines if an object is a `plan` instance.
@@ -948,7 +953,7 @@ class plandict(ldict):
         # after them, so we use a mutable dict as a hack.
         mut_values = {}
         calcs = ldict({k: delay(plandict._run_calc, plan, plan[k], mut_values)
-                       for k in plan.outputs})
+                       for k in plan.calcs})
         # Go ahead and run the 
         # The outputs come from these.
         outputs = {k: delay(plandict._get_val, calcs, plan.calc_sources[k], k)
