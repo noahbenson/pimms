@@ -15,7 +15,7 @@ import frozendict as fd
 from functools import (reduce, partial)
 
 from ..doc import docwrap
-from ..types import (is_str, is_fdict, is_map, is_mmap, is_set)
+from ..types import (is_str, is_fdict, is_map, is_mmap, is_set, is_lambda)
 
 # #delay #######################################################################
 class delay:
@@ -205,6 +205,9 @@ class frozendict(fd.frozendict):
                 elif len(arg0) == 0:
                     return frozendict._empty
         return fd.frozendict.__new__(cls, *args, **kwargs)
+    def __hash__(self):
+        # We have to 
+        return fd.frozendict.__hash__(self)
 frozendict._empty = fd.frozendict.__new__(frozendict)
 fdict = frozendict
 # Now that we've made this frozendict type, we want to update the freeze
@@ -212,7 +215,6 @@ fdict = frozendict
 from ..types import freeze
 freeze.freeze_types[dict] = frozendict
 
-    
 # #lazydict ####################################################################
 class lazydict_keys(colls_abc.KeysView, colls_abc.Set):
     __slots__ = ('_lazydict_keys', '_select_lazy', '_filter', '_count')
@@ -374,6 +376,11 @@ class lazydict(frozendict):
              for k in self.keys()]
         s = ', '.join(s)
         return self._prefix() + '{' + s + '}' + self._suffix()
+    def __hash__(self):
+        # We have to undelay everything for this to work.
+        for (k,v) in self.items(): pass
+        # Now hash ourselves.
+        return fd.frozendict.__hash__(self)
     def __eq__(self, other):
         return (len(self) == len(other) and
                 self.keys() == other.keys() and
@@ -791,3 +798,54 @@ def dissoc(d, *args):
         raise TypeError("can only dissoc from MutableMapping and frozendict"
                         " types")
     return d
+def _lambdadict_call(data, fn):
+    spec = inspect.getfullargspec(fn)
+    dflts = spec.defaults or fdict()
+    args = []
+    kwargs = {}
+    pos = True
+    for k in spec.args:
+        if k in data:
+            v = data[k]
+            if pos: args.append(data[k])
+            else:   kwargs[k] = data[k]
+        else:
+            pos = False
+            if k in dflts: kwargs[k] = dflts[k]
+    for k in spec.kwonlyargs:
+        if k in data:
+            kwargs[k] = data[k]
+        else:
+            if k in dflts: kwargs[k] = dflts[k]
+    return fn(*args, **kwargs)
+def lambdadict(*args, **kwargs):
+    """Builds and returns a `lazydict` with lambda functions calculated lazily.
+
+    `lambdadict(args...)` is equivalent to `lazydict(args...)` except that any
+    lambda function in the values provided by the merged arguments is delayed as
+    a function whose inputs come from the lambda-function variable names in
+    the same resulting lazydict.
+
+    WARNING: This function will gladly return a lazydict that encapsulates an
+    infinite loop if you are not careful. For example, the following lambdadict
+    will infinite loop when either key is requested:
+    `ld = lambdadict(a=lambda b:b, b=lambda a:a)`.
+    
+    Examples
+    --------
+    >>> d = lambdadict(a=1, b=2, c=lambda a,b: a + b); d
+    <:{'a': 1, 'b': 2, 'c': <lazy>}:>
+    >>> d['c']
+    3
+    >>> d
+    <:{'a': 1, 'b': 2, 'c': 3}:>
+    """
+    d = merge(*args, **kwargs)
+    finals = {} # We use a mutable hack here.
+    for (k,v) in (d.rawitems() if is_ldict(d) else d.items()):
+        if isinstance(v, types.LambdaType):
+            finals[k] = delay(_lambdadict_call, finals, v)
+        else:
+            finals[k] = v
+    return ldict(finals)
+    
