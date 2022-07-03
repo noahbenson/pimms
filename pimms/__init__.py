@@ -185,21 +185,37 @@ from .calculation import *
 #from .cmdline     import (argv_parse, argv_parser, to_argv_schema,
 #                          CommandLineParser,
 #                          WorkLog, worklog)
+modules = ('pimms.doc._core',
+           'pimms.doc',
+           'pimms.types._core',
+           'pimms.types._numeric',
+           'pimms.types._quantity',
+           'pimms.types',
+           'pimms.lazydict._core',
+           'pimms.lazydict',
+           'pimms.calculation._core',
+           'pimms.calculation',
+           'pimms')
 
 def reload_pimms():
     '''
     reload_pimms() reloads the entire pimms module and returns it.
     '''
-    import sys, six
-    try:              from importlib import reload
-    except Exception: from imp       import reload
-    reload(sys.modules['pimms.util'])
-    reload(sys.modules['pimms.table'])
-    reload(sys.modules['pimms.immutable'])
-    reload(sys.modules['pimms.calculation'])
-    reload(sys.modules['pimms.cmdline'])
-    reload(sys.modules['pimms'])
+    import sys, importlib
+    for mod in modules:
+        reload(sys.modules[mod])
     return sys.modules['pimms']
 
 __version__ = '1.0.0rc1'
 description = 'Lazy immutable scientific library for Python'
+
+__all__ = tuple([k
+                 for k in locals()
+                 if k[0] != '_'
+                 if k != 'reload_pimms'
+                 if k != 'description'
+                 if k != 'modules'
+                 if k != 'doc'
+                 if k != 'types'
+                 if k != 'lazydict'
+                 if k != 'calculation'])
