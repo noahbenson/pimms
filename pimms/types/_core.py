@@ -8,7 +8,7 @@
 # @author Noah C. Benson
 
 # Dependencies #################################################################
-import pint, os
+import pint, os, inspect
 import numpy as np
 import scipy.sparse as sps
 
@@ -1637,45 +1637,6 @@ def is_callable(obj):
 
     """
     return isinstance(obj, Callable)
-def void_callable(f):
-    """Returns `True` if and only if the argument `f` can be called as `f()`.
-
-    `void_callable(f)` returns `True` when `f` can be called without any
-    arguments and `False` otherwise. This does not guarantee that `f` will
-    succeed, but it guarantees that `f` doesn't require a first
-    argument. Objects are void-callable whenever they are both callable and have
-    no required parameters or when they are a type whose `__init__` function has
-    only the `self` parameter as a required parameter.
-
-    Note that for built-in functions, it cannot be determined if they are
-    void-callable or not except by trying to call them directly; for such
-    objects, `None` is returned.
-
-    Parameters
-    ----------
-    f : object
-        The object whose quality as a void-callable function is to be assessed.
-
-    Returns
-    -------
-    boolean
-        `True` if `f` can be called as `f()` and `False` otherwise; if
-        `f` is a built-in function then `None` is returned.
-    """
-    if not callable(f):
-        return False
-    if isinstance(f, type):
-        try: spec = inspect.getfullargspec(f.__init__)
-        except TypeError: return None
-        narg = len(spec.args)
-        ndef = 0 if spec.defaults is None else len(spec.defaults)
-        return narg - ndef == 1
-    else:
-        try: spec = inspect.getfullargspec(f.__init__)
-        except TypeError: return None
-        narg = len(spec.args)
-        ndef = 0 if spec.defaults is None else len(spec.defaults)
-        return narg == ndef
 from collections.abc import Sized
 @docwrap
 def is_sized(obj, unit=Ellipsis):
@@ -2325,10 +2286,8 @@ def thaw(obj, copy=False):
         if isinstance(obj, base):
             return conv_fn(obj)
     raise TypeError(f"cannot thaw object of type {type(obj)}")
-import numpy
 thaw.thawed_types = {tuple:             list,
                      frozenset:         set,
-                     ndarray:           numpy.array,
+                     ndarray:           np.array,
                      FrozenOrderedDict: OrderedDict,
                      frozendict:        dict}
-del numpy

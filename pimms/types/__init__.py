@@ -36,7 +36,6 @@ from ._core import (
     is_unit,
     is_quant,
     is_callable,
-    void_callable,
     is_sized,
     is_container,
     is_iterable,
