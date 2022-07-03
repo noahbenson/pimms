@@ -806,15 +806,15 @@ def _lambdadict_call(data, fn):
     pos = True
     for k in spec.args:
         if k in data:
-            v = data[k]
-            if pos: args.append(data[k])
-            else:   kwargs[k] = data[k]
+            v = undelay(data[k])
+            if pos: args.append(v)
+            else:   kwargs[k] = v
         else:
             pos = False
             if k in dflts: kwargs[k] = dflts[k]
     for k in spec.kwonlyargs:
         if k in data:
-            kwargs[k] = data[k]
+            kwargs[k] = undelay(data[k])
         else:
             if k in dflts: kwargs[k] = dflts[k]
     return fn(*args, **kwargs)
@@ -839,6 +839,7 @@ def lambdadict(*args, **kwargs):
     3
     >>> d
     <:{'a': 1, 'b': 2, 'c': 3}:>
+
     """
     d = merge(*args, **kwargs)
     finals = {} # We use a mutable hack here.
