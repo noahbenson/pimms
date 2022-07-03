@@ -207,6 +207,11 @@ class frozendict(fd.frozendict):
         return fd.frozendict.__new__(cls, *args, **kwargs)
 frozendict._empty = fd.frozendict.__new__(frozendict)
 fdict = frozendict
+# Now that we've made this frozendict type, we want to update the freeze
+# function's version of a frozen dict to this one.
+from ..types import freeze
+freeze.freeze_types[dict] = frozendict
+
     
 # #lazydict ####################################################################
 class lazydict_keys(colls_abc.KeysView, colls_abc.Set):
