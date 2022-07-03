@@ -156,11 +156,6 @@ The additional utility functions are provided as part of the pimms package:
     object `imm`.
 '''
 
-# We import frozendict as an alias.
-from frozendict import frozendict
-from frozendict import frozendict as fdict
-from frozendict import FrozenOrderedDict as fodict
-
 # The doc namespace contains docwrap, docproc, and make_docproc, of which we
 # only want to import the first two.
 from .doc import (docwrap, docproc)
@@ -179,16 +174,14 @@ temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
 
 # We also want to import everything in the lazydict module.
 from .lazydict import *
+# The calc/plan code follows the lazydict code.
+from .calculation import *
 
 #from .immutable   import (immutable, require, value, param, option, is_imm,
 #                          is_imm_type, imm_copy,
 #                          imm_persist, imm_transient, imm_params, imm_values,
 #                          imm_dict,
 #                          imm_is_persistent, imm_is_transient)
-#from .calculation import (calc,    plan,    imap,
-#                          Calc,    Plan,    IMap,
-#                          is_calc, is_plan, is_imap, planfn)
-#from .table       import (itable, is_itable, ITable)
 #from .cmdline     import (argv_parse, argv_parser, to_argv_schema,
 #                          CommandLineParser,
 #                          WorkLog, worklog)
