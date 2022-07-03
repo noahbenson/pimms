@@ -10,37 +10,30 @@
 import inspect, types, sys, os, warnings, weakref
 import collections.abc as colls_abc
 import numpy as np
+import frozendict as fd
 
 from functools import (reduce, partial)
-from frozendict import frozendict, frozendict as fdict
 
 from ..doc import docwrap
 from ..types import (is_str, is_fdict, is_map, is_mmap, is_set)
 
-# #Delay #######################################################################
-class Delay:
+# #delay #######################################################################
+class delay:
     """A delayed computation that can be either weak or strong.
 
-    `Delay` objects are essentially fully-specified partial objects (i.e., they
-    are functions with full argument lists) that cache the return value of their
-    respective partial function after it is called once and remember that value
-    from then on.
+    `delay(fn)` constructs a `delay` object, which is essentially a
+    fully-specified partial object (i.e., a function with a fully-formed
+    argument lists) that caches the return value of the respective partial
+    function after it is called once and remembers that value from then on.
 
-    Once a `Delay` has been constucted, its value can be retrieved by calling
-    it: `delay = Delay(fn)` followed by `delay()`.
+    Once a `delay` has been constucted, its value can be retrieved by calling
+    it: `d = delay(fn)` followed by `d()`.
 
-    Delays can be using either weak or strong references. When made using a weak
-    reference, the function and argument list must be maintained
-    indefinitely. When made using a strong reference, the function and argument
-    list are discarded as soon as the value has been calculated. To create a
-    weak delay object, the `weak_delay()` function should be used instead of the
-    `delay()` function. The `Delay` constructor should usually not be called
-    directly.
+    Once a `delay` object's value has been calculated, it loses track of its
+    function and arguments so that the memory can be recovered.
 
     Parameters
     ----------
-    weak : boolean
-        Whether to use prefer weak reference to the resulting object or not.
     func : callable
         The function whose value is to be cached when requested.
     *args
@@ -49,59 +42,33 @@ class Delay:
         The keyword arguments to be passed to the given function `fn`.
     """
     __slots__ = ('_partial', '_results')
-    def __init__(self, weak, func, /, *args, **kw):
+    def __new__(cls, func, *args, **kw):
         # Make sure func is callable.
         if not callable(func):
-            raise TypeError("Delay functions must be callable")
-        # We want to use a persistent map for the keywords.
-        kw = fdict(kw)
+            raise TypeError("delay functions must be callable")
+        self = object.__new__(cls)
         # We want to setup our memoized value as well.
         object.__setattr__(self, '_partial', (func, args, kw))
-        object.__setattr__(self, '_results', bool(weak))
+        object.__setattr__(self, '_results', None)
+        return self
     def __call__(self):
-        # If call_data is None, then we know that the _result contains the raw
-        # (not weakref'ed) value.
-        if self._partial is None:
-            return self._results
-        # Otherwise, we have either not calculated the result yet, or, we have
-        # cached it as a weakref. In the latter case, the result must be a
-        # weakref.ref object, and in the former case it must be a boolean.
-        res = self._results
-        if not (res is True or res is False):
-            # This must be a weak reference, so we first try to dereference it.
-            val = res()
-            # If val is not None, then this is the correct value; otherwise, it
-            # indicates that the weak reference has expired and we need to
-            # re-cache it.
-            if val is not None:
-                return val
-        # At this point, we either haven't yet cached anything or we have an
-        # expired weakref. Start by calculating the value we should save.
-        (fn, args, kw) = self._partial
-        val = fn(*args, **kw)
-        # If res is False, that means that we prefer a weak reference;
-        # otherwise, we prefer a strong reference. We try to make a weak ref
-        # first because if it fails we can always use a strong ref.
-        if res is True:
-            try:
-                val = weakref.ref(val)
-                object.__setattr__('_results', val)
-                # Since we have a weak ref, we don't forget the partial data.
-                return val
-            except TypeError:
-                pass
-        # If we reach here, then we prefer a strong reference or we weren't able
-        # to create a weak reference due to the type of val.
-        object.__setattr__(self, '_results', val)
-        # With strong references, we forget the partial information.
-        object.__setattr__(self, '_partial', None)
+        # If _partial is None, then we know that the _result contains the result
+        # value; otherwise, we need to calculate it first.
+        if self._partial is not None:
+            # We need to run the calculation and save its result.
+            (fn, args, kw) = self._partial
+            val = fn(*args, **kw)
+            # Save the results.
+            object.__setattr__(self, '_results', val)
+            # Forget the partial info so that it can be garbage collected.
+            object.__setattr__(self, '_partial', None)
         # Finally, return the value
-        return val
+        return self._results
     def __repr__(self):
         s = 'cached' if self.is_cached() else 'delayed'
-        return f"<Delay at {id(self)}: {s}>"
+        return f"delay(<{id(self)}>, {s})"
     def __str__(self):
-        return f"<Delay at {id(self)}>"
+        return f"delay(<{id(self)}>)"
     def is_cached(self):
         """Returns `True` if the delay value is cached and `False` otherwise.
 
@@ -111,146 +78,31 @@ class Delay:
             `True` if the given delay object has cached its value and `False`
             otherwise.
         """
-        if self._partial is None: return True
-        r = self._results
-        return not (r is True or r is False)
-    def is_weak(self):
-        """Determines whether the delay object uses a weak reference or not.
-
-        Returns
-        -------
-        boolean or None
-            `delay_obj.is_weak()` returns `True` if `delay_obj` currently holds
-            a weakly-referenced cached value, `False` if it holds a strong
-            reference to a cached object, and `None` if it is not currently
-            cached.
-        """
-        # For a strong reference, the _partial is always None.
-        if self._partial is None: return False
-        # Otherwise, if _results is True or False, it's not cached.
-        r = self._results
-        if r is True or r is False: return None
-        # And the only other possibility is that it is weakly cached.
-        return True
-    def prefers_weak(self):
-        """Returns the delay object's preference for a weak reference.
-
-        A `Delay` that is already cached will always return `None` from this
-        method.
-
-        Returns
-        -------
-        boolean or None
-            `delay_obj.prefers_weak()` returns `True` if `delay_obj` prefers to
-            cache its return values weakly, `False` if it prefers to cache its
-            values strongly, and `None` if it already contains a cached value.
-        """
-        # If the partial is empty, we're already cached.
-        if self._partial is None: return None
-        # Similarly if _results isn't either True or False, it's already cached.
-        r = self._results
-        if not (r is True or r is False): return None
-        # Otherwise, the _results stores the weakness preference.
-        return True
-@docwrap
-def delay(func, /, *args, **kw):
-    """Returns a delayed computation.
-
-    `delay(fn)` constructs a `Delay` object, which is essentially a
-    fully-specified partial object (i.e., a function with a fully-formed
-    argument lists) that caches the return value of the respective partial
-    function after it is called once and remembers that value from then on.
-
-    Once a `Delay` has been constucted, its value can be retrieved by calling
-    it: `d = delay(fn)` followed by `d()`.
-
-    Delays can be using either weak or strong references. When made using a weak
-    reference, the function and argument list must be maintained
-    indefinitely. When made using a strong reference, the function and argument
-    list are discarded as soon as the value has been calculated, but the
-    calculated value cannot be garbage collected. To create a weak delay object,
-    the `weak_delay()` or `wdelay()` functions instead of the `delay()`
-    function.
-
-    Parameters
-    ----------
-    func : callable
-        The function whose value is to be cached when requested.
-    args
-        The arguments to be passed to the given function `fn`.
-    kw
-        The keyword arguments to be passed to the given function `fn`.
-
-    Returns
-    -------
-    Delay
-        A `Delay` object for the given function.
-    """
-    return Delay(False, func, *args, **kw)
-@docwrap
-def weak_delay(func, /, *args, **kw):
-    """Returns a delayed computation that holds its memoized value weakly.
-
-    `weak_delay(fn)` and, equivalently, `wdelay(fn)` both construct a `Delay`
-    object, which is essentially a fully-specified partial object (i.e., a
-    function with a fully-formed argument lists) that caches the return value of
-    the respective partial function after it is called once and remembers that
-    value from then on. Unlike the `delay(fn)` function, the `Delay` object
-    returned from a `weak_delay(fn)` function will use a weak reference to the
-    cached value if possible.
-
-    Once a `Delay` has been constucted, its value can be retrieved by calling
-    it: `d = delay(fn)` followed by `d()`.
-
-    Delays can be using either weak or strong references. When made using a weak
-    reference, the function and argument list must be maintained indefinitely in
-    case the value needs to be recalculated later. When made using a strong
-    reference, the function and argument list are discarded as soon as the value
-    has been calculated, but the calculated value cannot be garbage collected
-    until the `Delay` object itself is garbage collected. To create a delay
-    whose reference is not weak, the `delay()` function should be used instead
-    of the `weak_delay()` or `wdelay()` functions.
-
-    Parameters
-    ----------
-    func : callable
-        The function whose value is to be cached when requested.
-    args
-        The arguments to be passed to the given function `fn`.
-    kw
-        The keyword arguments to be passed to the given function `fn`.
-
-    Returns
-    -------
-    Delay
-        A `Delay` object for the given function.
-    """
-    return Delay(True, func, *args, **kw)
-wdelay = weak_delay
+        return self._partial is None
 @docwrap
 def is_delay(obj):
-    """Determines if an object is a `Delay` or not.
+    """Determines if an object is a `delay` or not.
 
-    `Delay` objects are specific to the `pimms` library; however `dask`'s
+    `delay` objects are specific to the `pimms` library; however `dask`'s
     `Delayed` type is also supported by `pimms`: see `is_delayed`,
     `is_dask_delayed`, and `undelay`.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as a `Delay` is to be determined.
+        The object whose quality as a `delay` is to be determined.
 
     Returns
     -------
     boolean
-        `True` if `obj` is a `Delay` object and `False` if not.
+        `True` if `obj` is a `delay` object and `False` if not.
     """
-    return isinstance(obj, Delay)
+    return isinstance(obj, delay)
 @docwrap
 def is_dask_delayed(obj):
     """Determines if an object is a `dask.delay.Delayed` object or not.
 
-    `Delay` objects are specific to the `pimms` library; however `dask`'s
+    `delay` objects are specific to the `pimms` library; however `dask`'s
     `Delayed` type is also supported by `pimms`: see `is_delay`,
     `is_delayed`, and `undelay`.
 
@@ -271,26 +123,28 @@ def is_dask_delayed(obj):
         return False
 @docwrap
 def is_delayed(obj):
-    """Determines if an object is a `Delay` or `dask.delayed.Delayed` object.
+    """Determines if an object is a `delay` or `dask.delayed.Delayed` object.
 
-    `Delay` objects are specific to the `pimms` library; however `dask`'s
+    `delay` objects are specific to the `pimms` library; however `dask`'s
     `Delayed` type is also supported by `pimms`: see `is_delay`,
     `is_dask_delayed`, and `undelay`.
 
     Parameters
     ----------
     obj : object
-        The object whose quality as a `Delayed` object is to be determined.
+        The object whose quality as a `delay` or `Delayed` object is to be
+        determined.
 
     Returns
     -------
     boolean
-        `True` if `obj` is a `Delayed` object and `False` if not.
+        `True` if `obj` is a `Delayed` object or a `delay` object and `False` if
+        not.
     """
     return is_delay(obj) or is_dask_delayed(obj)
 @docwrap
 def undelay(obj, dask=True):
-    """Either returns the argument or the delayed value if it is a `Delay`.
+    """Either returns the argument or the delayed value if it is a `delay`.
 
     `undelay(obj)` is equivalent to `obj() if is_delay(obj) else obj` unless
     `obj` is a `dask.delayed.Delayed` object, in which case `obj,compute()` is
@@ -299,53 +153,88 @@ def undelay(obj, dask=True):
     Parameters
     ----------
     obj : object
-        The object that should be converted from a `Delay`.
+        The object that should be converted from a `delay`.
     dask : boolean
-        If `True`, then treats `dask.Delayed` objects as `Delay` objects and
-        undelays them as well. If `False`, then undelays only `Delay` objects.
+        If `True`, then treats `dask.Delayed` objects as `delay` objects and
+        undelays them as well. If `False`, then undelays only `delay` objects.
 
     Returns
     -------
     object
-        Either `obj`, if `obj` is not a `Delay` instance, or `obj()` if it is a
+        Either `obj`, if `obj` is not a `delay` instance, or `obj()` if it is a
         `Delay` object.
     """
-    if   isinstance(obj, Delay):        return obj()
+    if   isinstance(obj, delay):        return obj()
     elif dask and is_dask_delayed(obj): return obj.compute()
     else:                               return obj
 
+# #frozendict ##################################################################
+# The pimms frozendict is a thing wrapper around frozendict.frozendict. The
+# entire purpose of this wrapper is to improve the string conversion and to
+# ensure that equality works correctly with lazydict objects.
+class frozendict(fd.frozendict):
+    """A persistent dict type based on `frozendict.frozendict`.
+
+    The `pimms.frozendict` type is a thin wrapper around the type
+    `frozendict.frozendict`. The purpose of this wrapper is to improve the
+    conversion of `frozendict`s into strings.
+
+    `pimms.fdict` is an alias for `pimms.frozendict`.
+    """
+    _empty = None
+    @classmethod
+    def _prefix(self):
+        return '<'
+    @classmethod
+    def _suffix(self):
+        return '>'
+    def __str__(self):
+        s = dict.__str__(self)
+        return self._prefix() + s + self._suffix()
+    def __repr__(self):
+        s = dict.__repr__(self)
+        return self._prefix() + s + self._suffix()
+    def __new__(cls, *args, **kwargs):
+        if len(kwargs) == 0:
+            if len(args) == 0:
+                return frozendict._empty
+            elif len(args) == 1:
+                arg0 = args[0]
+                if type(arg0) is cls:
+                    return arg0
+                elif len(arg0) == 0:
+                    return frozendict._empty
+        return fd.frozendict.__new__(cls, *args, **kwargs)
+frozendict._empty = fd.frozendict.__new__(frozendict)
+fdict = frozendict
+    
 # #lazydict ####################################################################
 class lazydict_keys(colls_abc.KeysView, colls_abc.Set):
-    __slots__ = ('mapping', '_lazydict_keys', '_select_lazy', '_select_cached',
-                 '_filter', '_count')
+    __slots__ = ('_lazydict_keys', '_select_lazy', '_filter', '_count')
     @staticmethod
-    def _make_filter(cls, ld, sel_lazy, sel_cached):
-        if   sel_lazy   is False: return lambda k: ld.is_eager(k)
-        elif sel_cached is True:  return lambda k: ld.is_cached(k)
-        elif sel_cached is False: return lambda k: ld.is_uncached(k)
-        else: return None
+    def _make_filter(cls, ld, sel_lazy):
+        if   sel_lazy is False: return ld.is_eager
+        elif sel_lazy is True:  return ld.is_lazy
+        else:                   return None
     @staticmethod
     def _counter(x):
         return len(list(iter(x)))
     @staticmethod
     def _make_count(x):
         return delay(lazydict_keys._counter, x)
-    def __new__(cls, ld, lazy=None, cached=None):
+    def __new__(cls, ld, lazy=None):
         if not isinstance(ld, lazydict):
             raise ValueError("can only make lazydict_keys object from lazydict")
         self = object.__new__(cls)
-        object.__setattr__(self, 'mapping', ld)
         object.__setattr__(self, '_lazydict_keys', fdict.keys(ld))
         lazy   = None if lazy   is None else bool(lazy)
-        cached = None if cached is None else bool(cached)
-        filt   = lazydict_keys._make_filter(cls, ld, lazy, cached)
+        filt   = lazydict_keys._make_filter(cls, ld, lazy)
         count  = lazydict_keys._make_count(self)
-        object.__setattr__(self, '_select_lazy',   lazy)
-        object.__setattr__(self, '_select_cached', cached)
+        object.__setattr__(self, '_select_lazy', lazy)
         object.__setattr__(self, '_filter', filt)
         object.__setattr__(self, '_count', count)
         return self
-    def __init__(self, ld, lazy=None, cached=None, raw=None):
+    def __init__(self, ld, lazy=None):
         colls_abc.KeysView.__init__(self, ld)
         colls_abc.Set.__init__(self)
     def __iter__(self):
@@ -357,35 +246,36 @@ class lazydict_keys(colls_abc.KeysView, colls_abc.Set):
     def __len__(self):
         return self._count()
 class lazydict_items(colls_abc.ItemsView, colls_abc.Set):
-    __slots__ = ('_lazydict_items',
-                 '_select_lazy', '_select_cached', '_select_raw',
+    __slots__ = ('_lazydict', '_lazydict_items',
+                 '_select_lazy', '_select_raw',
                  '_filter', '_count')
     @staticmethod
-    def _make_filter(cls, ld, sel_lazy, sel_cached):
-        if   sel_lazy   is False: return lambda kv: ld.is_eager(kv[0])
-        elif sel_cached is True:  return lambda kv: ld.is_cached(kv[0])
-        elif sel_cached is False: return lambda kv: ld.is_uncached(kv[0])
-        else: return None
-    @staticmethod
-    def _undelay(kv):
-        return (kv[0], undelay(kv[1], dask=False))
-    def __new__(cls, ld, lazy=None, cached=None, raw=False):
+    def _make_filter(cls, ld, sel_lazy):
+        if   sel_lazy is False: return lambda kv: ld.is_eager(kv[0])
+        elif sel_lazy is True:  return lambda kv: ld.is_lazy(kv[0])
+        else:                   return None
+    def _undelay(self, kv):
+        if isinstance(kv[1], delay):
+            k = kv[0]
+            return (k, self._lazydict[k])
+        else:
+            return kv
+    def __new__(cls, ld, lazy=None, raw=False):
         if not isinstance(ld, lazydict):
             raise ValueError("can only make lazydict_items object from"
-                             " lazydict")
+                             " a lazydict")
         self = object.__new__(cls)
+        object.__setattr__(self, '_lazydict', ld)
         object.__setattr__(self, '_lazydict_items', fdict.items(ld))
         lazy   = None if lazy   is None else bool(lazy)
-        cached = None if cached is None else bool(cached)
-        filt   = lazydict_items._make_filter(cls, ld, lazy, cached)
+        filt   = lazydict_items._make_filter(cls, ld, lazy)
         count  = lazydict_keys._make_count(self)
-        object.__setattr__(self, '_select_lazy',   lazy)
-        object.__setattr__(self, '_select_cached', cached)
-        object.__setattr__(self, '_select_raw',    bool(raw))
+        object.__setattr__(self, '_select_lazy', lazy)
+        object.__setattr__(self, '_select_raw', bool(raw))
         object.__setattr__(self, '_filter', filt)
         object.__setattr__(self, '_count', count)
         return self
-    def __init__(self, ld, lazy=None, cached=None, raw=None):
+    def __init__(self, ld, lazy=None, raw=None):
         colls_abc.ItemsView.__init__(self, ld)
         colls_abc.Set.__init__(self)
     def __iter__(self):
@@ -393,53 +283,60 @@ class lazydict_items(colls_abc.ItemsView, colls_abc.Set):
         if self._select_raw:
             return it
         else:
-            return map(lazydict_items._undelay, it)
+            return map(self._undelay, it)
     def __reversed__(self):
         return filter(self._filter, reversed(self._lazydict_items))
     def __contains__(self, k):
-        return (k in self._lazydict_items and self._filter(k))
+        return (k in self._lazydict and self._filter(k))
     def __len__(self):
         return self._count()
 class lazydict_values(colls_abc.ValuesView, colls_abc.Sequence):
-    __slots__ = ('_lazydict_items',
+    __slots__ = ('_lazydict', '_lazydict_items',
                  '_select_lazy', '_select_cached', '_select_raw',
                  '_filter', '_count')
     @staticmethod
     def _take_value(kv):
         return kv[1]
-    def __new__(cls, ld, lazy=None, cached=None, raw=False):
+    def _undelay(self, kv):
+        v = kv[1]
+        if isinstance(v, delay):
+            return self._lazydict[kv[0]]
+        else:
+            return v
+    def __new__(cls, ld, lazy=None, raw=False):
         if not isinstance(ld, lazydict):
             raise ValueError("can only make lazydict_values object from"
                              " lazydict")
         self = object.__new__(cls)
+        object.__setattr__(self, '_lazydict', ld)
         object.__setattr__(self, '_lazydict_items', fdict.items(ld))
         lazy   = None if lazy   is None else bool(lazy)
-        cached = None if cached is None else bool(cached)
-        filt   = lazydict_items._make_filter(cls, ld, lazy, cached)
+        filt   = lazydict_items._make_filter(cls, ld, lazy)
         count  = lazydict_keys._make_count(self)
-        object.__setattr__(self, '_select_lazy',   lazy)
-        object.__setattr__(self, '_select_cached', cached)
-        object.__setattr__(self, '_select_raw',    bool(raw))
+        object.__setattr__(self, '_select_lazy', lazy)
+        object.__setattr__(self, '_select_raw', bool(raw))
         object.__setattr__(self, '_filter', filt)
         object.__setattr__(self, '_count', count)
         return self
-    def __init__(self, ld, lazy=None, cached=None, raw=None):
+    def __init__(self, ld, lazy=None, raw=None):
         colls_abc.ValuesView.__init__(self, ld)
         colls_abc.Sequence.__init__(self)
     def __getitem__(self, k):
         raise TypeError("lazydict_values is not subscriptable")
     def __iter__(self):
-        it = map(lazydict_values._take_value,
-                 filter(self._filter, iter(self._lazydict_items)))
+        it = filter(self._filter, iter(self._lazydict_items))
         if self._select_raw:
-            return it
+            return map(lazydict_values._take_value, it)
         else:
-            return map(undelay, it)
+            return map(self._undelay, it)
     def __reversed__(self):
-        return map(lazydict_values._take_value,
-                   filter(self._filter, iter(self._lazydict_items)))
+        it = filter(self._filter, reversed(list(self._lazydict_items)))
+        if self._select_raw:
+            return map(lazydict_values._take_value, it)
+        else:
+            return map(self._undelay, it)
     def __contains__(self, v):
-        return (k in self._lazydict_items and self._filter(k))
+        return (k in self._lazydict and self._filter(k))
     def __len__(self):
         return self._count()
 class lazydict(frozendict):
@@ -451,22 +348,43 @@ class lazydict(frozendict):
 
     `ldict` is an alias for `lazydict`.
     """
+    @classmethod
+    def _prefix(self):
+        return '<:'
+    @classmethod
+    def _suffix(self):
+        return ':>'
+    def __new__(self, *args, **kw):
+        if len(args) == 1 and len(kw) == 0 and isinstance(args[0], lazydict):
+            return args[0]
+        else:
+            return frozendict.__new__(self, *args, **kw)
     def __repr__(self):
-        s = ['%s: %s' % (repr(k),
-                         '<lazy>' if self.is_uncached(k) else repr(self[k]))
+        s = [f'{repr(k)}: {"<lazy>" if self.is_lazy(k) else repr(self[k])}'
              for k in self.keys()]
         s = ', '.join(s)
-        return '<:{' + s + '}:>'
+        return self._prefix() + '{' + s + '}' + self._suffix()
     def __str__(self):
-        s = ['%s: %s' % (str(k),
-                         '<lazy>' if self.is_uncached(k) else str(self[k]))
+        s = [f'{str(k)}: {"<lazy>" if self.is_lazy(k) else str(self[k])}'
              for k in self.keys()]
         s = ', '.join(s)
-        return '<:{' + s + '}:>'
+        return self._prefix() + '{' + s + '}' + self._suffix()
+    def __eq__(self, other):
+        return (len(self) == len(other) and
+                self.keys() == other.keys() and
+                all(v == other[k] for (k,v) in self.items()))
     def __getitem__(self, k):
-        return undelay(frozendict.__getitem__(self, k), dask=False)
+        d = frozendict.__getitem__(self, k)
+        if isinstance(d, delay):
+            d = d()
+            dict.__setitem__(self, k, d)
+        return d
     def get(self, k, default=None):
-        return undelay(frozendict.get(self, k, default=default), dask=False)
+        d = frozendict.get(self, k, default=default)
+        if isinstance(d, delay):
+            d = d()
+            dict.__setitem__(self, k, d)
+        return d
     def raw(self):
         """Returns a frozendict copy of the lazydict without undelaying.
 
@@ -480,26 +398,36 @@ class lazydict(frozendict):
         # that accessing the values directly (and thus obtaining the delay
         # objects sometimes) is working as intended.
         return frozendict.__iter__(self)
-    def keys(self, lazy=None, cached=None):
-        return lazydict_keys(self, lazy=lazy, cached=cached)
-    def items(self, lazy=None, cached=None):
-        return lazydict_items(self, lazy=lazy, cached=cached)
-    def rawitems(self, lazy=None, cached=None):
+    def keys(self, lazy=None):
+        return lazydict_keys(self, lazy=lazy)
+    def items(self, lazy=None):
+        return lazydict_items(self, lazy=lazy)
+    def rawitems(self, lazy=None):
         """Iterates over the raw items in the frozendict.
 
         Raw items include delay objects rather than the values encapsulaetd by
         the delay.
         """
-        return lazydict_items(self, lazy=lazy, cached=cached, raw=True)
-    def values(self, lazy=None, cached=None):
-        return lazydict_values(self, lazy=lazy, cached=cached)
-    def rawvalues(self, lazy=None, cached=None):
+        return lazydict_items(self, lazy=lazy, raw=True)
+    def values(self, lazy=None):
+        return lazydict_values(self, lazy=lazy)
+    def rawvalues(self, lazy=None):
         """Iterates over the raw values in the frozendict.
 
         Raw values include delay objects rather than the values encapsulaetd by
         the delay.
         """
-        return lazydict_values(self, lazy=lazy, cached=cached, raw=True)
+        return lazydict_values(self, lazy=lazy, raw=True)
+    def set(self, key, val):
+        d = lazydict(self.rawitems())
+        dict.__setitem__(d, key, val)
+        return d
+    def setdefault(self, key, default=None):
+        if key in self: return self
+        else:           return self.set(key, default)
+    def delete(self, key):
+        if key not in self: raise KeyError(key)
+        return lazydict({(k,v) for (k,v) in self.rawitems() if k != key})
     def getdelay(self, k):
         """Returns the `Delay` object for a key if the key is mapped to one.
 
@@ -520,77 +448,13 @@ class lazydict(frozendict):
         """
         v = frozendict.__getitem__(self, k)
         return v if is_delay(v) else None
-    def is_uncached(self, k):
-        """Determines if a key is associated with an uncached lazy value or not.
-
-        `ld.is_uncached(k)` returns `True` if the given key `k` is lazy and
-        unmemoized in the given lazy map, `ld`. If `ld` does not contain `k`
-        then an error is raised, and if `k` is not lazy, then `False` is
-        returned.
-
-        Parameters
-        ----------
-        k : object
-            The key whose laziness is to be assessed.
-
-        Returns
-        -------
-        boolean or None
-            If `k` is in the lazydict and is mapped to an uncached lazy value,
-            then `True` is returned; if `k` is mapped to a cached lazy value,
-            then `False` is returned; if `k` is mapped to a value that is not
-            lazy, then `None` is returned.
-
-        Raises
-        ------
-        KeyError
-            If the key `k` is not in the lazydict.
-        """
-        v = frozendict.__getitem__(self, k)
-        if is_delay(v):
-            return not v.is_cached()
-        else:
-            return None
-    def is_cached(self, k):
-        """Determines if the given key is associated with a cached lazy value.
-
-        `ld.is_cached(k)` returns `True` if the given key `k` is lazy and
-        memoized/cached in the given lazyd, `ld`. If `ld` does not
-        contain `k` then an error is raised. If `k` is lazy but not yet cached,
-        then `False` is returned. If `k` is in the map but is not a lazy key,
-        then `None` is returned.
-
-        Parameters
-        ----------
-        k : object
-            The key whose cache-state is to be assessed.
-
-        Returns
-        -------
-        boolean or None
-            If `k` is in the lazydict and is mapped to a cached lazy value,
-            then `True` is returned; if `k` is mapped to an uncached lazy value,
-            then `False` is returned; if `k` is mapped to a value that is not
-            lazy, then `None` is returned.
-
-        Raises
-        ------
-        KeyError
-            If the key `k` is not in the lazydict.
-        """
-        v = frozendict.__getitem__(self, k)
-        if is_delay(v):
-            return v.is_cached()
-        else:
-            return None
     def is_lazy(self, k):
         """Determines if the given key is associated with a lazy value.
 
-        `ld.is_lazy(k)` returns `True` if the given key `k` is in the given
-        lazy map and is/was a lazy key/value. If `ld` does not contain `k`
-        then an error is raised. If `k` is not lazy then `False` is
-        returned. Note that `k` may be cached permanently, but in this case it
-        is still considered lazy.
+        `ld.is_lazy(k)` returns `True` if the given key `k` is in the given lazy
+        map and is currently a lazy key/value. If `ld` does not contain `k` then
+        an error is raised. If `k` is not lazy then `False` is returned. Note
+        that if `k` has been calculated, it is no longer considered lazy.
 
         Parameters
         ----------
@@ -749,8 +613,8 @@ def lazyitemmap(f, d, *args, **kwargs):
     function `f`, such that in the resulting map, each key `k` is mapped to
     `f(k, *args, **kw)`.
 
-    Unlike `lazyitemap`, this function returns either a dict, a frozendict, or a
-    lazydict depending on the input argument `d`. If `d` is a lazydict, then a
+    Unlike `lazyitemmap`, this function returns either a dict, a frozendict, or
+    a lazydict depending on the input argument `d`. If `d` is a lazydict, then a
     lazydict is returned; if `d` is a frozendict, a frozendict is returned, and
     otherwise, a dict is returnd.
     """
@@ -836,12 +700,12 @@ def merge(*args, **kw):
     res = dict(res)
     for d in args[1:]:
         if is_lazydict(d):
-            islazy = True
+            lazy = True
             res.update(d.rawitems())
         else:
             res.update(d)
     res.update(kw)
-    return lazydict(res) if islazy else frozendict(res)
+    return lazydict(res) if lazy else frozendict(res)
 def rmerge(*args, **kw):
     '''Merges dict-like objects right-to-left. See also `merge`.
 
@@ -858,15 +722,15 @@ def rmerge(*args, **kw):
         return frozendict(kw)
     # Make the initial dictionary.
     res = dict(kw)
-    islazy = False
+    lazy = False
     for d in reversed(args):
         if is_lazydict(d):
-            islazy = True
+            lazy = True
             res.update(d.rawitems())
         else:
             res.update(d)
     res.update(kw)
-    return lazydict(res) if islazy else frozendict(res)
+    return lazydict(res) if lazy else frozendict(res)
 def assoc(d, *args, **kw):
     """Returns a copy of the given dictionary with additional key-value pairs.
 
