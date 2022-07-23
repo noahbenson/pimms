@@ -18,6 +18,24 @@ from ..doc import docwrap
 from ..types import (is_str, is_fdict, is_map, is_mmap, is_set, is_lambda)
 
 # #delay #######################################################################
+class DelayError(RuntimeError):
+    """A runtime error that occurs while evaluating a delay function.
+
+    See also: `delay`.
+    """
+    def __init__(self, partial):
+        self.partial = partial
+    def __str__(self):
+        (fn, args, kwargs) = self.partial
+        fnname = getattr(fn, '__name__', '<anonymous>')
+        errmsg = ('delay raised error during call to '
+                  f'{fnname}{tuple(args)}')
+        if len(kwargs) > 0:
+            opts = ', '.join([f'{k}={v}' for (k,v) in kwargs.items()])
+            errmsg = f'{errmsg[:-1]}, {opts})'
+        return errmsg
+    def __repr__(self):
+        return str(self)
 class delay:
     """A delayed computation that can be either weak or strong.
 
@@ -41,15 +59,24 @@ class delay:
     **kw
         The keyword arguments to be passed to the given function `fn`.
     """
-    __slots__ = ('_partial', '_results')
+    __slots__ = ('_partial', '_status')
     def __new__(cls, func, *args, **kw):
         # Make sure func is callable.
         if not callable(func):
             raise TypeError("delay functions must be callable")
         self = object.__new__(cls)
-        # We want to setup our memoized value as well.
-        object.__setattr__(self, '_partial', (func, args, kw))
-        object.__setattr__(self, '_results', None)
+        # We set _partial to None once we've run the delay (so that all the args
+        # can be garbage-collected). Until then, _results is the exception that
+        # traces back to here.
+        args = tuple(args)
+        partial = (func, args, kw)
+        object.__setattr__(self, '_partial', partial)
+        # Here we create the exception that we will raise if an error occurs
+        # during the function's execution.
+        try:
+            raise DelayError(partial)
+        except DelayError as e:
+            object.__setattr__(self, '_status', e)
         return self
     def __call__(self):
         # If _partial is None, then we know that the _result contains the result
@@ -57,13 +84,18 @@ class delay:
         if self._partial is not None:
             # We need to run the calculation and save its result.
             (fn, args, kw) = self._partial
-            val = fn(*args, **kw)
+            try:
+                val = fn(*args, **kw)
+            except Exception:
+                # This raises the exception that was saved during __init__,
+                # which will trace back to the origin of the delayed function.
+                raise self._status
             # Save the results.
-            object.__setattr__(self, '_results', val)
+            object.__setattr__(self, '_status', val)
             # Forget the partial info so that it can be garbage collected.
             object.__setattr__(self, '_partial', None)
         # Finally, return the value
-        return self._results
+        return self._status
     def __repr__(self):
         s = 'cached' if self.is_cached() else 'delayed'
         return f"delay(<{id(self)}>, {s})"
@@ -849,4 +881,3 @@ def lambdadict(*args, **kwargs):
         else:
             finals[k] = v
     return ldict(finals)
-    
