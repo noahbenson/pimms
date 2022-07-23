@@ -17,9 +17,8 @@ from inspect import getfullargspec
 from ..doc import (docwrap, docproc, make_docproc)
 from ..types import (is_fdict, is_str, is_number, is_tuple, is_dict, is_array,
                      is_integer, strisvar, is_map)
-from ..lazydict import (merge, lazydict, is_ldict, ldict, frozendict, delay,
-                        valmap, undelay)
-fdict = frozendict
+from ..lazydict import (merge, lazydict, is_ldict, ldict, frozendict, fdict,
+                        valmap, delay, undelay)
 
 
 ################################################################################
@@ -176,7 +175,7 @@ class calc:
         are due to translation calls). The `argspec` also differs from a true
         `argspec` object in that its members are all persistent objects such as
         `tuple`s instead of `list`s.
-    inputs : tuple of str
+    inputs : frozenset of str
         The names of the input parameters for the calculation.
     outputs : tuple of str
         The names of the output values of the calculation.
@@ -254,7 +253,7 @@ class calc:
         spec = calc._argspec_persist(spec)
         object.__setattr__(self, 'argspec', spec)
         # Figure out the inputs from the argspec.
-        inputs = spec.args + spec.kwonlyargs
+        inputs = frozenset(spec.args + spec.kwonlyargs)
         object.__setattr__(self, 'inputs', inputs)
         # Check that the outputs are okay.
         outputs = tuple(outputs)
@@ -464,6 +463,9 @@ class calc:
     @staticmethod
     def _tr_tup(tr, t):
         return tuple(tr.get(k,k) for k in t)
+    @staticmethod
+    def _tr_set(tr, t):
+        return frozenset(tr.get(k,k) for k in t)
     def tr(self, *args, **kwargs):
         """Returns a copy of the calculation with translated inputs and outputs.
         
@@ -479,7 +481,7 @@ class calc:
         tr = copy.copy(self)
         # Simple changes first.
         object.__setattr__(tr, 'name', tr.name + f'.tr{hex(id(tr))}')
-        object.__setattr__(tr, 'inputs', calc._tr_tup(d, tr.inputs))
+        object.__setattr__(tr, 'inputs', calc._tr_set(d, tr.inputs))
         object.__setattr__(tr, 'outputs', calc._tr_tup(d, tr.outputs))
         object.__setattr__(tr, 'defaults', calc._tr_map(d, tr.defaults))
         object.__setattr__(tr, 'input_docs', calc._tr_map(d, tr.input_docs))
@@ -576,11 +578,11 @@ class plan(frozendict):
 
     Attributes
     ----------
-    inputs : tuple of str
-        A tuple of the input parameter names, as defined by the plan's
+    inputs : frozenset of str
+        A frozenset of the input parameter names, as defined by the plan's
         calculations.
-    outputs : tuple of str
-        A tuple of the output parameter names, as defined by the plan's
+    outputs : frozenset of str
+        A frozenset of the output parameter names, as defined by the plan's
         calculations.
     calcs : tuple of str
         A tuple of the caclulation names of the normal (non-filter and
@@ -896,7 +898,7 @@ class plandict(ldict):
     ----------
     plan : plan
         The plan object on which this plandict is based.
-    params : frozendict
+    inputs : frozendict
         The parameters that fulfill the plan. Note that these are the only keys
         in the `plandict` that can be updated using methods like `set` and
         `setdefault`.
@@ -905,7 +907,7 @@ class plandict(ldict):
         values are the `lazydict`s that result from running the associated
         calculation with this `plandict`'s parameters.
     """
-    __slots__ = ('plan', 'params', 'calcs')
+    __slots__ = ('plan', 'inputs', 'calcs')
     @staticmethod
     def _run_calc(plan, calc, mutvals):
         return calc.eager_mapcall({k: undelay(mutvals[k]) for k in calc.inputs})
@@ -945,9 +947,9 @@ class plandict(ldict):
             not all(k in params for k in plan.inputs)):
             (params, inp) = (set(params.keys()), set(plan.inputs))
             missing = inp - params
-            if missing: raise ValueError(f"missing params: {tuple(missing)}")
+            if missing: raise ValueError(f"missing inputs: {tuple(missing)}")
             extras = params - inp
-            raise ValueError(f"extra params: {tuple(extras)}")
+            raise ValueError(f"extra inputs: {tuple(extras)}")
         # We need to make a dict of the (lazy) calculations first. To do this,
         # we need to be able to pass the calcs the delays that we will make
         # after them, so we use a mutable dict as a hack.
@@ -966,7 +968,7 @@ class plandict(ldict):
         self = ldict.__new__(cls, values)
         # And set our special member-values.
         object.__setattr__(self, 'plan', plan)
-        object.__setattr__(self, 'params', params)
+        object.__setattr__(self, 'inputs', params)
         object.__setattr__(self, 'calcs', calcs)
         # Finally, now that we have the object entirely initialized, we can
         # run the required calculations.
@@ -990,7 +992,7 @@ class plandict(ldict):
         if not all(k in plan.inputs for k in params.keys()):
             (params, inp) = (set(params.keys()), set(plan.inputs))
             extras = params - inp
-            raise ValueError(f"extra params: {tuple(extras)}")
+            raise ValueError(f"extra inputs: {tuple(extras)}")
         # Figure out all the dependant calcs and outputs of these params.
         depcalcs = set([])
         depouts = set([])
@@ -1015,7 +1017,7 @@ class plandict(ldict):
         self = ldict.__new__(cls, values)
         # And set our special member-values.
         object.__setattr__(self, 'plan', plan)
-        object.__setattr__(self, 'params', params)
+        object.__setattr__(self, 'inputs', params)
         object.__setattr__(self, 'calcs', calcs)
         # Finally, now that we have the object entirely initialized, we can
         # run the required calculations.
