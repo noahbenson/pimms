@@ -26,7 +26,6 @@ class plantype(type):
 
     See `planobject` for more information.
     """
-    #TODO: write the documentation.
     @staticmethod
     def _planobject__init__(self, *args, **kwargs):
         # This method acts as a default initializer for subtypes.
