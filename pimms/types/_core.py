@@ -1609,7 +1609,7 @@ def strisvar(s):
     See also: `strissym`, `striskey`
     """
     from keyword import iskeyword
-    return is_str(s) and not iskeyword(s)
+    return strissym(s) and not iskeyword(s)
 
 
 # Builtin Python Abstract Types ################################################
