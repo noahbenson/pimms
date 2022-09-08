@@ -1,8 +1,28 @@
 # -*- coding: utf-8 -*-
 ################################################################################
 # pimms/doc/_core.py
+#
 # Implementation of the documentation tools used by pimms.
-# By Noah C. Benson
+#
+# Copyright 2022 Noah C. Benson
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 # Dependencies #################################################################
 from re import compile as _re_compile
@@ -15,8 +35,8 @@ def make_docproc():
     docproc = _DocstringProcessor()
     # We need to add a few features to the docproc's members so that we can
     # process the Inputs and Outputs sections when present.
-    docproc.param_like_sections = (docproc.param_like_sections
-                                   + ['Inputs','Outputs'])
+    docproc.param_like_sections = \
+        docproc.param_like_sections + ['Inputs','Outputs']
     docproc.patterns['Inputs'] = _re_compile(
         docproc.patterns['Parameters'].pattern
             .replace('Parameters', 'Inputs')
@@ -39,7 +59,24 @@ using the `sections=('Parameters', 'Returns', 'Raises', 'Examples', 'Inputs',
 function `f` is `f.__module__ + '.' + f.__name__`.
 """
 
-def _docwrap(f, fnname, indent=4, proc=docproc):
+def _docwrap(f, fnname, indent=None, proc=docproc):
+    # If no ident number was provided, deduce it.
+    if indent is None:
+        if not hasattr(f, '__doc__') or f.__doc__ is None:
+            # Doesn't matter, no documentation.
+            indent = 0
+        else:
+            lines = f.__doc__.split('\n')
+            # We always skip the first line (the one that starts with """).
+            lines = lines[1:]
+            # Strip the lines.
+            striplines = [s.lstrip() for s in lines]
+            # Pick out the ones with text in them and calculate the indentation.
+            indents = [len(ws_s) - len(s)
+                       for (ws_s,s) in zip(lines, striplines)
+                       if len(s) > 0]
+            # The minimum is the one we want.
+            indent = min(indents) if len(indents) > 0 else 0
     ff = f
     ff = docproc.with_indent(indent)(ff)
     fd = docproc.get_sections(base=fnname, sections=docproc.param_like_sections)
@@ -56,7 +93,7 @@ def _docwrap(f, fnname, indent=4, proc=docproc):
             pname = ln.split(':')[0].strip()
             docproc.keep_params(k, pname)
     return ff
-def docwrap(f=None, indent=4, proc=docproc):
+def docwrap(f=None, indent=None, proc=docproc):
     """Applies standard doc-string processing to the decorated function.
 
     The `pimms.docwrap` decorator applies a standard set of pre-processing to

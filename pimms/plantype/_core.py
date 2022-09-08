@@ -4,14 +4,32 @@
 #
 # Simple meta-class for lazily-calculating plantype classes.
 #
-# @author Noah C. Benson
+# Copyright 2022 Noah C. Benson
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 # Dependencies #################################################################
 import copy, types, inspect
 from collections import (defaultdict, namedtuple)
 
-from ..types import (is_str)
-from ..lazydict import (ldict, fdict, is_ldict, is_fdict, assoc)
+from ..types import (is_str, is_fdict)
+from ..lazydict import (ldict, fdict, is_ldict, assoc)
 from ..calculation import (calc, plan, plandict, is_calc)
 
 # #plantype ####################################################################
@@ -26,19 +44,86 @@ class plantype(type):
 
     See `planobject` for more information.
     """
-    @staticmethod
-    def _planobject__init__(self, *args, **kwargs):
-        # This method acts as a default initializer for subtypes.
-        r = self.__planobject_init__(*args, **kwargs)
-        # Postprocess the argument.
-        plan = type(self).plan
-        params = dict(plan.defaults, **self.__plandict__)
-        if params.keys() != plan.inputs:
-            raise ValueError(f"bad parameterization of plantype {type(self)};"
-                             f" expected {tuple(plan.inputs)} but found"
-                             f" {tuple(params.keys())}")
-        pd = plan(params)
-        object.__setattr__(self, '__plandict__', pd)
+    __slots__ = ()
+    class planobject_base:
+        """The base-class for the `pimms.planobject` class.
+
+        `plantype.planobject_base` is a simple class that implements the basic
+        features of the `planobject` class. The separation for certain methods
+        from the `planobject` type itself is required due to details of how the
+        `planobject` class, which has the `plantype` meta-class, gets
+        initialized while the `plantype.__new__` method depends on methods in
+        the `planobject` class (which hasn't been initialized/defined at the
+        time that the `planobject.__new__` method is called. This class
+        shouldn't be used directly and shouldn't be inherited. Use the
+        `planobject` class instead.
+        """
+        __slots__ = ('__plandict__',)
+        def __getattr__(self, k):
+            pd = self.__paramdict__
+            r = pd.get(r, pd)
+            if r is pd:
+                return object.__getattr__(self, k)
+            else:
+                return r
+        def __setattr__(self, k, v):
+            if type(self.__plandict__) is dict:
+                plan = type(self).plan
+                if k not in plan.inputs:
+                    raise ValueError("planobject inputs become immutable after"
+                                     " the __init__ method returns")
+                self.__plandict__[k] = v
+            else:
+                raise TypeError(f"type {type(self)} is immutable")
+        def __new__(cls, *args, **kwargs):
+            # Start by creating the object itself and setting up its slots.
+            obj = object.__new__(cls)
+            object.__setattr__(obj, '__plandict__', dict())
+            # Once the __init__ function is done running, the plandict will be
+            # cleaned up (this is guaranteed by the plantype meta-class).
+            return obj
+        def __dir__(self):
+            l = object.__dir__(self)
+            for k in self.__plandict__.keys():
+                l.append(k)
+            return l
+        def __init__(self, *args, **kwargs):
+            for (k,v) in merge(*args, **kwargs).items():
+                setattr(self, k, v)
+        def _init_wrapper(self, *args, **kwargs):
+            """Manages the initialization (`__init__`) for `planobject` types.
+
+            The `planobject` type, and any types that inherit from it, is
+            generally immutable; however, When a `planobject` is first created,
+            it is allowed to set its inputs, as if they were mutable attributes,
+            during the `__init__()` method. In order to facilitate this, a
+            reorganization of the initialization code for each `planobject`
+            subclass is performed when that class is defined. The class's true
+            `__init__` method is stored in the method `__planobject_init__`,
+            while the `plantype.planobject_base._init_wrapper` method is stored
+            in the type's `__init__` method. This method calls the type's
+            `__planobject_init__` method then makes the initialized object
+            immutable.
+
+            This method should not be called directly by the user.
+            """
+            # If the plandict is not a mutable dictionary, we have already been
+            # initialized.
+            if is_fdict(self.__plandict__):
+                raise RuntimeError("_init_wrapper method called on an already-"
+                                   "initialized planobject")
+            # This method is the real initializer for the class (what the
+            # class's actual code wrote as the __init__ method).
+            r = self.__planobject_init__(*args, **kwargs)
+            # Postprocess the argument.
+            plan = type(self).plan
+            params = dict(plan.defaults, **self.__plandict__)
+            if params.keys() != plan.inputs:
+                raise ValueError(f"bad parameterization of plantype {type(self)};"
+                                 f" expected {tuple(plan.inputs)} but found"
+                                 f" {tuple(params.keys())}")
+            pd = plan(params)
+            object.__setattr__(self, '__plandict__', pd)
     def __new__(cls, name, bases, attrs, **kwargs):
         sup = super(plantype, cls)
         # Before we go too far, let's extract the valid args from kwargs.
@@ -48,30 +133,30 @@ class plantype(type):
             raise ValueError(f"unsupported type options: {ks}")
         # We want to go over the attributes and make a few changes:
         # (1) We want to make the basic updates.
-        for (k,v) in [('__getattr__', planobject.__getattr__),
-                      ('__setattr__', planobject.__setattr__),
-                      ('__new__',     planobject.__new__),
-                      ('__dir__',     planobject.__dir__)]:
+        for (k,v) in [('__getattr__', plantype.planobject_base.__getattr__),
+                      ('__setattr__', plantype.planobject_base.__setattr__),
+                      ('__new__',     plantype.planobject_base.__new__),
+                      ('__dir__',     plantype.planobject_base.__dir__)]:
             if k in attrs:
                 raise ValueError(f"plantype classes may not define {k}")
             else:
                 attrs[k] = v
         # (2) We want to save the init function and update it to our version.
-        init = attrs.get('__init__', planobject.__init__)
+        init = attrs.get('__init__', plantype.planobject_base.__init__)
         attrs['__planobject_init__'] = init
-        attrs['__init__'] = _planobject__init__
+        attrs['__init__'] = plantype.planobject_base._init_wrapper
         # (3) Go through the bases: see if there are planobject bases already,
         #     and if not, add planobject in. As we go, collect calculations.
         calcs = {k:v for (k,v) in attrs.items() if is_calc(v)}
         found_planobj = False
         for b in bases:
-            if not issubclass(b, planobject): continue
+            if not issubclass(b, plantype.planobject_base): continue
             found_planobj = True
             for (k,v) in inspect.getmembers(b):
                 if k not in calcs and is_calc(v):
                     calcs[k] = v
         if not found_planobj:
-            bases.append(planobject)
+            bases.append(plantype.planobject_base)
         # (4) We now want to create the plan from these calculations and make
         #     sure it's part of the class.
         if initplan is None:
@@ -86,7 +171,7 @@ class plantype(type):
         return "plantype"
 
 # #planobject ##################################################################
-class planobject(metaclass=plantype):
+class planobject(plantype.planobject_base, metaclass=plantype):
     """Base class for objects that are based on lazy calculation plans.
 
     `planobject` is the base-class for all objects that use `pimms` `plan`
@@ -114,37 +199,7 @@ class planobject(metaclass=plantype):
       * `__getattr__ `
       * `__dir__`
     """
-    __slots__ = ('__plandict__')
-    def __setattr__(self, k, v):
-        if type(self.__plandict__) is dict:
-            plan = type(self).plan
-            if k not in plan.inputs:
-                raise ValueError("can only set planobject inputs during init")
-            self.__plandict__[k] = v
-        else:
-            raise TypeError(f"type {type(self)} is immutable")
-    def __getattr__(self, k):
-        pd = self.__paramdict__
-        r = pd.get(r, pd)
-        if r is pd:
-            return object.__getattr__(self, k)
-        else:
-            return r
-    def __dir__(self):
-        l = object.__dir__(self)
-        for k in self.__plandict__.keys():
-            l.append(k)
-        return l
-    def __new__(cls, *args, **kwargs):
-        # Start by creating the object itself and setting up its slots.
-        obj = object.__new__(cls)
-        object.__setattr__(obj, '__plandict__', dict())
-        # Once the __init__ function is done running, the plandict will be
-        # cleaned up (this is guaranteed by the plantype meta-class).
-        return obj
-    def __init__(self, *args, **kwargs):
-        for (k,v) in merge(*args, **kwargs).items():
-            setattr(self, k, v)
+    __slots__ = ()
     def __str__(self):
         p = self.__plandict__.plan
         s = ", ".join([f"{k}={v}" for (k,v) in p.items()])

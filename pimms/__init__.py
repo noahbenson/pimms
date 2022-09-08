@@ -2,7 +2,7 @@
 ################################################################################
 # pimms/__init__.py
 #
-# Copyright 2021 Noah C. Benson
+# Copyright 2022 Noah C. Benson
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -24,13 +24,13 @@
 
 '''The Python Immutables and scientific utilities library.
 
-The `pimms` is the **P**ython **imm**utable **s**cientific toolkit. It is a
-library designed to enable immutable data structures and lazy computation in a
-scientific context, and it works primarily via a collection of utility functions
-and through the use of decorators, which are generally applied to classes and
-their members to declare how an immutable data-structure's members are related.
-Taken together, these utilities form a DSL-like system for declaring immutable
-data-structures with full inheritance support.
+The `pimms` library is the **P**ython **imm**utable **s**cientific toolkit. It
+is a library designed to enable immutable data structures and lazy computation
+in a scientific context, and it works primarily via a collection of utility
+functions and through the use of decorators, which are generally applied to
+classes and their members to declare how an immutable data-structure's members
+are related.  Taken together, these utilities form a DSL-like system for
+declaring workflows and immutable data-structures with full inheritance support.
 '''
 
 # Imports ######################################################################
