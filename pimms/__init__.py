@@ -35,18 +35,10 @@ data-structures with full inheritance support.
 from .doc import (docwrap, docproc)
 # The types, lazydict, and calculation namespaces all contain clean slates of
 # functions to import; the private state for these is all hidden in submodules.
-from .types import *
-from .lazydict import *
+from .types       import *
+from .lazydict    import *
 from .calculation import *
-from .plantype import *
-#from .immutable   import (immutable, require, value, param, option, is_imm,
-#                          is_imm_type, imm_copy,
-#                          imm_persist, imm_transient, imm_params, imm_values,
-#                          imm_dict,
-#                          imm_is_persistent, imm_is_transient)
-#from .cmdline     import (argv_parse, argv_parser, to_argv_schema,
-#                          CommandLineParser,
-#                          WorkLog, worklog)
+from .plantype    import *
 # Import the Global UnitRegistry object to the global pimms scope. This is the
 # value that gets updated when one runs `pimms.default_ureg()`, and this is the
 # UnitRegistry that is used as the default registry for all `pimms` functions.
