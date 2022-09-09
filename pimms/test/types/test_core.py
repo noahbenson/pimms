@@ -127,4 +127,113 @@ class TestTypesCore(TestCase):
         # Ordinary tags can be converted into dtypes as well.
         self.assertEqual(np.dtype(np.float64), to_numpydtype(np.float64))
         self.assertEqual(np.dtype('int32'), to_numpydtype('int32'))
-    
+    def test_is_array(self):
+        from pimms import (is_array, quant)
+        from numpy import (array, linspace, dot)
+        from scipy.sparse import csr_matrix
+        import torch, numpy as np
+        # By default, is_array() returns True for numpy arrays, scipy sparse
+        # matrices, and quantities of these.
+        arr = linspace(0, 1, 25)
+        mtx = dot(linspace(0, 1, 10)[:,None], linspace(1, 2, 10)[None,:])
+        sp_mtx = csr_matrix(([1.0, 0.5, 0.5, 0.2, 0.1],
+                             ([0, 0, 4, 5, 9], [4, 9, 4, 1, 8])),
+                            shape=(10, 10), dtype=float)
+        q_arr = quant(arr, 'mm')
+        q_mtx = quant(arr, 'seconds')
+        q_sp_mtx = quant(sp_mtx, 'kg')
+        self.assertTrue(is_array(arr))
+        self.assertTrue(is_array(mtx))
+        self.assertTrue(is_array(sp_mtx))
+        self.assertTrue(is_array(q_arr))
+        self.assertTrue(is_array(q_mtx))
+        self.assertTrue(is_array(q_sp_mtx))
+        # Things like lists, numbers, and torch tensors are not arrays.
+        self.assertFalse(is_array('abc'))
+        self.assertFalse(is_array(10))
+        self.assertFalse(is_array([12.0, 0.5, 3.2]))
+        self.assertFalse(is_array(torch.tensor([1.0, 2.0, 3.0])))
+        self.assertFalse(is_array(quant(torch.tensor([1.0, 2.0, 3.0]), 'mm')))
+        # We can use the dtype argument to restrict what we consider an array by
+        # its dtype. The dtype of the is_array argument must be a sub-dtype of
+        # the dtype parameter.
+        self.assertTrue(is_array(arr, dtype=np.number))
+        self.assertTrue(is_array(arr, dtype=arr.dtype))
+        self.assertFalse(is_array(arr, dtype=np.str_))
+        # If a tuple is passed for the dtype, the dtype must match that of the
+        # tuple exactly.
+        self.assertTrue(is_array(mtx, dtype=(mtx.dtype,)))
+        self.assertTrue(is_array(mtx, dtype=(mtx.dtype,np.dtype(int),np.str_)))
+        self.assertFalse(is_array(mtx, dtype=(np.dtype(int),np.str_)))
+        self.assertFalse(is_array(np.dtype(np.int32), dtype=(np.int64,)))
+        # torch dtypes can be interpreted into numpy dtypes.
+        self.assertTrue(is_array(mtx, dtype=torch.as_tensor(mtx).dtype))
+        # We can use the ndim argument to restrict the number of dimensions that
+        # an array can have in order to be considered a matching array.
+        # Typically, this is just the number of dimensions.
+        self.assertTrue(is_array(arr, ndim=1))
+        self.assertTrue(is_array(mtx, ndim=2))
+        self.assertFalse(is_array(arr, ndim=2))
+        self.assertFalse(is_array(mtx, ndim=1))
+        # Alternately, a tuple may be given, in which case any of the dimension
+        # counts in the tuple are accepted.
+        self.assertTrue(is_array(mtx, ndim=(1,2)))
+        self.assertTrue(is_array(arr, ndim=(1,2)))
+        self.assertFalse(is_array(mtx, ndim=(1,3)))
+        self.assertFalse(is_array(arr, ndim=(0,2)))
+        # Scalar arrays have 0 dimensions.
+        self.assertTrue(is_array(array(0), ndim=0))
+        # The shape option is a more specific version of the ndim parameter. It
+        # lets you specify what kind of shape is required of the array. The most
+        # straightforward usage is to require a specific shape.
+        self.assertTrue(is_array(arr, shape=(25,)))
+        self.assertTrue(is_array(mtx, shape=(10,10)))
+        self.assertFalse(is_array(arr, shape=(25,25)))
+        self.assertFalse(is_array(mtx, shape=(10,)))
+        # A -1 value that appears in the shape option represents any size along
+        # that dimension (a wildcard). Any number of -1s can be included.
+        self.assertTrue(is_array(arr, shape=(-1,)))
+        self.assertTrue(is_array(mtx, shape=(-1,10)))
+        self.assertTrue(is_array(mtx, shape=(10,-1)))
+        self.assertTrue(is_array(mtx, shape=(-1,-1)))
+        self.assertFalse(is_array(mtx, shape=(1,-1)))
+        # No more than 1 ellipsis may be included in the shape to indicate that
+        # any number of dimensions, with any sizes, can appear in place of the
+        # ellipsis.
+        self.assertTrue(is_array(arr, shape=(...,25)))
+        self.assertTrue(is_array(arr, shape=(25,...)))
+        self.assertFalse(is_array(arr, shape=(25,...,25)))
+        self.assertTrue(is_array(mtx, shape=(...,10)))
+        self.assertTrue(is_array(mtx, shape=(10,...)))
+        self.assertTrue(is_array(mtx, shape=(10,...,10)))
+        self.assertTrue(is_array(mtx, shape=(10,10,...)))
+        self.assertTrue(is_array(mtx, shape=(...,10,10)))
+        self.assertFalse(is_array(mtx, shape=(10,...,10,10)))
+        self.assertFalse(is_array(mtx, shape=(10,10,...,10)))
+        self.assertTrue(is_array(np.zeros((1,2,3,4,5)), shape=(1,...,4,5)))
+        # The readonly option can be used to test whether an array is readonly
+        # or not. This is judged by the array's 'WRITEABLE' flag.
+        self.assertFalse(is_array(arr, readonly=True))
+        self.assertTrue(is_array(arr, readonly=False))
+        self.assertFalse(is_array(mtx, readonly=True))
+        self.assertTrue(is_array(mtx, readonly=False))
+        # If we change the flags of these arrays, they become readonly.
+        arr.setflags(write=False)
+        mtx.setflags(write=False)
+        self.assertTrue(is_array(arr, readonly=True))
+        self.assertFalse(is_array(arr, readonly=False))
+        self.assertTrue(is_array(mtx, readonly=True))
+        self.assertFalse(is_array(mtx, readonly=False))
+        # The sparse option can test whether an object is a sparse matrix or
+        # not. By default sparse is None, meaning that it doesn't matter whether
+        # an object is sparse, but sometimes you want to check for strict
+        # numpy arrays only.
+        self.assertTrue(is_array(arr, sparse=False))
+        self.assertTrue(is_array(mtx, sparse=False))
+        self.assertFalse(is_array(sp_mtx, sparse=False))
+        self.assertFalse(is_array(arr, sparse=True))
+        self.assertFalse(is_array(mtx, sparse=True))
+        self.assertTrue(is_array(sp_mtx, sparse=True))
+        
+        
+        

@@ -146,7 +146,7 @@ def is_quant(obj, unit=None, ureg=None):
 # Numerical collections include numpy arrays and torch tensors. These objects
 # are handled similarly due to their overall functional similarity, and certain
 # support functions are used for both.
-def _numcoll_match(numcoll_shape, numcol_dtype, ndim, shape, dtype):
+def _numcoll_match(numcoll_shape, numcoll_dtype, ndim, shape, dtype):
     """Checks that the actual numcoll shape and the actual numcol dtype match
     the requirements of the ndim, shape, and dtype parameters.
     """
@@ -204,7 +204,14 @@ def _numcoll_match(numcoll_shape, numcol_dtype, ndim, shape, dtype):
         if is_numpydtype(numcoll_dtype):
             if is_seq(dtype) or is_set(dtype):
                 dtype = [to_numpydtype(dt) for dt in dtype]
-            else: dtype = [to_numpydtype(dtype)]
+            else:
+                # If we have been given a torch dtype, we convert it, but
+                # otherwise we let np.issubdtype do the converstion so that
+                # users can pass in things like np.integer meaningfully.
+                if is_torchdtype(dtype): dtype = to_numpydtype(dtype)
+                if not np.issubdtype(numcoll_dtype, dtype):
+                    return False
+                dtype = (numcoll_dtype,)
         elif is_torchdtype(numcoll_dtype):
             if is_seq(dtype) or is_set(dtype):
                 dtype = [to_torchdtype(dt) for dt in dtype]
@@ -321,7 +328,9 @@ def is_array(obj,
         parameter if either `dtype` is `None` (the default) or if `obj.dtype` is
         a sub-dtype of `dtype` according to `numpy.issubdtype`. Alternately,
         `dtype` can be a tuple, in which case, `obj` is considered valid if its
-        dtype is any of the dtypes in `dtype`.
+        dtype is any of the dtypes in `dtype`. Note that in the case of a tuple,
+        the dtype of `obj` must appear exactly in the tuple rather than be a
+        subtype of one of the objects in the tuple.
     ndim : int or tuple or ints or None, optional
         The number of dimensions that the object must have in order to be
         considered a valid numpy array. If `None`, then any number of dimensions
