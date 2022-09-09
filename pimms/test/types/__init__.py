@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 ################################################################################
-# pimms/test/__init__.py
+# pimms/test/types/__init__.py
 #
-# Core test package for pimms, using unittest.
+# Tests of the pimms.types module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -23,15 +24,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-'''The core pimms test module.
-
-The `pimms.test` package contains tests for the pimms library as well as
-examples of the library's usage.
-'''
-
-from .doc   import *
-from .types import *
-
-if __name__ == '__main__':
-    from unittest import main
-    main()
+from .test_core import TestTypesCore

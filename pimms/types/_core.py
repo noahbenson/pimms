@@ -59,7 +59,7 @@ def is_ureg(obj):
     return isinstance(obj, UnitRegistry)
 from pint import Unit
 @docwrap
-def is_unit(q, ureg=Ellipsis):
+def is_unit(q, ureg=None):
     """Returns `True` if `q` is a `pint` unit and `False` otherwise.
 
     `is_unit(q)` returns `True` if `q` is a `pint` unit and `False` otherwise.
@@ -70,9 +70,9 @@ def is_unit(q, ureg=Ellipsis):
         The object whose quality as a `pint` unit is to be assessed.
     ureg : UnitRegistry or None, optional
         The `pint` `UnitRegistry` object that the given unit object must belong
-        to. If `Ellipsis` (the default), then any unit registry is allowed. If
-        `None`, then the `pimms.units` registry is used. Otherwise, this must be
-        a specific `UnitRegistry` object.
+        to. If `None` (the default), then any unit registry is allowed. If
+        `Ellipsis`, then the `pimms.units` registry is used. Otherwise, this
+        must be a specific `UnitRegistry` object.
 
     Returns
     -------
@@ -84,10 +84,10 @@ def is_unit(q, ureg=Ellipsis):
     TypeError
         If the `ureg` parameter is not a `UnitRegistry`, `Ellipsis`, or `None`.
     """
-    if ureg is Ellipsis:
+    if ureg is None:
         return isinstance(q, Unit)
-    elif ureg is None:
-        from ._quantity import units
+    elif ureg is Ellipsis:
+        from pimms import units
         return isinstance(q, units.Unit)
     elif is_ureg(ureg):
         return isinstance(q, ureg.Unit)
@@ -134,9 +134,9 @@ def is_quant(obj, unit=None, ureg=None):
             return False
     else:
         if ureg is Ellipsis:
-            from ._quantity import units
+            from pimms import units
             ureg = units
-        elif not is_reg(ureg):
+        elif not is_ureg(ureg):
             raise TypeError("parameter ureg must be a UnitRegistry")
         if not isinstance(obj, ureg.Quantity):
             return False
