@@ -234,6 +234,87 @@ class TestTypesCore(TestCase):
         self.assertFalse(is_array(arr, sparse=True))
         self.assertFalse(is_array(mtx, sparse=True))
         self.assertTrue(is_array(sp_mtx, sparse=True))
-        
+        # You can also require a kind of sparse matrix.
+        self.assertTrue(is_array(sp_mtx, sparse='csr'))
+        self.assertFalse(is_array(sp_mtx, sparse='csc'))
+        # The quant option can be used to control whether the object must or
+        # must not be a quantity.
+        self.assertTrue(is_array(arr, quant=False))
+        self.assertTrue(is_array(mtx, quant=False))
+        self.assertFalse(is_array(arr, quant=True))
+        self.assertFalse(is_array(mtx, quant=True))
+        self.assertTrue(is_array(q_arr, quant=True))
+        self.assertTrue(is_array(q_mtx, quant=True))
+        self.assertFalse(is_array(q_arr, quant=False))
+        self.assertFalse(is_array(q_mtx, quant=False))
+        # The units option can be used to require that either an object have
+        # no units (or is not a quantity) or that it have specific units.
+        self.assertTrue(is_array(arr, unit=None))
+        self.assertTrue(is_array(mtx, unit=None))
+        self.assertFalse(is_array(arr, unit='mm'))
+        self.assertFalse(is_array(mtx, unit='s'))
+        self.assertFalse(is_array(q_arr, unit=None))
+        self.assertFalse(is_array(q_mtx, unit=None))
+        self.assertTrue(is_array(q_arr, unit='mm'))
+        self.assertTrue(is_array(q_mtx, unit='s'))
+        self.assertFalse(is_array(q_arr, unit='s'))
+        self.assertFalse(is_array(q_mtx, unit='mm'))
+    def test_to_array(self):
+        from pimms import (to_array, quant, is_quant, units)
+        from numpy import (array, linspace, dot)
+        from scipy.sparse import (csr_matrix, issparse)
+        import torch, numpy as np
+        # We'll use a few objects throughout our tests, which we setup now.
+        arr = linspace(0, 1, 25)
+        mtx = dot(linspace(0, 1, 10)[:,None], linspace(0, 2, 10)[None,:])
+        sp_mtx = csr_matrix(([1.0, 0.5, 0.5, 0.2, 0.1],
+                             ([0, 0, 4, 5, 9], [4, 9, 4, 1, 8])),
+                            shape=(10, 10), dtype=float)
+        q_arr = quant(arr, 'mm')
+        q_mtx = quant(arr, 'seconds')
+        q_sp_mtx = quant(sp_mtx, 'kg')
+        # For an object that is already a numpy array, any call that doesn't
+        # request a copy and that doesn't change its parameters will return the
+        # identical object.
+        self.assertIs(arr, to_array(arr))
+        self.assertIs(arr, to_array(arr, sparse=False, readonly=False))
+        self.assertIs(arr, to_array(arr, quant=False))
+        # If we change the parameters of the returned array, we will get
+        # different (but typically equal) objects back.
+        self.assertIsNot(arr, to_array(arr, readonly=True))
+        self.assertTrue(np.array_equal(arr, to_array(arr, readonly=True)))
+        # We can also request that a copy be made like with np.array.
+        self.assertIsNot(arr, to_array(arr, copy=True))
+        self.assertTrue(np.array_equal(arr, to_array(arr, copy=True)))
+        # The sparse flag can be used to convert to/from a sparse array.
+        self.assertIsInstance(to_array(sp_mtx, sparse=False), np.ndarray)
+        self.assertTrue(np.array_equal(to_array(sp_mtx, sparse=False),
+                                       sp_mtx.todense()))
+        self.assertTrue(issparse(to_array(mtx, sparse=True)))
+        self.assertTrue(np.array_equal(to_array(mtx, sparse=True).todense(),
+                                       mtx))
+        # The readonly flag ensures that the return value does or does not have
+        # the writeable flag set.
+        self.assertFalse(to_array(mtx, readonly=True).flags['WRITEABLE'])
+        self.assertTrue(np.array_equal(to_array(mtx, readonly=True), mtx))
+        self.assertIsNot(to_array(mtx, readonly=True), mtx)
+        # The quant argument can be used to enforce the return of quantities or
+        # non-quantities.
+        self.assertIsInstance(to_array(arr, quant=True), units.Quantity)
+        # The unit parameter can be used to specify what unit to use.
+        self.assertTrue(np.array_equal(q_arr.m,
+                                       to_array(arr, quant=True, unit='mm').m))
+        # If no unit is provided, then dimensionless units are assumed (1
+        # dimensionless is equivalent to 1 count, 1 turn, and a few others).
+        self.assertEqual(to_array(arr, quant=True).u, units.dimensionless)
+        # We can also use unit to extract a specific unit from a quantity.
+        self.assertEqual(1000, to_array(1 * units.meter, unit='mm').m)
+        # However, a non-quantity is always assumed to already have the units
+        # requested, so converting it to a particular unit (but not converting
+        # it to a quantity) results in the same object.
+        self.assertIs(to_array(arr, unit='mm'), arr)
+        # An error is raised if you try to request no units for a quantity.
+        with self.assertRaises(ValueError):
+            to_array(arr, quant=True, unit=None)
         
         

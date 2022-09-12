@@ -145,6 +145,7 @@ def unit(obj, ureg=Ellipsis):
         return getattr(ureg, obj)
     else:
         raise ValueError(f'unrecognized unit argument: {obj}')
+_unitlike_types = (str, pint.Unit, pint.Quantity)
 @docwrap
 def alike_units(a, b, ureg=None):
     """Returns `True` if the arguments are alike units, otherwise `False`.
@@ -152,8 +153,9 @@ def alike_units(a, b, ureg=None):
     `alike_units(a,b)` returns `True` if `a` and `b` can be cast to each other
     in terms of units and `False` otherwise. Both `a` and `b` can either be
     units, unit names, or quantities with units. If either `a` or `b` is neither
-    a unit nor a quantity, then it is considered equivalent to the dimensionless
-    unit.
+    a unit nor a quantity, then it is considered equivalent to having units of
+    `None`, i.e., no units. `None` is compatible with dimensionless units but is
+    considered incompatible with all other units.
 
     Parameters
     ----------
@@ -169,21 +171,27 @@ def alike_units(a, b, ureg=None):
     -------
     boolean
         `True` if the units `a` and `b` are alike and `False` otherwise.
+
     """
     if ureg is None: from pimms import units as ureg
+    if not isinstance(a, _unitlike_types): a = ureg.dimensionless
+    if not isinstance(b, _unitlike_types): b = ureg.dimensionless
     return ureg.is_compatible_with(a, b)
 @docwrap
-def quant(mag, units=Ellipsis, ureg=None):
-    """Returns a `Quantity` object with the given magnitude and units.
+def quant(mag, unit=Ellipsis, ureg=None):
+    """Returns a `Quantity` object with the given magnitude and unit.
 
-    `quant(mag, units)` returns a `Quantity` object with the given magnitude and
-    units. If `mag` is alreaady a `Quantity`, then it is converted into the
-    given units and returned (a copy of `mag` is made only if necessary); if the
-    units of `mag` in this case are not compatible with `units`, then an error
-    is raised. If `mag` is not a quantity, then the given `units` are used to
-    create the quantity.
+    `quant(mag, unit)` returns a `Quantity` object with the given magnitude and
+    unit. If `mag` is alreaady a `Quantity`, then it is converted into the given
+    units and returned (a copy of `mag` is made only if necessary); if the units
+    of `mag` in this case are not compatible with `unit`, then an error is
+    raised. If `mag` is not a quantity, then the given `unit` is used to create
+    the quantity.
 
-    The value `units=None` is equivalent to `units='dimensionless'`. 
+    The value `unit=None` is not equivalent to `unit='dimensionless'`; rather,
+    `unit=None` us used throughout pimms to indicate a non-quantity such as a
+    plain PyTorch tensor or a NumPy array. Accordingly, an exception is raised
+    when `unit=None` is given.
 
     `quant(mag)` is equivalent to `quant(mag, Ellipsis)`. Both return `mag` if
     `mag` is already a `Quantity`; otherwise they return a quantity with
@@ -193,7 +201,7 @@ def quant(mag, units=Ellipsis, ureg=None):
     ----------
     mag : object
         The magnitude to be given a unit.
-    units : unit-like or None or Ellipsis, optional
+    unit : unit-like or None or Ellipsis, optional
         The units to use in the returned quantity. If `Ellipsis` (the default),
         then dimensionless units are assumed unless the `mag` argument already
         is a quantity with its own units.
@@ -206,21 +214,29 @@ def quant(mag, units=Ellipsis, ureg=None):
     -------
     pint.Quantity
         A quantity object representing the given magnitude and units.
+
+    Raises
+    ------
+    ValueError
+        If `unit` is `None`.
     """
     if ureg is Ellipsis: from pimms import units as ureg
+    if unit is None:
+        raise ValueError("quant cannot create a quantity with a unit of None;"
+                         " use 'dimensionless' instead")
     if is_quant(mag):
         if ureg is None: ureg = mag._REGISTRY
-        q = mag if units is Ellipsis else mag.to(units)
+        q = mag if unit is Ellipsis else mag.to(units)
     else:
-        if units is Ellipsis: units = None
         if ureg is None: from pimms import units as ureg
-        q = ureg.Quantity(mag, units)
+        if unit is Ellipsis: unit = ureg.dimensionless
+        q = ureg.Quantity(mag, unit)
     if q._REGISTRY is not ureg:
         return ureg.Quantity(q.m, q.u)
     else:
         return q
 @docwrap
-def to_quants(*args, units=Ellipsis, ureg=None):
+def to_quants(*args, unit=Ellipsis, ureg=None):
     """Converts each argument in a list to a quantity.
 
     `to_quants(*lst, **kw)` returns `[quant(el, **kw) for el in lst]`.
@@ -229,7 +245,7 @@ def to_quants(*args, units=Ellipsis, ureg=None):
     ----------
     *args
         The list of arguments to be converted into quantities.
-    %(pimms.types._quantity.quant.parameters.units)s
+    %(pimms.types._quantity.quant.parameters.unit)s
     %(pimms.types._quantity.quant.parameters.ureg)s
 
     Returns
@@ -237,47 +253,61 @@ def to_quants(*args, units=Ellipsis, ureg=None):
     list of Quantity objects
         A list of the arguments, each converted into quantities.
     """
-    return [quant(el, units=units, ureg=ureg) for el in args]
+    return [quant(el, unit=unit, ureg=ureg) for el in args]
 @docwrap
-def mag(val, units=Ellipsis):
+def mag(val, unit=Ellipsis):
     """Returns the magnitude of the given object.
 
     `mag(quantity)` returns the magnitude of the given quantity, regardless of
-    the quantity's units.
+    the quantity's unit.
 
     `mag(obj)`, for a non-quantity object `obj`, simply returns `obj`.
 
-    `mag(arg, units)` returns `arg.to(units)` of `arg` is a quantity and returns
-    `arg` if `arg` is not a quantity.
+    `mag(arg, unit)` returns `arg.m_as(unit)` if `arg` is a quantity and returns
+    `arg` itself if `arg` is not a quantity.
 
     `mag(arg, Ellipsis)` is equivalent to `mag(arg)`.
 
-    If `mag(quantity, units)` is given a quantity not compatible with the given
-    units, then an error is raised.
+    If `mag(quantity, unit)` is given a quantity not compatible with the given
+    unit, then an error is raised.
+
+    Note that if the first argument to `mag()` is not a quantity, then the
+    `unit` argument is always ignored, and the first argument is returned as-is.
 
     Parameters
     ----------
     val : object
         The object that is to be converted into a magnitude.
-    units : unit-like or None or Ellipsis, optional
-        The units in which the magnitude of the argument `val` should be
+    unit : unit-like or None or Ellipsis, optional
+        The unit in which the magnitude of the argument `val` should be
         returned. The default argument of `Ellipsis` indicates that the value's
-        native units, if any, should be used.
+        native unit, if any, should be used. A value of `None` indicates that
+        the `val` must have no units (i.e., not be a quantity) or must have
+        a dimensionless unit, otherwise an exception is raised.
 
     Returns
     -------
     object
-        The magnitude of `val` in the requested units, if `val` is a quantity,
+        The magnitude of `val` in the requested unit, if `val` is a quantity,
         or `val` itself, if it is not a quantity.
 
     Raises
     ------
     DimensionaltyError
-        If the given `val` is a quantity whose units are not compatible with the
-        `units` parameter.
+        If the given `val` is a quantity whose unit is not compatible with the
+        `unit` parameter.
+
     """
-    if is_quant(val): 
-        return val.m if units is Ellipsis else val.m_as(units)
+    if is_quant(val):
+        if unit is None:
+            if val.is_compatible_with('dimensionless'):
+                return val.m
+            else:
+                raise DimensionalityError(val, unit)
+        elif unit is Ellipsis:
+            return val.m
+        else:
+            return val.m_as(unit)
     else:
         return val
 

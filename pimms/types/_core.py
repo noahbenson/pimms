@@ -94,7 +94,7 @@ def is_unit(q, ureg=None):
     else:
         raise TypeError("parameter ureg must be a UnitRegistry")
 @docwrap
-def is_quant(obj, unit=None, ureg=None):
+def is_quant(obj, unit=Ellipsis, ureg=None):
     """Returns `True` if given a `pint` quantity and `False` otherwise.
 
     `is_quant(q)` returns `True` if `q` is a `pint` quantity and `False`
@@ -108,12 +108,16 @@ def is_quant(obj, unit=None, ureg=None):
     unit : UnitLike or None, optional
         The unit that the object must have in order to be considered valid. This
         may be a `pint` unit or unit-name (see also `pimms.unit`), a list or
-        tuple of such units/unit-names, or `None`. If `None` (the default), then
-        the object must be a `Quantity` object, but it doesn't matter what the
-        unit of the object is. Otherwise, the object must have a unit equivalent
-        to the unit or to one of the units given. The `UnitRegistry` objects for
-        the units given via this parameter are ignored; only the `ureg`
-        parameter influences the `UnitRegistry` requirements.
+        tuple of such units/unit-names, or `None`. If `Ellipsis` (the default),
+        then the object must be a `Quantity` object, but it doesn't matter what
+        the unit of the object is. Otherwise, the object must have a unit
+        equivalent to the unit or to one of the units given (`unit` may be a
+        tuple of possible units). The `UnitRegistry` objects for the units given
+        via this parameter are ignored; only the `ureg` parameter influences the
+        `UnitRegistry` requirements. Note that the value `None` for a unit type
+        indicates a scalar without a unit (i.e., an object that is not a
+        quantity), and so, while `None` is a valid value, this function will
+        always return `False` when it is passed.
     ureg : pint.UnitRegistry or Ellipsis or None, optional
         The `pint` `UnitRegistry` object to use for units. If `Ellipsis`, then
         `pimms.units` is used. If `ureg` is `None` (the default), then a
@@ -122,7 +126,7 @@ def is_quant(obj, unit=None, ureg=None):
     Returns
     -------
     boolean
-        `True` if `obj` is a `pint` quantity whose units are compatible with the
+        `True` if `obj` is a `pint` quantity whose unit is compatible with the
         requested `unit` and `False` otherwise.
 
     Raises
@@ -140,7 +144,9 @@ def is_quant(obj, unit=None, ureg=None):
             raise TypeError("parameter ureg must be a UnitRegistry")
         if not isinstance(obj, ureg.Quantity):
             return False
-    return True if unit is None else obj.is_compatible_with(unit)
+    return (True  if unit is Ellipsis else
+            False if unit is None     else
+            obj.is_compatible_with(unit))
 
 # Numerical Collection Suport ##################################################
 # Numerical collections include numpy arrays and torch tensors. These objects
@@ -306,7 +312,7 @@ from numpy import ndarray
 @docwrap
 def is_array(obj,
              dtype=None, shape=None, ndim=None, readonly=None,
-             sparse=None, quant=None, units=Ellipsis, ureg=None):
+             sparse=None, quant=None, unit=Ellipsis, ureg=None):
     """Returns `True` if an object is a `numpy.ndarray` object, else `False`.
 
     `is_array(obj)` returns `True` if the given object `obj` is an instance of
@@ -366,11 +372,14 @@ def is_array(obj,
         `obj` must be a `numpy` array itself and not a `Quantity` to be
         considered valid. If `None` (the default), then either quantities or
         `numpy` arrays are considered valid arrays.
-    units : unit-like or Ellipsis, optional
-        A unit with which the object obj's units must be compatible in order
-        for `obj` to be considered a valid array. An `obj` that is not a
-        quantity is considered to have dimensionless units. If `units=Ellipsis`
-        (the default), then the object's units are ignored.
+    unit : unit-like or Ellipsis or None, optional
+        A unit with which the object obj's unit must be compatible in order for
+        `obj` to be considered a valid array. An `obj` that is not a quantity is
+        considered to have a unit of `None`, which is not the same as being a
+        quantity with a dimensionless unit. In other words, `is_array(array,
+        quant=None)` will return `True` for a numpy array while `is_array(arary,
+        quant='dimensionless')` will return `False`. If `unit=Ellipsis` (the
+        default), then the object's unit is ignored.
     ureg : UnitRegistry or None or Ellipsis, optional
         The `pint` `UnitRegistry` object to use for units. If `ureg` is
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
@@ -389,8 +398,9 @@ def is_array(obj,
         if ureg is None: ureg = obj._REGISTRY
         u = obj.u
         obj = obj.m
+    elif quant is True:
+        return False
     else:
-        if quant is True: return False
         if ureg is None: from pimms import units as ureg
         u = None
     # At this point we want to check if this is a valid numpy array or scipy
@@ -432,14 +442,20 @@ def is_array(obj,
         else:
             raise ValueError(f"invalid parameter readonly: {readonly}")
     # Next, check compatibility of the units.
-    if units is not Ellipsis and not ureg.is_compatible_with(u, units):
-        return False
+    if unit is None:
+        # We are required to not be a quantity.
+        if u is not None: return False
+    elif unit is not Ellipsis:
+        from ._quantity import alike_units
+        if not is_tuple(unit): unit = (unit,)
+        if not any(alike_units(u, uu) for uu in unit):
+            return False
     # Check the match to the numeric collection last.
     if dtype is None and shape is None and ndim is None: return True
     return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
 def to_array(obj,
              dtype=None, order=None, copy=False, sparse=None, readonly=None,
-             quant=None, ureg=None, units=Ellipsis):
+             quant=None, ureg=None, unit=Ellipsis):
     """Reinterprets `obj` as a NumPy array or quantity with an array magnitude.
 
     `pimms.to_array` is roughly equivalent to the `numpy.asarray` function with
@@ -474,12 +490,12 @@ def to_array(obj,
         Whether the return value should be read-only or not. If `None`, then no
         changes are made to the return value; if a new array is allocated in the
         `to_array()` function call, then it is returned in a writeable form. If
-        `True`, then the return value is always a read-only array; if `obj` is
-        not already read-only, then a copy of `obj` is always returned in this
-        case. If `False`, then the return-value is never read-only. Note that
-        `scipy.sparse` arrays do not support read-only mode, and thus an
-        `ValueError` is raised if a sparse matrix is requested in read-only
-        format.
+        `readonly=True`, then the return value is always a read-only array; if
+        `obj` is not already read-only, then a copy of `obj` is always returned
+        in this case. If `readonly=False`, then the return-value is never
+        read-only. Note that `scipy.sparse` arrays do not support read-only
+        mode, and thus a `ValueError` is raised if a sparse matrix is requested
+        in read-only format.
     quant : boolean or None, optional
         Whether the return value should be a `Quantity` object wrapping the
         array (`quant=True`) or the array itself (`quant=False`). If `quant` is
@@ -490,17 +506,17 @@ def to_array(obj,
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
         default), then no specific coersion to a `UnitRegistry` is performed
         (i.e., the same quantity class is returned).
-    units : unit-like or boolean or Ellipsis, optional
-        The units that should be used in the return value. When the return value
+    unit : unit-like or boolean or Ellipsis, optional
+        The unit that should be used in the return value. When the return value
         of this function is a `Quantity` (see the `quant` parameter), the
-        returned quantity always has units matching the `units` parameter; if
-        the provided `obj` is not a quantity, then its units are presumed to be
-        those requested by `units`. When the return value of this function is
-        not a `Quantity` object and is instead a NumPy array object, then when
-        `obj` is not a quantity the `units` parameter is ignored, and when `obj`
+        returned quantity always has a unit matching the `unit` parameter; if
+        the provided `obj` is not a quantity, then its unit is presumed to be
+        that requested by `unit`. When the return value of this function is not
+        a `Quantity` object and is instead is a NumPy array object, then when
+        `obj` is not a quantity the `unit` parameter is ignored, and when `obj`
         is a quantity, its magnitude is returned after conversion into
-        `units`. The default value of `units`, `Ellipsis`, indicates that, if
-        `obj` is a quantity, its units should be used, and `units` should be
+        `unit`. The default value of `unit`, `Ellipsis`, indicates that, if
+        `obj` is a quantity, its unit should be used, and `unit` should be
         considered dimensionless otherwise.
 
     Returns
@@ -514,7 +530,7 @@ def to_array(obj,
     ValueError
         If invalid parameter values are given or if the parameters conflict.
     """
-    if ureg is Ellipsis: ureg = pimms.units
+    if ureg is Ellipsis: from pimms import units as ureg
     # If obj is a quantity, we handle things differently.
     if is_quant(obj):
         q = obj
@@ -523,7 +539,7 @@ def to_array(obj,
         if quant is None: quant = True
     else:
         q = None
-        if ureg is None: ureg = pimms.units
+        if ureg is None: from pimms import units as ureg
         if quant is None: quant = False
     # Translate obj depending on whether it's a pytorch array / scipy sparse
     # matrix.  We need to think about whether the output array is being
@@ -539,7 +555,7 @@ def to_array(obj,
             elif obj_is_sparse:
                 sparse = type(obj).__name__[:3]
             else:
-                sprase = 'coo'
+                sparse = 'coo'
         sparse = strnorm(sparse.strip(), case=True, unicode=False)
         mtype = (sps.bsr_matrix if sparse == 'bsr' else
                  sps.coo_matrix if sparse == 'coo' else
@@ -628,30 +644,36 @@ def to_array(obj,
             if not sparse and not arr.flags['WRITEABLE']:
                 arr = np.array(arr)
         else:
-            raise ValueError("invalid parameter value for readonly: {readonly}")
+            raise ValueError(f"bad parameter value for readonly: {readonly}")
     # Next, we switch on whether we are being asked to return a quantity or not.
     if quant is True:
+        if unit is None:
+            raise ValueError("to_array: cannot make a quantity (quant=True)"
+                             " without a unit (unit=None)")
         if q is None:
-            if units is Ellipsis: units = None
-            q = ureg.Quantity(arr, units)
+            if unit is Ellipsis: unit = None
+            return ureg.Quantity(arr, unit)
         else:
-            if units is Ellipsis: units = q.u
+            if unit is Ellipsis: unit = q.u
             if ureg is not q._REGISTRY or obj is not arr:
                 q = ureg.Quantity(arr, q.u)
-            return q.to(units)
+            return q.to(unit)
     elif quant is False:
         # Don't return a quantity, whatever the input argument.
-        if units is Ellipsis:
-            # We return the current array/magnitude whatever its units.
+        if unit is Ellipsis:
+            # We return the current array/magnitude whatever its unit.
             return arr
         elif q is None:
-            # We just pretend this was already in the given units (i.e., ignore
-            # units).
+            # We just pretend this was already in the given unit (i.e., ignore
+            # unit).
             return arr
+        elif unit is None:
+            raise ValueError("cannot extract unit None from quantity; to get"
+                             " the native unit, use unit=Ellipsis")
         else:
             if obj is not arr: q = ureg.Quantity(arr, q.u)
-            # We convert to the given units and return that.
-            return q.m_as(units)
+            # We convert to the given unit and return that.
+            return q.m_as(unit)
     else:
         raise ValueError(f"invalid value for quant: {quant}")
 
@@ -831,14 +853,14 @@ def to_torchdtype(dt):
 def _is_never_tensor(obj,
                      dtype=None, shape=None, ndim=None,
                      device=None, requires_grad=None,
-                     sparse=None, quant=None, units=Ellipsis):
+                     sparse=None, quant=None, unit=Ellipsis):
     return False
 @docwrap
 @alttorch(_is_never_tensor)
 def is_tensor(obj,
               dtype=None, shape=None, ndim=None,
               device=None, requires_grad=None,
-              sparse=None, quant=None, units=Ellipsis, ureg=None):
+              sparse=None, quant=None, unit=Ellipsis, ureg=None):
     """Returns `True` if an object is a `torch.tensor` object, else `False`.
 
     `is_tensor(obj)` returns `True` if the given object `obj` is an instance of
@@ -895,11 +917,11 @@ def is_tensor(obj,
         then `obj` must be a `torch` tensor itself and not a `Quantity` to be
         considered valid. If `None` (the default), then either quantities or
         `torch` tensors are considered valid.
-    units : unit-like or Ellipsis, optional
-        A unit with which the object obj's units must be compatible in order
+    unit : unit-like or Ellipsis, optional
+        A unit with which the object obj's unit must be compatible in order
         for `obj` to be considered a valid tensor. An `obj` that is not a
-        quantity is considered to have dimensionless units. If `units=Ellipsis`
-        (the default), then the object's units are ignored.
+        quantity is considered to have a unit of `None`. If `unit=Ellipsis`
+        (the default), then the object's unit is ignored.
     ureg : UnitRegistry or None or Ellipsis, optional
         The `pint` `UnitRegistry` object to use for units. If `ureg` is
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
@@ -940,14 +962,21 @@ def is_tensor(obj,
         if obj.layout != torch.sparse_csr: return False
     elif sparse is not None:
         raise ValueErroor(f"invalid sparse parameter: {sparse}")
-    if units is not Ellipsis and not ureg.is_compatible_with(u, units):
-        return False
+    # Next, check compatibility of the units.
+    if unit is None:
+        # We are required to not be a quantity.
+        if u is not None: return False
+    elif unit is not Ellipsis:
+        from ._quantity import alike_units
+        if not is_tuple(unit): unit = (unit,)
+        if not any(alike_units(u, uu) for uu in unit):
+            return False
     # Check the match to the numeric collection last.
     if dtype is None and shape is None and ndim is None: return True
     return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
 def to_tensor(obj,
               dtype=None, device=None, requires_grad=None, copy=False,
-              sparse=None, quant=None, ureg=None, units=Ellipsis):
+              sparse=None, quant=None, ureg=None, unit=Ellipsis):
     """Reinterprets `obj` as a PyTorch tensor or quantity with tensor magnitude.
 
     `pimms.to_tensor` is roughly equivalent to the `torch.as_tensor` function
@@ -994,17 +1023,17 @@ def to_tensor(obj,
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
         default), then no specific coersion to a `UnitRegistry` is performed
         (i.e., the same quantity class is returned).
-    units : unit-like or boolean or Ellipsis, optional
-        The units that should be used in the return value. When the return value
+    unit : unit-like or boolean or Ellipsis, optional
+        The unit that should be used in the return value. When the return value
         of this function is a `Quantity` (see the `quant` parameter), the
-        returned quantity always has units matching the `units` parameter; if
-        the provided `obj` is not a quantity, then its units are presumed to be
-        those requested by `units`. When the return value of this function is
+        returned quantity always has units matching the `unit` parameter; if
+        the provided `obj` is not a quantity, then its unit is presumed to be
+        that requested by `unit`. When the return value of this function is
         not a `Quantity` object and is instead a PyTorch tensor object, then
-        when `obj` is not a quantity the `units` parameter is ignored, and when
+        when `obj` is not a quantity the `unit` parameter is ignored, and when
         `obj` is a quantity, its magnitude is returned after conversion into
-        `units`. The default value of `units`, `Ellipsis`, indicates that, if
-        `obj` is a quantity, its units should be used, and `units` should be
+        `unit`. The default value of `unit`, `Ellipsis`, indicates that, if
+        `obj` is a quantity, its unit should be used, and `unit` should be
         considered dimensionless otherwise.
 
     Returns
@@ -1018,7 +1047,7 @@ def to_tensor(obj,
     ValueError
         If invalid parameter values are given or if the parameters conflict.
     """
-    if ureg is Ellipsis: ureg = pimms.units
+    if ureg is Ellipsis: from pimms import units as ureg
     dtype = to_torchdtype(dtype)
     # If obj is a quantity, we handle things differently.
     if is_quant(obj):
@@ -1028,7 +1057,7 @@ def to_tensor(obj,
         if quant is None: quant = True
     else:
         q = None
-        if ureg is None: ureg = pimms.units
+        if ureg is None: from pimms import units as ureg
         if quant is None: quant = False
     # Translate obj depending on whether it's a pytorch tensor already or a
     # scipy sparse matrix.
@@ -1078,27 +1107,33 @@ def to_tensor(obj,
         raise ValueError(f"invalid value for parameter sparse: {sparse}")
     # Next, we switch on whether we are being asked to return a quantity or not.
     if quant is True:
+        if unit is None:
+            raise ValueError("to_array: cannot make a quantity (quant=True)"
+                             " without a unit (unit=None)")
         if q is None:
-            if units is Ellipsis: units = None
-            q = ureg.Quantity(arr, units)
+            if unit is Ellipsis: unit = None
+            q = ureg.Quantity(arr, unit)
         else:
-            if units is Ellipsis: units = q.u
+            if unit is Ellipsis: unit = q.u
             if ureg is not q._REGISTRY or obj is not arr:
                 q = ureg.Quantity(arr, q.u)
-            return q.to(units)
+            return q.to(unit)
     elif quant is False:
         # Don't return a quantity, whatever the input argument.
-        if units is Ellipsis:
-            # We return the current array/magnitude whatever its units.
+        if unit is Ellipsis:
+            # We return the current array/magnitude whatever its unit.
             return arr
         elif q is None:
-            # We just pretend this was already in the given units (i.e., ignore
-            # units).
+            # We just pretend this was already in the given unit (i.e., ignore
+            # unit).
             return arr
+        elif unit is None:
+            raise ValueError("cannot extract unit None from quantity; to get"
+                             " the native unit, use unit=Ellipsis")
         else:
             if obj is not arr: q = ureg.Quantity(arr, q.u)
-            # We convert to the given units and return that.
-            return q.m_as(units)
+            # We convert to the given unit and return that.
+            return q.m_as(unit)
     else:
         raise ValueError(f"invalid value for quant: {quant}")
 
@@ -1106,7 +1141,7 @@ def to_tensor(obj,
 @docwrap
 def is_numeric(obj,
                dtype=None, shape=None, ndim=None,
-               sparse=None, quant=None, units=Ellipsis, ureg=None):
+               sparse=None, quant=None, unit=Ellipsis, ureg=None):
     """Returns `True` if an object is a numeric type and `False` otherwise.
 
     `is_numeric(obj)` returns `True` if the given object `obj` is an instance of
@@ -1155,11 +1190,11 @@ def is_numeric(obj,
         magnitude. If `False`, then `obj` must be a numerical object itself and
         not a `Quantity` to be considered valid. If `None` (the default), then
         either quantities or numerical objects are considered valid.
-    units : unit-like or Ellipsis, optional
-        A unit with which the object obj's units must be compatible in order for
+    unit : unit-like or Ellipsis, optional
+        A unit with which the object obj's unit must be compatible in order for
         `obj` to be considered a valid numerical object. An `obj` that is not a
-        quantity is considered to have dimensionless units. If `units=Ellipsis`
-        (the default), then the object's units are ignored.
+        quantity is considered to have dimensionless units. If `unit=Ellipsis`
+        (the default), then the object's unit is ignored.
     ureg : UnitRegistry or None or Ellipsis, optional
         The `pint` `UnitRegistry` object to use for units. If `ureg` is
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
@@ -1174,15 +1209,15 @@ def is_numeric(obj,
     if torch__is_tensor(obj):
         return is_tensor(obj,
                          dtype=dtype, shape=shape, ndim=ndim,
-                         sparse=sparse, quant=quant, units=units, ureg=ureg)
+                         sparse=sparse, quant=quant, unit=unit, ureg=ureg)
     else:
         return is_array(obj,
                         dtype=dtype, shape=shape, ndim=ndim,
-                        sparse=sparse, quant=quant, units=units, ureg=ureg)
+                        sparse=sparse, quant=quant, unit=unit, ureg=ureg)
 @docwrap
 def to_numeric(obj,
                dtype=None, copy=False,
-               sparse=None, quant=None, ureg=None, units=Ellipsis):
+               sparse=None, quant=None, ureg=None, unit=Ellipsis):
     """Reinterprets `obj` as a numeric type or quantity with such a magnitude.
 
     `pimms.to_numeric` is roughly equivalent to the `torch.as_tensor` or
@@ -1226,17 +1261,17 @@ def to_numeric(obj,
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
         default), then no specific coersion to a `UnitRegistry` is performed
         (i.e., the same quantity class is returned).
-    units : unit-like or boolean or Ellipsis, optional
-        The units that should be used in the return value. When the return value
+    unit : unit-like or boolean or Ellipsis, optional
+        The unit that should be used in the return value. When the return value
         of this function is a `Quantity` (see the `quant` parameter), the
-        returned quantity always has units matching the `units` parameter; if
-        the provided `obj` is not a quantity, then its units are presumed to be
-        those requested by `units`. When the return value of this function is
+        returned quantity always has a unit matching the `unit` parameter; if
+        the provided `obj` is not a quantity, then its unit is presumed to be
+        those requested by `unit`. When the return value of this function is
         not a `Quantity` object and is instead a numeric object, then
-        when `obj` is not a quantity the `units` parameter is ignored, and when
+        when `obj` is not a quantity the `unit` parameter is ignored, and when
         `obj` is a quantity, its magnitude is returned after conversion into
-        `units`. The default value of `units`, `Ellipsis`, indicates that, if
-        `obj` is a quantity, its units should be used, and `units` should be
+        `unit`. The default value of `unit`, `Ellipsis`, indicates that, if
+        `obj` is a quantity, its unit should be used, and `unit` should be
         considered dimensionless otherwise.
 
     Returns
@@ -1249,16 +1284,15 @@ def to_numeric(obj,
     ------
     ValueError
         If invalid parameter values are given or if the parameters conflict.
-
     """
     if torch__is_tensor(obj):
         return to_tensor(obj,
                          dtype=dtype, shape=shape, ndim=ndim,
-                         sparse=sparse, quant=quant, units=units, ureg=ureg)
+                         sparse=sparse, quant=quant, unit=unit, ureg=ureg)
     else:
         return to_array(obj,
                         dtype=dtype, shape=shape, ndim=ndim,
-                        sparse=sparse, quant=quant, units=units, ureg=ureg)
+                        sparse=sparse, quant=quant, unit=unit, ureg=ureg)
 
 
 # Sparse Matrices and Dense Collections#########################################
@@ -1266,7 +1300,7 @@ from scipy.sparse import issparse as scipy__is_sparse
 @docwrap
 def is_sparse(obj,
               dtype=None, shape=None, ndim=None,
-              quant=None, ureg=None, units=Ellipsis):
+              quant=None, ureg=None, unit=Ellipsis):
     """Returns `True` if an object is a sparse SciPy matrix or PyTorch tensor.
 
     `is_sparse(obj)` returns `True` if the given object `obj` is an instance of
@@ -1283,7 +1317,7 @@ def is_sparse(obj,
     %(pimms.types._core.is_numeric.parameters.shape)s
     %(pimms.types._core.is_numeric.parameters.quant)s
     %(pimms.types._core.is_numeric.parameters.ureg)s
-    %(pimms.types._core.is_numeric.parameters.units)s
+    %(pimms.types._core.is_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1292,11 +1326,11 @@ def is_sparse(obj,
     """
     return is_numeric(obj, sparse=True,
                       dtype=dtype, shape=shape, ndim=ndim,
-                      quant=quant, ureg=ureg, units=units)
+                      quant=quant, ureg=ureg, unit=unit)
 @docwrap
 def to_sparse(obj,
               dtype=None, shape=None, ndim=None,
-              quant=None, ureg=None, units=Ellipsis):
+              quant=None, ureg=None, unit=Ellipsis):
     """Returns a sparse version of the numerical object `obj`.
 
     `to_sparse(obj)` returns `obj` if it is already a PyTorch sparse tensor or a
@@ -1314,7 +1348,7 @@ def to_sparse(obj,
     %(pimms.types._core.is_numeric.parameters.shape)s
     %(pimms.types._core.to_numeric.parameters.quant)s
     %(pimms.types._core.to_numeric.parameters.ureg)s
-    %(pimms.types._core.to_numeric.parameters.units)s
+    %(pimms.types._core.to_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1323,11 +1357,11 @@ def to_sparse(obj,
     """
     return to_numeric(obj, sparse=True,
                       dtype=dtype, shape=shape, ndim=ndim,
-                      quant=quant, ureg=ureg, units=units)
+                      quant=quant, ureg=ureg, unit=unit)
 @docwrap
 def is_dense(obj,
              dtype=None, shape=None, ndim=None,
-             quant=None, ureg=None, units=Ellipsis):
+             quant=None, ureg=None, unit=Ellipsis):
     """Returns `True` if an object is a dense NumPy array or PyTorch tensor.
 
     `is_dense(obj)` returns `True` if the given object `obj` is an instance of
@@ -1344,7 +1378,7 @@ def is_dense(obj,
     %(pimms.types._core.is_numeric.parameters.shape)s
     %(pimms.types._core.is_numeric.parameters.quant)s
     %(pimms.types._core.is_numeric.parameters.ureg)s
-    %(pimms.types._core.is_numeric.parameters.units)s
+    %(pimms.types._core.is_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1354,11 +1388,11 @@ def is_dense(obj,
     return is_numeric(obj, sparse=False,
                       dtype=dtype, shape=shape, ndim=ndim,
                       requires_grad=requires_grad, device=device,
-                      quant=quant, ureg=ureg, units=units)
+                      quant=quant, ureg=ureg, unit=unit)
 @docwrap
 def to_dense(obj,
              dtype=None, shape=None, ndim=None,
-             quant=None, ureg=None, units=Ellipsis):
+             quant=None, ureg=None, unit=Ellipsis):
     """Returns a dense version of the numerical object `obj`.
 
     `to_dense(obj)` returns `obj` if it is already a PyTorch dense tensor or a
@@ -1376,7 +1410,7 @@ def to_dense(obj,
     %(pimms.types._core.is_numeric.parameters.shape)s
     %(pimms.types._core.to_numeric.parameters.quant)s
     %(pimms.types._core.to_numeric.parameters.ureg)s
-    %(pimms.types._core.to_numeric.parameters.units)s
+    %(pimms.types._core.to_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1385,7 +1419,7 @@ def to_dense(obj,
     """
     return to_numeric(obj, sparse=False,
                       dtype=dtype, shape=shape, ndim=ndim,
-                      quant=quant, ureg=ureg, units=units)
+                      quant=quant, ureg=ureg, unit=unit)
 
 # Strings ######################################################################
 @docwrap
@@ -1686,7 +1720,7 @@ def is_lambda(obj):
     return isinstance(obj, LambdaType)
 from collections.abc import Sized
 @docwrap
-def is_sized(obj, unit=Ellipsis):
+def is_sized(obj):
     """Returns `True` if an object implements `len()`, otherwise `False`.
 
     `is_sized(obj)` returns `True` if the given object `obj` is an instance of
@@ -1696,19 +1730,6 @@ def is_sized(obj, unit=Ellipsis):
     ----------
     obj : object
         The object whose quality as a `Sized` object is to be assessed.
-    unit : UnitLike, optional
-        The unit that the object must have in order to be considered valid. This
-        may be a `pint` unit or unit-name (see also `pimms.unit`), a list or
-        tuple of such units/unit-names, `True`, `False`, `None`, or
-        `Ellipsis`. If `True`, then the object must have a unit, but it doesn't
-        matter what the unit is. If `False`, then the object must not have a
-        unit (note that for `True` and `False` values, a dimesionless object is
-        different from an object without an attached unit). If `Ellipsis`, then
-        either an object with a unit or without a unit is accepted (this is the
-        default).  Otherwise, the object must have a unit equivalent to the unit
-        or to one of the units given. A value of `None` is interpreted as a unit
-        that can either be dimensionless or an object without any unit; i.e., it
-        is equivalent to `(False, 'dimensionless')`.
 
     Returns
     -------
