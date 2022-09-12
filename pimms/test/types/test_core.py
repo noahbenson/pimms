@@ -316,5 +316,5 @@ class TestTypesCore(TestCase):
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_array(arr, quant=True, unit=None)
-        
+    
         

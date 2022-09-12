@@ -175,6 +175,7 @@ __all__ = (
     "is_fodict",
     #"hashsafe",
     "is_hashable",
+    "can_hash",
     "is_frozen",
     "is_thawed",
     "frozenarray",

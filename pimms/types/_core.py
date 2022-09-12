@@ -1973,7 +1973,11 @@ def is_hashable(obj):
     """Returns `True` if an object is a hashable object, otherwise `False`.
 
     `is_hashable(obj)` returns `True` if the given object `obj` is an instance
-    of the `collections.abc.Hashable` type.
+    of the `collections.abc.Hashable` type. This differs from the `can_hash`
+    function, which checks whehter calling `hash` on an object raises an
+    exception.
+
+    See also: `can_hash`
 
     Parameters
     ----------
@@ -1984,6 +1988,7 @@ def is_hashable(obj):
     -------
     boolean
         `True` if `obj` is an instance of `Hashable`, otherwise `False`.
+
     """
     return isinstance(obj, Hashable)
 
@@ -2168,9 +2173,10 @@ def is_fodict(obj):
 def hashsafe(obj):
     """Returns `hash(obj)` if `obj` is hashable, otherwise returns `None`.
 
-    See also `is_hashable`; note that a fairly reliable test of immutability
-    versus mutability for a Python object is whether it is hashable.
-    
+    See also: `can_hash`, `is_hashable` (note that a fairly reliable test of
+    immutability versus mutability for a Python object is whether it is
+    hashable).
+        
     Parameters
     ----------
     obj : object
@@ -2182,16 +2188,21 @@ def hashsafe(obj):
         If the object is hashable, returns the hashcode.
     None
         If the object is not hashable, returns `None`.
+
     """
     try:              return hash(obj)
     except TypeError: return None
-def is_hashable(obj):
-    """Returns `True` if `obj` is hashable and `False` otherwise.
+def can_hash(obj):
+    """Returns `True` if `obj` is safe to hash and `False` otherwise.
 
-    `is_hashable(obj)` is equivalent to `hashsafe(obj) is not None`.
+    `can_hash(obj)` is equivalent to `hashsafe(obj) is not None`. This differs
+    from `is_hashable(obj)` in that `is_hashable` only checks whether `obj` is
+    an instance of `Hashable`.
 
     Note that in Python, all builtin immutable types are hashable while all
     builtin mutable types are not.
+
+    See also: `is_hashable`, `hashsafe`
     """
     return hashsafe(obj) is not None
 def is_frozen(obj):
