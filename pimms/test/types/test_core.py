@@ -30,6 +30,7 @@ from unittest import TestCase
 
 class TestTypesCore(TestCase):
     """Tests the pimms.types._core module."""
+    # Pint Utilities ###########################################################
     def test_is_ureg(self):
         from pimms import (units, is_ureg)
         from pint import UnitRegistry
@@ -88,6 +89,7 @@ class TestTypesCore(TestCase):
         self.assertFalse(is_quant(alt_q, ureg=...))
         self.assertFalse(is_quant(q, ureg=alt_units))
         self.assertTrue(is_quant(alt_q, ureg=alt_units))
+    # NumPy Utilities ##########################################################
     def test_is_numpydtype(self):
         from pimms.types import is_numpydtype
         import torch, numpy as np
@@ -160,12 +162,13 @@ class TestTypesCore(TestCase):
         self.assertTrue(is_array(arr, dtype=np.number))
         self.assertTrue(is_array(arr, dtype=arr.dtype))
         self.assertFalse(is_array(arr, dtype=np.str_))
-        # If a tuple is passed for the dtype, the dtype must match that of the
-        # tuple exactly.
+        # If a tuple is passed for the dtype, the dtype must match one of the
+        # tuple's members exactly.
         self.assertTrue(is_array(mtx, dtype=(mtx.dtype,)))
         self.assertTrue(is_array(mtx, dtype=(mtx.dtype,np.dtype(int),np.str_)))
         self.assertFalse(is_array(mtx, dtype=(np.dtype(int),np.str_)))
-        self.assertFalse(is_array(np.dtype(np.int32), dtype=(np.int64,)))
+        self.assertFalse(is_array(np.array([], dtype=np.int32),
+                                  dtype=(np.int64,)))
         # torch dtypes can be interpreted into numpy dtypes.
         self.assertTrue(is_array(mtx, dtype=torch.as_tensor(mtx).dtype))
         # We can use the ndim argument to restrict the number of dimensions that
@@ -316,5 +319,208 @@ class TestTypesCore(TestCase):
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_array(arr, quant=True, unit=None)
-    
-        
+    # PyTorch Utilities ########################################################
+    def test_is_torchdtype(self):
+        from pimms.types import is_torchdtype
+        import torch, numpy as np
+        # is_torchdtype returns true for torch's dtypes and its dtypes alone.
+        self.assertTrue(is_torchdtype(torch.int))
+        self.assertTrue(is_torchdtype(torch.float))
+        self.assertTrue(is_torchdtype(torch.bool))
+        self.assertFalse(is_torchdtype('int'))
+        self.assertFalse(is_torchdtype(float))
+        self.assertFalse(is_torchdtype(np.bool_))
+    def test_like_torchdtype(self):
+        from pimms.types import like_torchdtype
+        import torch, numpy as np
+        # Anything that can be converted into a torch dtype object is considered
+        # to be like a torch dtype.
+        self.assertTrue(like_torchdtype('int'))
+        self.assertTrue(like_torchdtype(float))
+        self.assertTrue(like_torchdtype(np.bool_))
+        self.assertFalse(like_torchdtype('abc'))
+        self.assertFalse(like_torchdtype(10))
+        self.assertFalse(like_torchdtype(...))
+        # Note that None can be converted to a torch dtype (float64).
+        self.assertTrue(like_torchdtype(None))
+        # torch dtypes themselves are like torch dtypes.
+        self.assertTrue(like_torchdtype(torch.float))
+    def test_to_torchdtype(self):
+        from pimms.types import to_torchdtype
+        import torch, numpy as np
+        # Converting a numpy dtype into a dtype results in the identical dtype.
+        dt = torch.int
+        self.assertIs(dt, to_torchdtype(dt))
+        # Numpy dtypes can be converted into a torch dtype.
+        self.assertEqual(torch.float64, to_torchdtype(np.dtype('float64')))
+        self.assertEqual(torch.int32, to_torchdtype(np.int32))
+    def test_is_tensor(self):
+        from pimms import (is_tensor, quant)
+        from scipy.sparse import csr_matrix
+        import torch, numpy as np
+        # By default, is_tensor() returns True for PyTorch tensors and
+        # quantities whose magnitudes are PyTorch tensors.
+        arr = torch.linspace(0, 1, 25)
+        mtx = torch.mm(torch.linspace(0, 1, 10)[:,None],
+                       torch.linspace(1, 2, 10)[None,:])
+        sp_mtx = torch.sparse_coo_tensor(torch.tensor([[0, 0, 4, 5, 9],
+                                                       [4, 9, 4, 1, 8]]),
+                                         torch.tensor([1, 0.5, 0.5, 0.2, 0.1]),
+                                         (10, 10),
+                                         dtype=float)
+        q_arr = quant(arr, 'mm')
+        q_mtx = quant(arr, 'seconds')
+        q_sp_mtx = quant(sp_mtx, 'kg')
+        self.assertTrue(is_tensor(arr))
+        self.assertTrue(is_tensor(mtx))
+        self.assertTrue(is_tensor(sp_mtx))
+        self.assertTrue(is_tensor(q_arr))
+        self.assertTrue(is_tensor(q_mtx))
+        self.assertTrue(is_tensor(q_sp_mtx))
+        # Things like lists, numbers, and numpy arrays are not tensors.
+        self.assertFalse(is_tensor('abc'))
+        self.assertFalse(is_tensor(10))
+        self.assertFalse(is_tensor([12.0, 0.5, 3.2]))
+        self.assertFalse(is_tensor(np.array([1.0, 2.0, 3.0])))
+        self.assertFalse(is_tensor(quant(np.array([1.0, 2.0, 3.0]), 'mm')))
+        # We can use the dtype argument to restrict what we consider an array by
+        # its dtype. The dtype of the is_array argument must be a sub-dtype of
+        # the dtype parameter.
+        self.assertTrue(is_tensor(arr, dtype=arr.dtype))
+        self.assertFalse(is_tensor(arr, dtype=torch.int))
+        # If a tuple is passed for the dtype, the dtype must match one of the
+        # tuple's elements.
+        self.assertTrue(is_tensor(mtx, dtype=(mtx.dtype,)))
+        self.assertTrue(is_tensor(mtx, dtype=(mtx.dtype, torch.int)))
+        self.assertFalse(is_tensor(mtx, dtype=(torch.int, torch.bool)))
+        self.assertFalse(is_tensor(torch.tensor([], dtype=torch.int32),
+                                   dtype=torch.int64))
+        # torch dtypes can be interpreted into PyTorch dtypes.
+        self.assertTrue(is_tensor(mtx, dtype=mtx.numpy().dtype))
+        # We can use the ndim argument to restrict the number of dimensions that
+        # an array can have in order to be considered a matching tensor.
+        # Typically, this is just the number of dimensions.
+        self.assertTrue(is_tensor(arr, ndim=1))
+        self.assertTrue(is_tensor(mtx, ndim=2))
+        self.assertFalse(is_tensor(arr, ndim=2))
+        self.assertFalse(is_tensor(mtx, ndim=1))
+        # Alternately, a tuple may be given, in which case any of the dimension
+        # counts in the tuple are accepted.
+        self.assertTrue(is_tensor(mtx, ndim=(1,2)))
+        self.assertTrue(is_tensor(arr, ndim=(1,2)))
+        self.assertFalse(is_tensor(mtx, ndim=(1,3)))
+        self.assertFalse(is_tensor(arr, ndim=(0,2)))
+        # Scalar tensors have 0 dimensions.
+        self.assertTrue(is_tensor(torch.tensor(0), ndim=0))
+        # The shape option is a more specific version of the ndim parameter. It
+        # lets you specify what kind of shape is required of the tensor. The
+        # most straightforward usage is to require a specific shape.
+        self.assertTrue(is_tensor(arr, shape=(25,)))
+        self.assertTrue(is_tensor(mtx, shape=(10,10)))
+        self.assertFalse(is_tensor(arr, shape=(25,25)))
+        self.assertFalse(is_tensor(mtx, shape=(10,)))
+        # A -1 value that appears in the shape option represents any size along
+        # that dimension (a wildcard). Any number of -1s can be included.
+        self.assertTrue(is_tensor(arr, shape=(-1,)))
+        self.assertTrue(is_tensor(mtx, shape=(-1,10)))
+        self.assertTrue(is_tensor(mtx, shape=(10,-1)))
+        self.assertTrue(is_tensor(mtx, shape=(-1,-1)))
+        self.assertFalse(is_tensor(mtx, shape=(1,-1)))
+        # No more than 1 ellipsis may be included in the shape to indicate that
+        # any number of dimensions, with any sizes, can appear in place of the
+        # ellipsis.
+        self.assertTrue(is_tensor(arr, shape=(...,25)))
+        self.assertTrue(is_tensor(arr, shape=(25,...)))
+        self.assertFalse(is_tensor(arr, shape=(25,...,25)))
+        self.assertTrue(is_tensor(mtx, shape=(...,10)))
+        self.assertTrue(is_tensor(mtx, shape=(10,...)))
+        self.assertTrue(is_tensor(mtx, shape=(10,...,10)))
+        self.assertTrue(is_tensor(mtx, shape=(10,10,...)))
+        self.assertTrue(is_tensor(mtx, shape=(...,10,10)))
+        self.assertFalse(is_tensor(mtx, shape=(10,...,10,10)))
+        self.assertFalse(is_tensor(mtx, shape=(10,10,...,10)))
+        self.assertTrue(is_tensor(torch.zeros((1,2,3,4,5)), shape=(1,...,4,5)))
+        # The sparse option can test whether an object is a sparse tensor or
+        # not. By default sparse is None, meaning that it doesn't matter whether
+        # an object is sparse, but sometimes you want to check for strict
+        # sparsity requirements.
+        self.assertTrue(is_tensor(arr, sparse=False))
+        self.assertTrue(is_tensor(mtx, sparse=False))
+        self.assertFalse(is_tensor(sp_mtx, sparse=False))
+        self.assertFalse(is_tensor(arr, sparse=True))
+        self.assertFalse(is_tensor(mtx, sparse=True))
+        self.assertTrue(is_tensor(sp_mtx, sparse=True))
+        # The quant option can be used to control whether the object must or
+        # must not be a quantity.
+        self.assertTrue(is_tensor(arr, quant=False))
+        self.assertTrue(is_tensor(mtx, quant=False))
+        self.assertFalse(is_tensor(arr, quant=True))
+        self.assertFalse(is_tensor(mtx, quant=True))
+        self.assertTrue(is_tensor(q_arr, quant=True))
+        self.assertTrue(is_tensor(q_mtx, quant=True))
+        self.assertFalse(is_tensor(q_arr, quant=False))
+        self.assertFalse(is_tensor(q_mtx, quant=False))
+        # The units option can be used to require that either an object have
+        # no units (or is not a quantity) or that it have specific units.
+        self.assertTrue(is_tensor(arr, unit=None))
+        self.assertTrue(is_tensor(mtx, unit=None))
+        self.assertFalse(is_tensor(arr, unit='mm'))
+        self.assertFalse(is_tensor(mtx, unit='s'))
+        self.assertFalse(is_tensor(q_arr, unit=None))
+        self.assertFalse(is_tensor(q_mtx, unit=None))
+        self.assertTrue(is_tensor(q_arr, unit='mm'))
+        self.assertTrue(is_tensor(q_mtx, unit='s'))
+        self.assertFalse(is_tensor(q_arr, unit='s'))
+        self.assertFalse(is_tensor(q_mtx, unit='mm'))
+    def test_to_tensor(self):
+        from pimms import (to_tensor, quant, is_quant, units)
+        import torch, numpy as np
+        # We'll use a few objects throughout our tests, which we setup now.
+        arr = torch.linspace(0, 1, 25)
+        mtx = torch.mm(torch.linspace(0, 1, 10)[:,None],
+                       torch.linspace(0, 2, 10)[None,:])
+        sp_mtx = torch.sparse_coo_tensor(torch.tensor([[0, 0, 4, 5, 9],
+                                                       [4, 9, 4, 1, 8]]),
+                                         torch.tensor([1, 0.5, 0.5, 0.2, 0.1]),
+                                         (10,10),
+                                         dtype=float)
+        q_arr = quant(arr, 'mm')
+        q_mtx = quant(arr, 'seconds')
+        q_sp_mtx = quant(sp_mtx, 'kg')
+        # For an object that is already a numpy array, any call that doesn't
+        # request a copy and that doesn't change its parameters will return the
+        # identical object.
+        self.assertIs(arr, to_tensor(arr))
+        self.assertIs(arr, to_tensor(arr, sparse=False))
+        self.assertIs(arr, to_tensor(arr, quant=False))
+        # If we change the parameters of the returned array, we will get
+        # different (but typically equal) objects back.
+        self.assertTrue(torch.equal(arr, to_tensor(arr, requires_grad=True)))
+        # We can also request that a copy be made like with np.array.
+        self.assertIsNot(arr, to_tensor(arr, copy=True))
+        self.assertTrue(torch.equal(arr, to_tensor(arr, copy=True)))
+        # The sparse flag can be used to convert to/from a sparse array.
+        self.assertIsInstance(to_tensor(sp_mtx, sparse=False), torch.Tensor)
+        self.assertTrue(torch.equal(to_tensor(sp_mtx, sparse=False),
+                                    sp_mtx.to_dense()))
+        self.assertTrue(to_tensor(mtx, sparse=True).is_sparse)
+        self.assertTrue(torch.equal(to_tensor(mtx, sparse=True).to_dense(),
+                                    mtx))
+        # The quant argument can be used to enforce the return of quantities or
+        # non-quantities.
+        self.assertIsInstance(to_tensor(arr, quant=True), units.Quantity)
+        # The unit parameter can be used to specify what unit to use.
+        self.assertTrue(torch.equal(q_arr.m,
+                                    to_tensor(arr, quant=True, unit='mm').m))
+        # If no unit is provided, then dimensionless units are assumed (1
+        # dimensionless is equivalent to 1 count, 1 turn, and a few others).
+        self.assertEqual(to_tensor(arr, quant=True).u, units.dimensionless)
+        # We can also use unit to extract a specific unit from a quantity.
+        self.assertEqual(1000, to_tensor(1 * units.meter, unit='mm').m)
+        # However, a non-quantity is always assumed to already have the units
+        # requested, so converting it to a particular unit (but not converting
+        # it to a quantity) results in the same object.
+        self.assertIs(to_tensor(arr, unit='mm'), arr)
+        # An error is raised if you try to request no units for a quantity.
+        with self.assertRaises(ValueError):
+            to_tensor(arr, quant=True, unit=None)

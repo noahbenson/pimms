@@ -811,7 +811,7 @@ def like_torchdtype(dt):
     elif dt is None:
         return True
     else:
-        try: return None is not torch.from_numpy(np.array([], dtype=npdt))
+        try: return None is not torch.from_numpy(np.array([], dtype=dt))
         except Exception: return False
 @docwrap
 @checktorch
@@ -847,9 +847,10 @@ def to_torchdtype(dt):
         If the given argument `dt` cannot be converted into a `numpy.dtype`
         object.
     """
-    if   is_numpydtype(dt): return dt
-    elif is_torchdtype(dt): return torch.tensor([], dtype=dt).numpy().dtype
-    else: return np.dtype(dt)
+    if is_torchdtype(dt):
+        return dt
+    else:
+        return torch.as_tensor(np.array([], dtype=dt)).dtype
 def _is_never_tensor(obj,
                      dtype=None, shape=None, ndim=None,
                      device=None, requires_grad=None,
@@ -1048,7 +1049,7 @@ def to_tensor(obj,
         If invalid parameter values are given or if the parameters conflict.
     """
     if ureg is Ellipsis: from pimms import units as ureg
-    dtype = to_torchdtype(dtype)
+    if dtype is not None: dtype = to_torchdtype(dtype)
     # If obj is a quantity, we handle things differently.
     if is_quant(obj):
         q = obj
@@ -1063,15 +1064,30 @@ def to_tensor(obj,
     # scipy sparse matrix.
     if torch.is_tensor(obj):
         if requires_grad is None: requires_grad = obj.requires_grad
-        if device is None: device = obj.device
-        if copy or requires_grad != obj.requires_grad:
-            arr = torch.tensor(obj, dtype=dtype, device=device,
-                               requires_grad=requires_grad)
+        if device is None:        device = obj.device
+        if dtype is None:         dtype = obj.dtype
+        needs_copy = device != obj.device or dtype != obj.dtype
+        prefs_copy = copy or requires_grad != obj.requires_grad
+        if copy is False:
+            if needs_copy:
+                if device == obj.device: msg = "dtype change"
+                elif dtype == obj.dtype: msg = "device change"
+                else:                    msg = "device and dtype change"
+                raise ValueError("copy=False requested,"
+                                 f" but copy required by {msg}")
+            else: 
+                arr = obj
+        elif needs_copy:
+            arr = obj.to(dtype=dtype, device=device)
+        elif copy:
+            arr = obj.detach().clone()
         else:
-            arr = torch.as_tensor(obj, dtype=dtype, device=device)
-        arr = obj
+            arr = obj
+        if arr.requires_grad != requires_grad:
+            arr = arr.requires_grad_(requires_grad)
     elif scipy__is_sparse(obj):
         if requires_grad is None: requires_grad = False
+        if dtype is None: dtype = obj.dtype
         (rows, cols, vals) = sps.find(obj)
         # Process these into a PyTorch COO matrix.
         ii = torch.tensor([rows, cols], dtype=torch.long, device=device)
@@ -1081,10 +1097,12 @@ def to_tensor(obj,
         # Convert to a CSR tensor if we were given a CSR matrix.
         if isinstance(obj, sps.csr_matrix): arr = arr.to_sparse_csr()
     elif copy or requires_grad is True:
-        arr = torch.tensor(arr, dtype=dtype, device=devce,
+        arr = torch.tensor(obj, dtype=dtype, device=devce,
                            requires_grad=requires_grad)
+        dtype = arr.dtype
     else:
-        arr = torch.as_tensor(arr, dtype=dtype, device=device)
+        arr = torch.as_tensor(obj, dtype=dtype, device=device)
+        dtype = arr.dtype
     # If there is an instruction regarding the output's sparsity, handle that
     # now.
     if sparse is True:
@@ -1112,7 +1130,7 @@ def to_tensor(obj,
                              " without a unit (unit=None)")
         if q is None:
             if unit is Ellipsis: unit = None
-            q = ureg.Quantity(arr, unit)
+            return ureg.Quantity(arr, unit)
         else:
             if unit is Ellipsis: unit = q.u
             if ureg is not q._REGISTRY or obj is not arr:
@@ -1478,7 +1496,7 @@ def strnorm(s, case=False, unicode=True):
     elif case:
         s = s.casefold()
     return s
-def _strbinop_prp(a, b, case=True, unicode=None, strip=False):
+def _strbinop_prep(a, b, case=True, unicode=None, strip=False):
     if not is_str(a) or not is_str(b): return None
     # We do case normalization when case comparison is *not* requested
     casenorm = not bool(case)
@@ -2205,6 +2223,37 @@ def can_hash(obj):
     See also: `is_hashable`, `hashsafe`
     """
     return hashsafe(obj) is not None
+def itersafe(obj):
+    """Returns an iterator or None if the given object is not iterable.
+
+    `itersafe(obj)` is equivalent to `iter(obj)` with the exception that, if
+    `obj` is not iterable, it returns `None` instead of raising an exception.
+
+    Parameters
+    ----------
+    obj : object
+        The object to be iterated.
+
+    Returns
+    -------
+    iterator or None
+        If `obj` is iterable, returns `iter(obj)`; otherwise, returns `None`.
+    """
+    try:              return iter(obj)
+    except TypeError: return None
+def can_iter(obj):
+    """Returns `True` if `obj` is safe to iterate and `False` otherwise.
+
+    `can_iter(obj)` is equivalent to `itersafe(obj) is not None`. This differs
+    from `is_iterable(obj)` in that `is_iterable` only checks whether `obj` is
+    an instance of `Iterable`.
+
+    Note that in Python, all builtin immutable types are hashable while all
+    builtin mutable types are not.
+
+    See also: `is_iterable`, `itersafe`
+    """
+    return itersafe(obj) is not None
 def is_frozen(obj):
     """Returns `True` if an object is a `frozendict`, `frozenset`, or `tuple`.
 
