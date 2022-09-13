@@ -30,6 +30,7 @@ from unittest import TestCase
 
 class TestTypesCore(TestCase):
     """Tests the pimms.types._core module."""
+
     # Pint Utilities ###########################################################
     def test_is_ureg(self):
         from pimms import (units, is_ureg)
@@ -89,6 +90,7 @@ class TestTypesCore(TestCase):
         self.assertFalse(is_quant(alt_q, ureg=...))
         self.assertFalse(is_quant(q, ureg=alt_units))
         self.assertTrue(is_quant(alt_q, ureg=alt_units))
+
     # NumPy Utilities ##########################################################
     def test_is_numpydtype(self):
         from pimms.types import is_numpydtype
@@ -319,6 +321,7 @@ class TestTypesCore(TestCase):
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_array(arr, quant=True, unit=None)
+
     # PyTorch Utilities ########################################################
     def test_is_torchdtype(self):
         from pimms.types import is_torchdtype
@@ -524,6 +527,8 @@ class TestTypesCore(TestCase):
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_tensor(arr, quant=True, unit=None)
+
+    # PyTorch and Numpy Helper Functions #######################################
     def test_is_numeric(self):
         from pimms import is_numeric
         import torch, numpy as np
@@ -616,5 +621,169 @@ class TestTypesCore(TestCase):
                                        (5,5))
         self.assertFalse(issparse(to_dense(sp_a)))
         self.assertFalse(to_dense(sp_t).is_sparse)
+    
+    # String Functions #########################################################
+    def test_is_str(self):
+        from pimms import is_str
+        # is_str is just a wrapper for isinstance(obj, str).
+        self.assertTrue(is_str('abc'))
+        self.assertTrue(is_str(''))
+        self.assertFalse(is_str(100))
+        self.assertFalse(is_str(None))
+    def test_strnorm(self):
+        from pimms import strnorm
+        # There are a lot of string encoding details that should probably be
+        # tested carefully here, but for now, we're mostly concerned that the
+        # most basic strings get normalized properly.
+        self.assertEqual('abc', strnorm('abc'))
+        self.assertEqual('abc', strnorm('aBc', case=True))
+    def test_strcmp(self):
+        from pimms import strcmp
+        # strcmp is, at its simplest, just a string-comparison function.
+        self.assertEqual(0,  strcmp('abc', 'abc'))
+        self.assertEqual(-1, strcmp('abc', 'bca'))
+        self.assertEqual(1,  strcmp('bca', 'abc'))
+        # There are a few bells and whistles for strcmp, thought. First, the
+        # case option lets you decide whether to ignore case (via strnorm).
+        self.assertEqual(-1, strcmp('ABC', 'abc'))
+        self.assertEqual(0,  strcmp('ABC', 'abc', case=False))
+        # The strip option lets one ignore whitespace on either side of the
+        # arguments.
+        self.assertEqual(-1, strcmp(' abc', 'abc  '))
+        self.assertEqual(0,  strcmp(' abc', 'abc  ', strip=True))
+        # The split argument lets you split on whitespace then compare the
+        # individual split parts (i.e., this option should make all strings that
+        # are identical up to the amount of whitespace should be equal).
+        self.assertEqual(1, strcmp('abc def ghi', ' abc  def ghi '))
+        self.assertEqual(0, strcmp('abc def ghi', ' abc  def ghi ', split=True))
+        # If one of the arguments isn't a string, strcmp returns None.
+        self.assertIsNone(strcmp(None, 10))
+    def test_streq(self):
+        from pimms import streq
+        # streq is just a string equality predicate function.
+        self.assertTrue(streq('abc', 'abc'))
+        self.assertFalse(streq('abc', 'def'))
+        # The case option can tell it to ignore case.
+        self.assertFalse(streq('ABC', 'abc'))
+        self.assertTrue(streq('ABC', 'abc', case=False))
+        # The strip option can be used to ignore trailing/leading whitespace.
+        self.assertFalse(streq(' abc', 'abc  '))
+        self.assertTrue(streq(' abc', 'abc  ', strip=True))
+        # The split argument lets you split on whitespace then compare the
+        # individual split parts (i.e., this option should make all strings that
+        # are identical up to the amount of whitespace should be equal).
+        self.assertFalse(streq('abc def ghi', ' abc  def ghi '))
+        self.assertTrue(streq('abc def ghi', ' abc  def ghi ', split=True))
+    def test_strends(self):
+        from pimms import strends
+        # strends is just a string equality predicate function.
+        self.assertTrue(strends('abcdef', 'def'))
+        self.assertFalse(strends('abcdef', 'bcd'))
+        # The case option can tell it to ignore case.
+        self.assertFalse(strends('ABCDEF', 'def'))
+        self.assertTrue(strends('ABCDEF', 'def', case=False))
+        # The strip option can be used to ignore trailing/leading whitespace.
+        self.assertFalse(strends(' abcdef ', 'def  '))
+        self.assertTrue(strends(' abcdef ', 'def  ', strip=True))
+    def test_strstarts(self):
+        from pimms import strstarts
+        # strstarts is just a string equality predicate function.
+        self.assertTrue(strstarts('abcdef', 'abc'))
+        self.assertFalse(strstarts('abcdef', 'bcd'))
+        # The case option can tell it to ignore case.
+        self.assertFalse(strstarts('ABCDEF', 'abc'))
+        self.assertTrue(strstarts('ABCDEF', 'abc', case=False))
+        # The strip option can be used to ignore trailing/leading whitespace.
+        self.assertFalse(strstarts(' abcdef ', '  abc'))
+        self.assertTrue(strstarts(' abcdef ', '  abc', strip=True))
+    def test_strissym(self):
+        from pimms import strissym
+        # strissym tests whether a string is both a string and a valid Python
+        # symbol.
+        self.assertTrue(strissym('abc'))
+        self.assertTrue(strissym('def123'))
+        self.assertTrue(strissym('_10xyz'))
+        self.assertFalse(strissym('abc def'))
+        self.assertFalse(strissym(' abcdef '))
+        self.assertFalse(strissym('a-b'))
+        self.assertFalse(strissym('10'))
+        # Non-strings return False.
+        self.assertFalse(strissym(None))
+        self.assertFalse(strissym(10))
+        # Keywords are allowed.
+        self.assertTrue(strissym('for'))
+        self.assertTrue(strissym('and'))
+    def test_striskey(self):
+        from pimms import striskey
+        # striskey tests whether a string is (1) a string, (2) a valid Python
+        # symbol, and (3) an existing Python keyword.
+        self.assertTrue(striskey('for'))
+        self.assertTrue(striskey('and'))
+        self.assertTrue(striskey('None'))
+        self.assertFalse(striskey('abc'))
+        self.assertFalse(striskey('def123'))
+        self.assertFalse(striskey('_10xyz'))
+        self.assertFalse(striskey('abc def'))
+        self.assertFalse(striskey(' abcdef '))
+        self.assertFalse(striskey('a-b'))
+        self.assertFalse(striskey('10'))
+        # Non-strings return False.
+        self.assertFalse(striskey(None))
+        self.assertFalse(striskey(10))
+    def test_strisvar(self):
+        from pimms import strisvar
+        # strisvar tests whether a string is (1) a string, (2) a valid Python
+        # symbol, and (3) an *not* existing Python keyword.
+        self.assertFalse(strisvar('for'))
+        self.assertFalse(strisvar('and'))
+        self.assertFalse(strisvar('None'))
+        self.assertTrue(strisvar('abc'))
+        self.assertTrue(strisvar('def123'))
+        self.assertTrue(strisvar('_10xyz'))
+        self.assertFalse(strisvar('abc def'))
+        self.assertFalse(strisvar(' abcdef '))
+        self.assertFalse(strisvar('a-b'))
+        self.assertFalse(strisvar('10'))
+        # Non-strings return False.
+        self.assertFalse(strisvar(None))
+        self.assertFalse(strisvar(10))
+
+    # Other Utilities ##########################################################
+    def test_hashsafe(self):
+        from pimms import hashsafe
+        # hashsafe returns hash(x) if x is hashable and None otherwise.
+        self.assertIsNone(hashsafe({}))
+        self.assertIsNone(hashsafe([1, 2, 3]))
+        self.assertIsNone(hashsafe(set(['a', 'b'])))
+        self.assertEqual(hash(10), hashsafe(10))
+        self.assertEqual(hash('abc'), hashsafe('abc'))
+        self.assertEqual(hash((1, 10, 100)), hashsafe((1, 10, 100)))
+    def test_can_hash(self):
+        from pimms import can_hash
+        # can_hash(x) returns True if hash(x) will successfully return a hash
+        # and returns False if such a call would raise an error.
+        self.assertTrue(can_hash(10))
+        self.assertTrue(can_hash('abc'))
+        self.assertTrue(can_hash((1, 10, 100)))
+        self.assertFalse(can_hash({}))
+        self.assertFalse(can_hash([1, 2, 3]))
+        self.assertFalse(can_hash(set(['a', 'b'])))
+    def test_itersafe(self):
+        from pimms import itersafe
+        # itersafe returns iter(x) if x is iterable and None otherwise.
+        self.assertIsNone(itersafe(10))
+        self.assertIsNone(itersafe(lambda x:x))
+        self.assertEqual(list(itersafe([1, 2, 3])), [1, 2, 3])
+    def test_can_iter(self):
+        from pimms import can_iter
+        # can_iter(x) returns True if iter(x) will successfully return an
+        # iterator and returns False if such a call would raise an error.
+        self.assertTrue(can_iter('abc'))
+        self.assertTrue(can_iter([]))
+        self.assertTrue(can_iter((1, 10, 100)))
+        self.assertFalse(can_iter(10))
+        self.assertFalse(can_iter(lambda x:x))
+
+
     
         

@@ -1551,7 +1551,7 @@ def strcmp(a, b, case=True, unicode=None, strip=False, split=False):
 
     Returns
     -------
-    boolean
+    boolean or None
         `None` if either `a` is not a string or `b` is not a string; otherwise,
         `-1` if `a` is lexicographically less than `b`, `0` if `a == b`, and `1`
         if `a` is lexicographically greater than `b`, subject to the constraints
@@ -1594,12 +1594,13 @@ def streq(a, b, case=True, unicode=None, strip=False, split=False):
 
     Returns
     -------
-    boolean
+    boolean or None
         `True` if `a` and `b` are both strings and if `a` is equal to `b`,
-        subject to the constraints of the optional parameters.
+        subject to the constraints of the optional parameters. If either `a` or
+        `b` is not a string, then `None` is returned.
     """
     cmpval = strcmp(a, b, case=case, unicode=unicode, strip=strip, split=split)
-    return cmpval == 0
+    return None if cmpval is None else (cmpval == 0)
 @docwrap
 def strends(a, b, case=True, unicode=None, strip=False):
     """Determines if the string `a` ends with the string `b` or not.
@@ -1615,9 +1616,10 @@ def strends(a, b, case=True, unicode=None, strip=False):
 
     Returns
     -------
-    boolean
+    boolean or None
         `True` if `a` and `b` are both strings and if `a` ends with `b`,
-        subject to the constraints of the optional parameters.
+        subject to the constraints of the optional parameters. If either `a` or
+        `b` is not a string, then `None` is returned.
     """
     prep = _strbinop_prep(a, b, case=case, unicode=unicode, strip=strip)
     if prep is None: return None
@@ -1640,9 +1642,10 @@ def strstarts(a, b, case=True, unicode=None, strip=False):
 
     Returns
     -------
-    boolean
+    boolean or None
         `True` if `a` and `b` are both strings and if `a` starts with `b`,
-        subject to the constraints of the optional parameters.
+        subject to the constraints of the optional parameters. If either `a` or
+    `b`
     """
     prep = _strbinop_prep(a, b, case=case, unicode=unicode, strip=strip)
     if prep is None: return None
