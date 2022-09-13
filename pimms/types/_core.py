@@ -582,7 +582,7 @@ def to_array(obj,
                 # We're creating a scipy sparse output from another scipy sparse
                 # matrix.
                 (rr,cc,uu) = sps.find(obj)
-                vv = np.array(uu, dtyp=dtype, order=order, copy=copy)
+                vv = np.array(uu, dtype=dtype, order=order, copy=copy)
                 if mtype is type(obj) and uu is vv:
                     arr = obj
                 else:
@@ -1305,12 +1305,12 @@ def to_numeric(obj,
     """
     if torch__is_tensor(obj):
         return to_tensor(obj,
-                         dtype=dtype, shape=shape, ndim=ndim,
-                         sparse=sparse, quant=quant, unit=unit, ureg=ureg)
+                         dtype=dtype, sparse=sparse,
+                         quant=quant, unit=unit, ureg=ureg)
     else:
         return to_array(obj,
-                        dtype=dtype, shape=shape, ndim=ndim,
-                        sparse=sparse, quant=quant, unit=unit, ureg=ureg)
+                        dtype=dtype, sparse=sparse,
+                        quant=quant, unit=unit, ureg=ureg)
 
 
 # Sparse Matrices and Dense Collections#########################################
@@ -1347,8 +1347,7 @@ def is_sparse(obj,
                       quant=quant, ureg=ureg, unit=unit)
 @docwrap
 def to_sparse(obj,
-              dtype=None, shape=None, ndim=None,
-              quant=None, ureg=None, unit=Ellipsis):
+              dtype=None, quant=None, ureg=None, unit=Ellipsis):
     """Returns a sparse version of the numerical object `obj`.
 
     `to_sparse(obj)` returns `obj` if it is already a PyTorch sparse tensor or a
@@ -1362,8 +1361,6 @@ def to_sparse(obj,
     obj : object
         The object that is to be converted into a sparse representation.
     %(pimms.types._core.to_numeric.parameters.dtype)s
-    %(pimms.types._core.is_numeric.parameters.ndim)s
-    %(pimms.types._core.is_numeric.parameters.shape)s
     %(pimms.types._core.to_numeric.parameters.quant)s
     %(pimms.types._core.to_numeric.parameters.ureg)s
     %(pimms.types._core.to_numeric.parameters.unit)s
@@ -1374,8 +1371,8 @@ def to_sparse(obj,
         A sparse version of the argument `obj`.
     """
     return to_numeric(obj, sparse=True,
-                      dtype=dtype, shape=shape, ndim=ndim,
-                      quant=quant, ureg=ureg, unit=unit)
+                      dtype=dtype, quant=quant,
+                      ureg=ureg, unit=unit)
 @docwrap
 def is_dense(obj,
              dtype=None, shape=None, ndim=None,
@@ -1405,12 +1402,10 @@ def is_dense(obj,
     """
     return is_numeric(obj, sparse=False,
                       dtype=dtype, shape=shape, ndim=ndim,
-                      requires_grad=requires_grad, device=device,
                       quant=quant, ureg=ureg, unit=unit)
 @docwrap
 def to_dense(obj,
-             dtype=None, shape=None, ndim=None,
-             quant=None, ureg=None, unit=Ellipsis):
+             dtype=None, quant=None, ureg=None, unit=Ellipsis):
     """Returns a dense version of the numerical object `obj`.
 
     `to_dense(obj)` returns `obj` if it is already a PyTorch dense tensor or a
@@ -1424,8 +1419,6 @@ def to_dense(obj,
     obj : object
         The object that is to be converted into a dense representation.
     %(pimms.types._core.to_numeric.parameters.dtype)s
-    %(pimms.types._core.is_numeric.parameters.ndim)s
-    %(pimms.types._core.is_numeric.parameters.shape)s
     %(pimms.types._core.to_numeric.parameters.quant)s
     %(pimms.types._core.to_numeric.parameters.ureg)s
     %(pimms.types._core.to_numeric.parameters.unit)s
@@ -1436,8 +1429,7 @@ def to_dense(obj,
         A dense version of the argument `obj`.
     """
     return to_numeric(obj, sparse=False,
-                      dtype=dtype, shape=shape, ndim=ndim,
-                      quant=quant, ureg=ureg, unit=unit)
+                      dtype=dtype, quant=quant, ureg=ureg, unit=unit)
 
 # Strings ######################################################################
 @docwrap
@@ -1871,10 +1863,10 @@ def is_seq(obj):
     return isinstance(obj, Sequence)
 from collections.abc import MutableSequence
 @docwrap
-def is_mseq(obj):
+def is_mutseq(obj):
     """Returns `True` if an object is a mutable sequence, otherwise `False`.
 
-    `is_mseq(obj)` returns `True` if the given object `obj` is an instance of
+    `is_mutseq(obj)` returns `True` if the given object `obj` is an instance of
     the `collections.abc.MutableSequence` type.
 
     Parameters
@@ -1929,10 +1921,10 @@ def is_set(obj):
     return isinstance(obj, Set)
 from collections.abc import MutableSet
 @docwrap
-def is_mset(obj):
+def is_mutset(obj):
     """Returns `True` if an object is a mutable set, otherwise `False`.
 
-    `is_mset(obj)` returns `True` if the given object `obj` is an instance of
+    `is_mutset(obj)` returns `True` if the given object `obj` is an instance of
     the `collections.abc.MutableSet` type.
 
     Parameters
@@ -1967,10 +1959,10 @@ def is_map(obj):
     return isinstance(obj, Mapping)
 from collections.abc import MutableMapping
 @docwrap
-def is_mmap(obj):
+def is_mutmap(obj):
     """Returns `True` if an object is a mutable mapping, otherwise `False`.
 
-    `is_mmap(obj)` returns `True` if the given object `obj` is an instance of
+    `is_mutmap(obj)` returns `True` if the given object `obj` is an instance of
     the `collections.abc.MutableMapping` type.
 
     Parameters

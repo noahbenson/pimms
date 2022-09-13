@@ -33,7 +33,7 @@ import frozendict as fd
 from functools import (reduce, partial)
 
 from ..doc import docwrap
-from ..types import (is_str, is_fdict, is_map, is_mmap, is_set, is_lambda)
+from ..types import (is_str, is_fdict, is_map, is_mutmap, is_set, is_lambda)
 
 # #delay #######################################################################
 class DelayError(RuntimeError):
@@ -810,7 +810,7 @@ def assoc(d, *args, **kw):
         raise ValueError("assoc requires matched key-value arguments")
     ks = args[0::2]
     vs = args[1::2]
-    if is_mmap(d):
+    if is_mutmap(d):
         # This is a mutable mapping, so we copy it.
         d = d.copy()
         for (k,v) in zip(ks,vs):
@@ -835,7 +835,7 @@ def dissoc(d, *args):
     `dissoc(d, key1, key2 ...)` dissociates all the given keys from their values
     in the returned copy.
     """
-    if is_mmap(d):
+    if is_mutmap(d):
         # This is a mutable mapping, so we copy it.
         d = d.copy()
         for k in args:

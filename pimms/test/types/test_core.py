@@ -524,3 +524,97 @@ class TestTypesCore(TestCase):
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_tensor(arr, quant=True, unit=None)
+    def test_is_numeric(self):
+        from pimms import is_numeric
+        import torch, numpy as np
+        from scipy.sparse import csr_matrix
+        # The is_numeric function is just a wrapper around is_array and
+        # is_tensor that calls one or the other depending on whether the object
+        # requested is a tensor or not. I.e., it passes all arguments through
+        # and merely switches on the type.
+        sp_a = csr_matrix(([0.5, 1.0], ([0,1], [3,2])), shape=(5,5))
+        sp_t = torch.sparse_coo_tensor(torch.tensor([[0,1],[3,2]]),
+                                       torch.tensor([0.5, 1]),
+                                       (5,5))
+        a = sp_a.todense()
+        t = sp_t.to_dense()
+        self.assertTrue(is_numeric(a))
+        self.assertTrue(is_numeric(t))
+        self.assertTrue(is_numeric(sp_a))
+        self.assertTrue(is_numeric(sp_t))
+        self.assertFalse(is_numeric('abc'))
+        self.assertFalse(is_numeric([1,2,3]))
+    def test_to_numeric(self):
+        from pimms import to_numeric
+        import torch, numpy as np
+        from scipy.sparse import csr_matrix
+        # The is_numeric function is just a wrapper around to_array and
+        # to_tensor that calls one or the other depending on whether the object
+        # requested is a tensor or not. I.e., it passes all arguments through
+        # and merely switches on the type.
+        sp_a = csr_matrix(([0.5, 1.0], ([0,1], [3,2])), shape=(5,5))
+        sp_t = torch.sparse_coo_tensor(torch.tensor([[0,1],[3,2]]),
+                                       torch.tensor([0.5, 1]),
+                                       (5,5))
+        a = np.array(sp_a.todense())
+        t = sp_t.to_dense()
+        self.assertIs(a, to_numeric(a))
+        self.assertIs(t, to_numeric(t))
+        self.assertIs(sp_a, to_numeric(sp_a))
+        self.assertIs(sp_t, to_numeric(sp_t))
+        self.assertIsInstance(to_numeric([1,2,3]), np.ndarray)
+    def test_is_sparse(self):
+        from pimms import is_sparse
+        import torch, numpy as np
+        from scipy.sparse import csr_matrix
+        # is_sparse returns True for any sparse array and False for anything
+        # other than a sparse array.
+        sp_a = csr_matrix(([0.5, 1.0], ([0,1], [3,2])), shape=(5,5))
+        sp_t = torch.sparse_coo_tensor(torch.tensor([[0,1],[3,2]]),
+                                       torch.tensor([0.5, 1]),
+                                       (5,5))
+        self.assertTrue(is_sparse(sp_a))
+        self.assertTrue(is_sparse(sp_t))
+        self.assertFalse(is_sparse(sp_a.todense()))
+        self.assertFalse(is_sparse(sp_t.to_dense()))
+    def test_to_sparse(self):
+        from pimms import to_sparse
+        import torch, numpy as np
+        from scipy.sparse import issparse
+        # to_sparse supports the arguments of to_array and to_tensor (because it
+        # simply calls through to these functions), but it always returns a
+        # sparse object.
+        m = np.array([[1.0, 0, 0, 0], [0, 0, 0, 0],
+                      [0, 1.0, 0, 0], [0, 0, 0, 1.0]])
+        t = torch.tensor(m)
+        self.assertTrue(issparse(to_sparse(m)))
+        self.assertTrue(to_sparse(t).is_sparse)
+    def test_is_dense(self):
+        from pimms import is_dense
+        import torch, numpy as np
+        from scipy.sparse import csr_matrix
+        # is_dense returns True for any dense array and False for anything
+        # other than a dense array.
+        sp_a = csr_matrix(([0.5, 1.0], ([0,1], [3,2])), shape=(5,5))
+        sp_t = torch.sparse_coo_tensor(torch.tensor([[0,1],[3,2]]),
+                                       torch.tensor([0.5, 1]),
+                                       (5,5))
+        self.assertTrue(is_dense(sp_a.todense()))
+        self.assertTrue(is_dense(sp_t.to_dense()))
+        self.assertFalse(is_dense(sp_a))
+        self.assertFalse(is_dense(sp_t))
+    def test_to_dense(self):
+        from pimms import to_dense
+        import torch, numpy as np
+        from scipy.sparse import (issparse, csr_matrix)
+        # to_dense supports the arguments of to_array and to_tensor (because it
+        # simply calls through to these functions), but it always returns a
+        # dense object.
+        sp_a = csr_matrix(([0.5, 1.0], ([0,1], [3,2])), shape=(5,5))
+        sp_t = torch.sparse_coo_tensor(torch.tensor([[0,1],[3,2]]),
+                                       torch.tensor([0.5, 1]),
+                                       (5,5))
+        self.assertFalse(issparse(to_dense(sp_a)))
+        self.assertFalse(to_dense(sp_t).is_sparse)
+    
+        
