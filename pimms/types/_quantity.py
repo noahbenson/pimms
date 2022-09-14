@@ -54,11 +54,12 @@ class default_ureg(object):
         if not is_ureg(ureg):
             raise TypeError("ureg must be a pint.UnitRegistry")
         object.__setattr__(self, 'original', None)
+        object.__setattr__(self, 'ureg', ureg)
     def __enter__(self):
         import pimms
         object.__setattr__(self, 'original', pimms.units)
-        pimms.units = ureg
-        return ureg
+        pimms.units = self.ureg
+        return self.ureg
     def __exit__(self, exc_type, exc_val, exc_tb):
         import pimms
         pimms.units = self.original
@@ -94,10 +95,10 @@ def like_unit(q, ureg=None):
         `True` if `q` is a `pint` unit or a string naming a `pint` unit and
         `False` otherwise.
     """
-    if isinstance(q, Unit): return True
+    if isinstance(q, pint.Unit): return True
     if not is_str(q): return False
     if ureg is None or ureg is Ellipsis: from pimms import units as ureg
-    return hasattr(ureg, q)
+    return hasattr(ureg, q) and isinstance(getattr(ureg, q), pint.Unit)
 @docwrap
 def unit(obj, ureg=Ellipsis):
     """Converts the argument into a a `Unit` object.
@@ -133,8 +134,11 @@ def unit(obj, ureg=Ellipsis):
         When the argument cannot be converted to a `Unit` object.
     """
     if ureg is Ellipsis: from pimms import units as ureg
-    if obj is None: return ureg.dimensionless
-    if is_quant(obj): u = u.u
+    if obj is None:
+        if ureg is None: from pimms import ureg
+        return ureg.dimensionless
+    if is_quant(obj):
+        obj = obj.u
     if is_unit(obj):
         if ureg is None or ureg is obj._REGISTRY:
             return obj
@@ -236,25 +240,6 @@ def quant(mag, unit=Ellipsis, ureg=None):
     else:
         return q
 @docwrap
-def to_quants(*args, unit=Ellipsis, ureg=None):
-    """Converts each argument in a list to a quantity.
-
-    `to_quants(*lst, **kw)` returns `[quant(el, **kw) for el in lst]`.
-
-    Parameters
-    ----------
-    *args
-        The list of arguments to be converted into quantities.
-    %(pimms.types._quantity.quant.parameters.unit)s
-    %(pimms.types._quantity.quant.parameters.ureg)s
-
-    Returns
-    -------
-    list of Quantity objects
-        A list of the arguments, each converted into quantities.
-    """
-    return [quant(el, unit=unit, ureg=ureg) for el in args]
-@docwrap
 def mag(val, unit=Ellipsis):
     """Returns the magnitude of the given object.
 
@@ -282,8 +267,8 @@ def mag(val, unit=Ellipsis):
         The unit in which the magnitude of the argument `val` should be
         returned. The default argument of `Ellipsis` indicates that the value's
         native unit, if any, should be used. A value of `None` indicates that
-        the `val` must have no units (i.e., not be a quantity) or must have
-        a dimensionless unit, otherwise an exception is raised.
+        the `val` must have no units (i.e., not be a quantity), otherwise an
+        exception is raised.
 
     Returns
     -------
@@ -293,17 +278,15 @@ def mag(val, unit=Ellipsis):
 
     Raises
     ------
-    DimensionaltyError
+    DimensionalityError
         If the given `val` is a quantity whose unit is not compatible with the
         `unit` parameter.
-
+    ValueError
+        If `unit` is None but `val` is a quantity.
     """
     if is_quant(val):
         if unit is None:
-            if val.is_compatible_with('dimensionless'):
-                return val.m
-            else:
-                raise DimensionalityError(val, unit)
+            raise ValueError("unit=None requested of quantity")
         elif unit is Ellipsis:
             return val.m
         else:
@@ -349,7 +332,7 @@ def promote(*args, ureg=None):
     """
     if ureg is None: from pimms import units as ureg
     # We can start by converting the args into a list of quantities.
-    qs = to_quants(args, ureg=ureg)
+    qs = [quant(arg, ureg=ureg) for arg in args]
     # Basic question: are any of them tensors?
     first_tensor = next((q for q in qs if torch.is_tensor(q.m)), None)
     # If there isn't any, qs is fine as-is.
@@ -361,9 +344,6 @@ def promote(*args, ureg=None):
         mag = q.m
         mag = to_tensor(mag, device=device)
         if mag is not q.m:
-            if q is args[ii]:
-                qs[ii] = q.__class__(mag, q.u)
-            else:
-                q.m = mag
+            qs[ii] = q.__class__(mag, q.u)
     # That's all that is needed.
     return qs
