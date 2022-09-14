@@ -167,5 +167,3 @@ class TestTypesQuantity(TestCase):
         self.assertTrue(np.array_equal(qa.numpy(), a))
         self.assertTrue(np.array_equal(qb.numpy(), b))
         self.assertIs(qc.m, c)
-
-        

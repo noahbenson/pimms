@@ -26,9 +26,20 @@
 
 # Dependencies #################################################################
 from ..doc import docwrap
+from ._core import (alttorch, checktorch, scipy__is_sparse,
+                    torch__is_tensor, torch)
+from numpy import ndarray
 
 # Numerical Types ##############################################################
 from numbers import Number
+def _is_number_notorch(obj):
+    if isinstance(obj, Number):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Number)
+    else:
+        return False
+@alttorch(_is_number_notorch)
 @docwrap
 def is_number(obj):
     """Returns `True` if an object is a Python number, otherwise `False`.
@@ -46,8 +57,22 @@ def is_number(obj):
     boolean
         `True` if `obj` is an instance of `Number`, otherwise `False`.
     """
-    return isinstance(obj, Number)
+    if isinstance(obj, Number):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Number)
+    elif torch__is_tensor(obj) and obj.shape == ():
+        return isinstance(obj.item(), Number)
+    else:
+        return False
 from numbers import Integral
+def _is_integer_notorch(obj):
+    if isinstance(obj, Integral):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Integral)
+    else:
+        return False
 @docwrap
 def is_integer(obj):
     """Returns `True` if an object is a Python number, otherwise `False`.
@@ -65,8 +90,22 @@ def is_integer(obj):
     boolean
         `True` if `obj` is an instance of `Integral`, otherwise `False`.
     """
-    return isinstance(obj, Integral)
+    if isinstance(obj, Integral):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Integral)
+    elif torch__is_tensor(obj) and obj.shape == ():
+        return isinstance(obj.item(), Integral)
+    else:
+        return False
 from numbers import Real
+def _is_real_notorch(obj):
+    if isinstance(obj, Real):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Real)
+    else:
+        return False
 @docwrap
 def is_real(obj):
     """Returns `True` if an object is a Python number, otherwise `False`.
@@ -84,8 +123,22 @@ def is_real(obj):
     boolean
         `True` if `obj` is an instance of `Real`, otherwise `False`.
     """
-    return isinstance(obj, Real)
+    if isinstance(obj, Real):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Real)
+    elif torch__is_tensor(obj) and obj.shape == ():
+        return isinstance(obj.item(), Real)
+    else:
+        return False
 from numbers import Complex
+def _is_complex_notorch(obj):
+    if isinstance(obj, Complex):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Complex)
+    else:
+        return False
 @docwrap
 def is_complex(obj):
     """Returns `True` if an object is a complex number, otherwise `False`.
@@ -103,4 +156,11 @@ def is_complex(obj):
     boolean
         `True` if `obj` is an instance of `Complex`, otherwise `False`.
     """
-    return isinstance(obj, Complex)
+    if isinstance(obj, Complex):
+        return True
+    elif isinstance(obj, ndarray) and obj.shape == ():
+        return isinstance(obj.item(), Complex)
+    elif torch__is_tensor(obj) and obj.shape == ():
+        return isinstance(obj.item(), Complex)
+    else:
+        return False

@@ -24,4 +24,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .test_core import TestTypesCore
+from .test_core     import TestTypesCore
+from .test_numeric  import TestTypesNumeric
+from .test_quantity import TestTypesQuantity

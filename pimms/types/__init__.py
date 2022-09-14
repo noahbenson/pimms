@@ -114,7 +114,6 @@ from ._quantity import (
     unit,
     quant,
     mag,
-    to_quants,
     promote,
 )
 
@@ -194,6 +193,5 @@ __all__ = (
     "unit",
     "quant",
     "mag",
-    "to_quants",
     "promote",
 )
