@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/test/types/__init__.py
+# pimms/test/util/__init__.py
 #
-# Tests of the pimms.types module.
+# Tests of the pimms.util module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -24,6 +24,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .test_core     import TestTypesCore
-from .test_numeric  import TestTypesNumeric
-from .test_quantity import TestTypesQuantity
+from .test_core     import TestUtilCore
+from .test_numeric  import TestUtilNumeric
+from .test_quantity import TestUtilQuantity

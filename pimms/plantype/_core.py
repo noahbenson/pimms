@@ -28,7 +28,7 @@
 import copy, types, inspect
 from collections import (defaultdict, namedtuple)
 
-from ..types import (is_str, is_fdict)
+from ..util import (is_str, is_fdict)
 from ..lazydict import (ldict, fdict, is_ldict, assoc)
 from ..calculation import (calc, plan, plandict, is_calc)
 
@@ -119,7 +119,7 @@ class plantype(type):
             plan = type(self).plan
             params = dict(plan.defaults, **self.__plandict__)
             if params.keys() != plan.inputs:
-                raise ValueError(f"bad parameterization of plantype {type(self)};"
+                raise ValueError(f"bad parameters for plantype {type(self)};"
                                  f" expected {tuple(plan.inputs)} but found"
                                  f" {tuple(params.keys())}")
             pd = plan(params)

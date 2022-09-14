@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/test/types/test_quantity.py
+# pimms/test/util/test_quantity.py
 #
 # Tests of the quantity module in pimms: i.e., tests for the code in the
-# pimms.types._quantity module.
+# pimms.util._quantity module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -28,8 +28,8 @@
 # Dependencies #################################################################
 from unittest import TestCase
 
-class TestTypesQuantity(TestCase):
-    """Tests the pimms.types._quantity module."""
+class TestUtilQuantity(TestCase):
+    """Tests the pimms.util._quantity module."""
     def test_default_ureg(self):
         from pimms import default_ureg
         from pint import UnitRegistry

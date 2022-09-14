@@ -33,7 +33,7 @@ import frozendict as fd
 from functools import (reduce, partial)
 
 from ..doc import docwrap
-from ..types import (is_str, is_fdict, is_map, is_mutmap, is_set, is_lambda)
+from ..util import (is_str, is_fdict, is_map, is_mutmap, is_set, is_lambda)
 
 # #delay #######################################################################
 class DelayError(RuntimeError):
@@ -262,7 +262,7 @@ frozendict._empty = fd.frozendict.__new__(frozendict)
 fdict = frozendict
 # Now that we've made this frozendict type, we want to update the freeze
 # function's version of a frozen dict to this one.
-from ..types import freeze
+from ..util import freeze
 freeze.freeze_types[dict] = frozendict
 
 # #lazydict ####################################################################

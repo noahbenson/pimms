@@ -33,8 +33,8 @@ from functools import (reduce, lru_cache)
 from inspect import getfullargspec
 
 from ..doc import (docwrap, docproc, make_docproc)
-from ..types import (is_fdict, is_str, is_number, is_tuple, is_dict, is_array,
-                     is_integer, strisvar, is_map)
+from ..util import (is_fdict, is_str, is_number, is_tuple, is_dict, is_array,
+                    is_integer, strisvar, is_map)
 from ..lazydict import (merge, lazydict, is_ldict, ldict, frozendict, fdict,
                         valmap, delay, undelay)
 

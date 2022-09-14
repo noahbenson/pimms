@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/test/types/test_numeric.py
+# pimms/test/util/test_numeric.py
 #
 # Tests of the numeric module in pimms: i.e., tests for the code in the
-# pimms.types._numeric module.
+# pimms.util._numeric module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -28,8 +28,8 @@
 # Dependencies #################################################################
 from unittest import TestCase
 
-class TestTypesNumeric(TestCase):
-    """Tests the pimms.types._numeric module."""
+class TestUtilNumeric(TestCase):
+    """Tests the pimms.util._numeric module."""
     def test_is_number(self):
         from pimms import is_number
         import torch, numpy as np

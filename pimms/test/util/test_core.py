@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/test/types/test_core.py
+# pimms/test/util/test_core.py
 #
-# Tests of the core types module in pimms: i.e., tests for the code in the
-# pimms.types._core module.
+# Tests of the core utilities module in pimms: i.e., tests for the code in the
+# pimms.util._core module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -28,8 +28,8 @@
 # Dependencies #################################################################
 from unittest import TestCase
 
-class TestTypesCore(TestCase):
-    """Tests the pimms.types._core module."""
+class TestUtilCore(TestCase):
+    """Tests the pimms.util._core module."""
 
     # Pint Utilities ###########################################################
     def test_is_ureg(self):
@@ -93,7 +93,7 @@ class TestTypesCore(TestCase):
 
     # NumPy Utilities ##########################################################
     def test_is_numpydtype(self):
-        from pimms.types import is_numpydtype
+        from pimms.util import is_numpydtype
         import torch, numpy as np
         # is_numpydtype returns true for dtypes and dtypes alone.
         self.assertTrue(is_numpydtype(np.dtype('int')))
@@ -104,7 +104,7 @@ class TestTypesCore(TestCase):
         self.assertFalse(is_numpydtype(np.bool_))
         self.assertFalse(is_numpydtype(torch.float))
     def test_like_numpydtype(self):
-        from pimms.types import like_numpydtype
+        from pimms.util import like_numpydtype
         import torch, numpy as np
         # Anything that can be converted into a numpy dtype object is considered
         # to be like a numpy dtype.
@@ -120,7 +120,7 @@ class TestTypesCore(TestCase):
         self.assertTrue(like_numpydtype(np.dtype(int)))
         self.assertTrue(like_numpydtype(torch.float))
     def test_to_numpydtype(self):
-        from pimms.types import to_numpydtype
+        from pimms.util import to_numpydtype
         import torch, numpy as np
         # Converting a numpy dtype into a dtype results in the identical dtype.
         dt = np.dtype(int)
@@ -324,7 +324,7 @@ class TestTypesCore(TestCase):
 
     # PyTorch Utilities ########################################################
     def test_is_torchdtype(self):
-        from pimms.types import is_torchdtype
+        from pimms.util import is_torchdtype
         import torch, numpy as np
         # is_torchdtype returns true for torch's dtypes and its dtypes alone.
         self.assertTrue(is_torchdtype(torch.int))
@@ -334,7 +334,7 @@ class TestTypesCore(TestCase):
         self.assertFalse(is_torchdtype(float))
         self.assertFalse(is_torchdtype(np.bool_))
     def test_like_torchdtype(self):
-        from pimms.types import like_torchdtype
+        from pimms.util import like_torchdtype
         import torch, numpy as np
         # Anything that can be converted into a torch dtype object is considered
         # to be like a torch dtype.
@@ -349,7 +349,7 @@ class TestTypesCore(TestCase):
         # torch dtypes themselves are like torch dtypes.
         self.assertTrue(like_torchdtype(torch.float))
     def test_to_torchdtype(self):
-        from pimms.types import to_torchdtype
+        from pimms.util import to_torchdtype
         import torch, numpy as np
         # Converting a numpy dtype into a dtype results in the identical dtype.
         dt = torch.int
@@ -838,7 +838,7 @@ class TestTypesCore(TestCase):
         self.assertIsNone(is_thawed(10))
         self.assertIsNone(is_thawed(range(10)))        
     def test_to_frozenarray(self):
-        from pimms.types import to_frozenarray
+        from pimms.util import to_frozenarray
         import numpy as np
         # frozenarray converts a read-write numpy array into a frozen one.
         x = np.linspace(0, 1, 25)

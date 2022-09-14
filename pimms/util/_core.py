@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/types/_core.py
+# pimms/util/_core.py
 #
-# Core implementation of the utility classes for the various types that are
+# Core implementation of the utility classes for the various utilities that are
 # managed by pimms.
 #
 # Copyright 2022 Noah C. Benson
@@ -131,7 +131,7 @@ def is_quant(obj, unit=Ellipsis, ureg=None):
 
     Raises
     ------
-    %(pimms.types._core.is_unit.raises)s
+    %(pimms.util._core.is_unit.raises)s
     """
     if ureg is None:
         if not isinstance(obj, pint.Quantity):
@@ -1330,12 +1330,12 @@ def is_sparse(obj,
     ----------
     obj : object
         The object whose quality as a sparse numerical object is to be assessed.
-    %(pimms.types._core.is_numeric.parameters.dtype)s
-    %(pimms.types._core.is_numeric.parameters.ndim)s
-    %(pimms.types._core.is_numeric.parameters.shape)s
-    %(pimms.types._core.is_numeric.parameters.quant)s
-    %(pimms.types._core.is_numeric.parameters.ureg)s
-    %(pimms.types._core.is_numeric.parameters.unit)s
+    %(pimms.util._core.is_numeric.parameters.dtype)s
+    %(pimms.util._core.is_numeric.parameters.ndim)s
+    %(pimms.util._core.is_numeric.parameters.shape)s
+    %(pimms.util._core.is_numeric.parameters.quant)s
+    %(pimms.util._core.is_numeric.parameters.ureg)s
+    %(pimms.util._core.is_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1360,10 +1360,10 @@ def to_sparse(obj,
     ----------
     obj : object
         The object that is to be converted into a sparse representation.
-    %(pimms.types._core.to_numeric.parameters.dtype)s
-    %(pimms.types._core.to_numeric.parameters.quant)s
-    %(pimms.types._core.to_numeric.parameters.ureg)s
-    %(pimms.types._core.to_numeric.parameters.unit)s
+    %(pimms.util._core.to_numeric.parameters.dtype)s
+    %(pimms.util._core.to_numeric.parameters.quant)s
+    %(pimms.util._core.to_numeric.parameters.ureg)s
+    %(pimms.util._core.to_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1388,12 +1388,12 @@ def is_dense(obj,
     ----------
     obj : object
         The object whose quality as a dense numerical object is to be assessed.
-    %(pimms.types._core.is_numeric.parameters.dtype)s
-    %(pimms.types._core.is_numeric.parameters.ndim)s
-    %(pimms.types._core.is_numeric.parameters.shape)s
-    %(pimms.types._core.is_numeric.parameters.quant)s
-    %(pimms.types._core.is_numeric.parameters.ureg)s
-    %(pimms.types._core.is_numeric.parameters.unit)s
+    %(pimms.util._core.is_numeric.parameters.dtype)s
+    %(pimms.util._core.is_numeric.parameters.ndim)s
+    %(pimms.util._core.is_numeric.parameters.shape)s
+    %(pimms.util._core.is_numeric.parameters.quant)s
+    %(pimms.util._core.is_numeric.parameters.ureg)s
+    %(pimms.util._core.is_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1418,10 +1418,10 @@ def to_dense(obj,
     ----------
     obj : object
         The object that is to be converted into a dense representation.
-    %(pimms.types._core.to_numeric.parameters.dtype)s
-    %(pimms.types._core.to_numeric.parameters.quant)s
-    %(pimms.types._core.to_numeric.parameters.ureg)s
-    %(pimms.types._core.to_numeric.parameters.unit)s
+    %(pimms.util._core.to_numeric.parameters.dtype)s
+    %(pimms.util._core.to_numeric.parameters.quant)s
+    %(pimms.util._core.to_numeric.parameters.ureg)s
+    %(pimms.util._core.to_numeric.parameters.unit)s
 
     Returns
     -------
@@ -1590,7 +1590,7 @@ def streq(a, b, case=True, unicode=None, strip=False, split=False):
 
     Parameters
     ----------
-    %(pimms.types._core.strcmp.parameters)s
+    %(pimms.util._core.strcmp.parameters)s
 
     Returns
     -------
@@ -1610,9 +1610,9 @@ def strends(a, b, case=True, unicode=None, strip=False):
 
     Parameters
     ----------
-    %(pimms.types._core.strcmp.parameters.case)s
-    %(pimms.types._core.strcmp.parameters.unicode)s
-    %(pimms.types._core.strcmp.parameters.strip)s
+    %(pimms.util._core.strcmp.parameters.case)s
+    %(pimms.util._core.strcmp.parameters.unicode)s
+    %(pimms.util._core.strcmp.parameters.strip)s
 
     Returns
     -------
@@ -1636,9 +1636,9 @@ def strstarts(a, b, case=True, unicode=None, strip=False):
 
     Parameters
     ----------
-    %(pimms.types._core.strcmp.parameters.case)s
-    %(pimms.types._core.strcmp.parameters.unicode)s
-    %(pimms.types._core.strcmp.parameters.strip)s
+    %(pimms.util._core.strcmp.parameters.case)s
+    %(pimms.util._core.strcmp.parameters.unicode)s
+    %(pimms.util._core.strcmp.parameters.strip)s
 
     Returns
     -------

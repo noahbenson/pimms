@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/types/_numeric.py
+# pimms/util/_numeric.py
 #
 # General numeric type utilities for pimms.
 #

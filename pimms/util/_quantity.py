@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/types/_core.py
+# pimms/util/_core.py
 #
-# Core implementation of the utility classes for the various types that are
+# Core implementation of the utility classes for the various utilities that are
 # managed by pimms.
 #
 # Copyright 2022 Noah C. Benson

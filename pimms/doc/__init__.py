@@ -26,3 +26,4 @@
 
 from ._core import (docwrap, docproc, make_docproc)
 
+__all__ = ("docwrap", "docproc")

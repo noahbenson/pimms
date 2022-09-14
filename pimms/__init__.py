@@ -35,19 +35,15 @@ declaring workflows and immutable data-structures with full inheritance support.
 
 # Imports ######################################################################
 #
-# The doc namespace contains docwrap, docproc, and make_docproc, of which we
-# only want to import the first two.
-from .doc import (docwrap, docproc)
-# The types, lazydict, and calculation namespaces all contain clean slates of
-# functions to import; the private state for these is all hidden in submodules.
-from .types       import *
+from .doc         import *
+from .util        import *
 from .lazydict    import *
 from .calculation import *
 from .plantype    import *
 # Import the Global UnitRegistry object to the global pimms scope. This is the
 # value that gets updated when one runs `pimms.default_ureg()`, and this is the
 # UnitRegistry that is used as the default registry for all `pimms` functions.
-from .types._quantity import _initial_global_ureg as units
+from .util._quantity import _initial_global_ureg as units
 """UnitRegistry: the registry for units tracked by pimms.
 
 `pimms.units` is a global `pint`-module unit registry that can be used as a
@@ -60,10 +56,10 @@ temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
 # Modules/Reloading ############################################################
 submodules = ('pimms.doc._core',
               'pimms.doc',
-              'pimms.types._core',
-              'pimms.types._numeric',
-              'pimms.types._quantity',
-              'pimms.types',
+              'pimms.util._core',
+              'pimms.util._numeric',
+              'pimms.util._quantity',
+              'pimms.util',
               'pimms.lazydict._core',
               'pimms.lazydict',
               'pimms.calculation._core',

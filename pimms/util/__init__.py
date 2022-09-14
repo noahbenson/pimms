@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/types/__init__.py
+# pimms/util/__init__.py
 #
-# Utility classes for the various types that are managed by pimms.
+# General utilities managed by pimms.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -24,9 +24,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Type declarations for objects used in Pimms.
+"""Utilites managed by pimms.
 
-The `pimms.types` module contains two kinds of type definitions: basic Python
+The `pimms.util` module contains two kinds of type definitions: basic Python
 definitions and Pimms hierarchy definitions. The former represent the basic
 Python data types collected in a single namespace while the latter represent
 the type hierarchy as Pimms interprets it.
