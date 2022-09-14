@@ -216,19 +216,19 @@ class TestTypesCore(TestCase):
         self.assertFalse(is_array(mtx, shape=(10,...,10,10)))
         self.assertFalse(is_array(mtx, shape=(10,10,...,10)))
         self.assertTrue(is_array(np.zeros((1,2,3,4,5)), shape=(1,...,4,5)))
-        # The readonly option can be used to test whether an array is readonly
+        # The frozen option can be used to test whether an array is frozen
         # or not. This is judged by the array's 'WRITEABLE' flag.
-        self.assertFalse(is_array(arr, readonly=True))
-        self.assertTrue(is_array(arr, readonly=False))
-        self.assertFalse(is_array(mtx, readonly=True))
-        self.assertTrue(is_array(mtx, readonly=False))
-        # If we change the flags of these arrays, they become readonly.
+        self.assertFalse(is_array(arr, frozen=True))
+        self.assertTrue(is_array(arr, frozen=False))
+        self.assertFalse(is_array(mtx, frozen=True))
+        self.assertTrue(is_array(mtx, frozen=False))
+        # If we change the flags of these arrays, they become frozen.
         arr.setflags(write=False)
         mtx.setflags(write=False)
-        self.assertTrue(is_array(arr, readonly=True))
-        self.assertFalse(is_array(arr, readonly=False))
-        self.assertTrue(is_array(mtx, readonly=True))
-        self.assertFalse(is_array(mtx, readonly=False))
+        self.assertTrue(is_array(arr, frozen=True))
+        self.assertFalse(is_array(arr, frozen=False))
+        self.assertTrue(is_array(mtx, frozen=True))
+        self.assertFalse(is_array(mtx, frozen=False))
         # The sparse option can test whether an object is a sparse matrix or
         # not. By default sparse is None, meaning that it doesn't matter whether
         # an object is sparse, but sometimes you want to check for strict
@@ -282,12 +282,12 @@ class TestTypesCore(TestCase):
         # request a copy and that doesn't change its parameters will return the
         # identical object.
         self.assertIs(arr, to_array(arr))
-        self.assertIs(arr, to_array(arr, sparse=False, readonly=False))
+        self.assertIs(arr, to_array(arr, sparse=False, frozen=False))
         self.assertIs(arr, to_array(arr, quant=False))
         # If we change the parameters of the returned array, we will get
         # different (but typically equal) objects back.
-        self.assertIsNot(arr, to_array(arr, readonly=True))
-        self.assertTrue(np.array_equal(arr, to_array(arr, readonly=True)))
+        self.assertIsNot(arr, to_array(arr, frozen=True))
+        self.assertTrue(np.array_equal(arr, to_array(arr, frozen=True)))
         # We can also request that a copy be made like with np.array.
         self.assertIsNot(arr, to_array(arr, copy=True))
         self.assertTrue(np.array_equal(arr, to_array(arr, copy=True)))
@@ -298,11 +298,11 @@ class TestTypesCore(TestCase):
         self.assertTrue(issparse(to_array(mtx, sparse=True)))
         self.assertTrue(np.array_equal(to_array(mtx, sparse=True).todense(),
                                        mtx))
-        # The readonly flag ensures that the return value does or does not have
+        # The frozen flag ensures that the return value does or does not have
         # the writeable flag set.
-        self.assertFalse(to_array(mtx, readonly=True).flags['WRITEABLE'])
-        self.assertTrue(np.array_equal(to_array(mtx, readonly=True), mtx))
-        self.assertIsNot(to_array(mtx, readonly=True), mtx)
+        self.assertFalse(to_array(mtx, frozen=True).flags['WRITEABLE'])
+        self.assertTrue(np.array_equal(to_array(mtx, frozen=True), mtx))
+        self.assertIsNot(to_array(mtx, frozen=True), mtx)
         # The quant argument can be used to enforce the return of quantities or
         # non-quantities.
         self.assertIsInstance(to_array(arr, quant=True), units.Quantity)
@@ -674,6 +674,8 @@ class TestTypesCore(TestCase):
         # are identical up to the amount of whitespace should be equal).
         self.assertFalse(streq('abc def ghi', ' abc  def ghi '))
         self.assertTrue(streq('abc def ghi', ' abc  def ghi ', split=True))
+        # Nonstring arguments return None.
+        self.assertIsNone(streq(None, 'abc'))
     def test_strends(self):
         from pimms import strends
         # strends is just a string equality predicate function.
@@ -685,6 +687,8 @@ class TestTypesCore(TestCase):
         # The strip option can be used to ignore trailing/leading whitespace.
         self.assertFalse(strends(' abcdef ', 'def  '))
         self.assertTrue(strends(' abcdef ', 'def  ', strip=True))
+        # Nonstring arguments return None.
+        self.assertIsNone(strends(None, 'abc'))
     def test_strstarts(self):
         from pimms import strstarts
         # strstarts is just a string equality predicate function.
@@ -696,6 +700,8 @@ class TestTypesCore(TestCase):
         # The strip option can be used to ignore trailing/leading whitespace.
         self.assertFalse(strstarts(' abcdef ', '  abc'))
         self.assertTrue(strstarts(' abcdef ', '  abc', strip=True))
+        # Nonstring arguments return None.
+        self.assertIsNone(strstarts(None, 'abc'))
     def test_strissym(self):
         from pimms import strissym
         # strissym tests whether a string is both a string and a valid Python
@@ -707,12 +713,12 @@ class TestTypesCore(TestCase):
         self.assertFalse(strissym(' abcdef '))
         self.assertFalse(strissym('a-b'))
         self.assertFalse(strissym('10'))
-        # Non-strings return False.
-        self.assertFalse(strissym(None))
-        self.assertFalse(strissym(10))
         # Keywords are allowed.
         self.assertTrue(strissym('for'))
         self.assertTrue(strissym('and'))
+        # Non-strings return Nonee.
+        self.assertFalse(strissym(None))
+        self.assertFalse(strissym(10))
     def test_striskey(self):
         from pimms import striskey
         # striskey tests whether a string is (1) a string, (2) a valid Python
@@ -727,9 +733,9 @@ class TestTypesCore(TestCase):
         self.assertFalse(striskey(' abcdef '))
         self.assertFalse(striskey('a-b'))
         self.assertFalse(striskey('10'))
-        # Non-strings return False.
-        self.assertFalse(striskey(None))
-        self.assertFalse(striskey(10))
+        # Non-strings return None.
+        self.assertIsNone(striskey(None))
+        self.assertIsNone(striskey(10))
     def test_strisvar(self):
         from pimms import strisvar
         # strisvar tests whether a string is (1) a string, (2) a valid Python
@@ -744,9 +750,9 @@ class TestTypesCore(TestCase):
         self.assertFalse(strisvar(' abcdef '))
         self.assertFalse(strisvar('a-b'))
         self.assertFalse(strisvar('10'))
-        # Non-strings return False.
-        self.assertFalse(strisvar(None))
-        self.assertFalse(strisvar(10))
+        # Non-strings return Nonee.
+        self.assertIsNone(strisvar(None))
+        self.assertIsNone(strisvar(10))
 
     # Other Utilities ##########################################################
     def test_hashsafe(self):
@@ -784,6 +790,136 @@ class TestTypesCore(TestCase):
         self.assertFalse(can_iter(10))
         self.assertFalse(can_iter(lambda x:x))
 
-
-    
-        
+    # Freeze/Thaw Utilities ####################################################
+    def test_is_frozen(self):
+        from pimms import (is_frozen, fdict, ldict)
+        from frozendict import frozendict
+        import torch, numpy as np
+        # is_frozen returns True for any frozen object: tuple, frozenset, or
+        # frozendict, as well as their downstream types.
+        self.assertTrue(is_frozen((1, 2, 3)))
+        self.assertTrue(is_frozen(fdict(a=1, b=2, c=3)))
+        self.assertTrue(is_frozen(frozenset([1, 2, 3])))
+        self.assertTrue(is_frozen(ldict(a=1, b=2, c=3)))
+        # The thawed types are not frozen: list, set, dict.
+        self.assertFalse(is_frozen([1, 2, 3]))
+        self.assertFalse(is_frozen(dict(a=1, b=2, c=3)))
+        self.assertFalse(is_frozen(set([1, 2, 3])))
+        # NumPy arrays are frozen only if they are not writeable.
+        x = np.linspace(0, 1, 25)
+        self.assertFalse(is_frozen(x))
+        x.setflags(write=False)
+        self.assertTrue(is_frozen(x))
+        # Objects that aren't any of these types result in None.
+        self.assertIsNone(is_frozen('abc'))
+        self.assertIsNone(is_frozen(10))
+        self.assertIsNone(is_frozen(range(10)))
+    def test_is_thawed(self):
+        from pimms import (is_thawed, fdict, ldict)
+        from frozendict import frozendict
+        import numpy as np
+        # is_thawed returns True for the thawed types: list, set, dict.
+        self.assertTrue(is_thawed([1, 2, 3]))
+        self.assertTrue(is_thawed(dict(a=1, b=2, c=3)))
+        self.assertTrue(is_thawed(set([1, 2, 3])))
+        # is_thawed returns False for any frozen object: tuple, frozenset, or
+        # frozendict, as well as their downstream types.
+        self.assertFalse(is_thawed((1, 2, 3)))
+        self.assertFalse(is_thawed(fdict(a=1, b=2, c=3)))
+        self.assertFalse(is_thawed(frozenset([1, 2, 3])))
+        self.assertFalse(is_thawed(ldict(a=1, b=2, c=3)))
+        # NumPy arrays are thawed only if they are not writeable.
+        x = np.linspace(0, 1, 25)
+        self.assertTrue(is_thawed(x))
+        x.setflags(write=False)
+        self.assertFalse(is_thawed(x))
+        # Objects that aren't any of these types result in None.
+        self.assertIsNone(is_thawed('abc'))
+        self.assertIsNone(is_thawed(10))
+        self.assertIsNone(is_thawed(range(10)))        
+    def test_to_frozenarray(self):
+        from pimms.types import to_frozenarray
+        import numpy as np
+        # frozenarray converts a read-write numpy array into a frozen one.
+        x = np.linspace(0, 1, 25)
+        y = to_frozenarray(x)
+        self.assertTrue(np.array_equal(x, y))
+        self.assertIsNot(x, y)
+        self.assertTrue(x.flags['WRITEABLE'])
+        self.assertFalse(y.flags['WRITEABLE'])
+        # If a frozenarray of an already frozen array is requested, the array is
+        # returned as-is.
+        self.assertIs(y, to_frozenarray(y))
+        # However, one can override this with the copy argument.
+        self.assertIsNot(y, to_frozenarray(y, copy=True))
+        # Typically a copy is made of the original array if it is not already
+        # frozen, but one can request that it not be copied.
+        z = to_frozenarray(x, copy=False)
+        self.assertIs(z, x)
+        self.assertFalse(x.flags['WRITEABLE'])
+    def test_freeze(self):
+        from pimms import freeze
+        from frozendict import frozendict
+        import numpy as np
+        # Freeze lets you convert from a thawed type to a frozen type.
+        self.assertIsInstance(freeze([]), tuple)
+        self.assertIsInstance(freeze(set([])), frozenset)
+        self.assertIsInstance(freeze({}), frozendict)
+        self.assertIsInstance(freeze(np.array([])), np.ndarray)
+        # The return values remain equal if not the same type.
+        self.assertEqual(tuple([1,2,3]), freeze([1,2,3]))
+        self.assertEqual(set([1,2,3]), freeze(set([1,2,3])))
+        self.assertEqual(dict(a=1,b=2), freeze(dict(a=1,b=2)))
+        # If a frozen type is given it is returned as-is.
+        t = (1,2,3)
+        s = frozenset(t)
+        d = frozendict(a=1, b=2)
+        self.assertIs(t, freeze(t))
+        self.assertIs(s, freeze(s))
+        self.assertIs(d, freeze(d))
+        # If the type isn't frozen or thawed, then an error is raised.
+        with self.assertRaises(TypeError): freeze(None)
+        with self.assertRaises(TypeError): freeze(10)
+        with self.assertRaises(TypeError): freeze('abc')
+        # Numpy arrays are frozen like with the to_frozenarray function.
+        x = np.linspace(0, 1, 25)
+        y = freeze(x)
+        self.assertTrue(np.array_equal(x, y))
+        self.assertIsNot(x, y)
+        self.assertTrue(x.flags['WRITEABLE'])
+        self.assertFalse(y.flags['WRITEABLE'])
+    def test_thaw(self):
+        from pimms import thaw
+        from frozendict import frozendict
+        import numpy as np
+        # Thaw lets you convert from a frozen type to a thawed type.
+        self.assertIsInstance(thaw(()), list)
+        self.assertIsInstance(thaw(frozenset([])), set)
+        self.assertIsInstance(thaw(frozendict()), dict)
+        # The return values remain equal if not the same type.
+        self.assertEqual([1,2,3], thaw((1,2,3)))
+        self.assertEqual(set([1,2,3]), thaw(frozenset([1,2,3])))
+        self.assertEqual(dict(a=1,b=2), thaw(frozendict(a=1,b=2)))
+        # If a thawed type is given, it is returned as-is.
+        t = [1,2,3]
+        s = set(t)
+        d = dict(a=1, b=2)
+        self.assertIs(t, thaw(t))
+        self.assertIs(s, thaw(s))
+        self.assertIs(d, thaw(d))
+        # This can be changed using the copy option.
+        self.assertIsNot(t, thaw(t, copy=True))
+        self.assertIsNot(s, thaw(s, copy=True))
+        self.assertIsNot(d, thaw(d, copy=True))
+        # If the type isn't frozen or thawed, then an error is raised.
+        with self.assertRaises(TypeError): thaw(None)
+        with self.assertRaises(TypeError): thaw(10)
+        with self.assertRaises(TypeError): thaw('abc')
+        # Numpy arrays are thawed via copying.
+        x = np.linspace(0, 1, 25)
+        x.setflags(write=False)
+        y = thaw(x)
+        self.assertTrue(np.array_equal(x, y))
+        self.assertIsNot(x, y)
+        self.assertFalse(x.flags['WRITEABLE'])
+        self.assertTrue(y.flags['WRITEABLE'])

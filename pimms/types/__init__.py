@@ -95,7 +95,7 @@ from ._core import (
     can_iter,
     is_frozen,
     is_thawed,
-    frozenarray,
+    to_frozenarray,
     freeze,
     thaw,
 )
@@ -182,7 +182,6 @@ __all__ = (
     "can_iter",
     "is_frozen",
     "is_thawed",
-    "frozenarray",
     "freeze",
     "thaw",
     "is_number",

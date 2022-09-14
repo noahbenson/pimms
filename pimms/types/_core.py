@@ -311,7 +311,7 @@ def to_numpydtype(dt):
 from numpy import ndarray
 @docwrap
 def is_array(obj,
-             dtype=None, shape=None, ndim=None, readonly=None,
+             dtype=None, shape=None, ndim=None, frozen=None,
              sparse=None, quant=None, unit=Ellipsis, ureg=None):
     """Returns `True` if an object is a `numpy.ndarray` object, else `False`.
 
@@ -352,7 +352,7 @@ def is_array(obj,
         which matches any number of values in the `obj`'s shape tuple. The
         default value of `None` indicates that no restriction should be applied
         to the `obj`'s shape.
-    readonly : boolean or None, optional
+    frozen : boolean or None, optional
         If `None`, then no restrictions are placed on the `'WRITEABLE'` flag of
         `obj`. If `True`, then the data in `obj` must be read-only in order for
         `obj` to be considered a valid array. If `False`, then the data in `obj`
@@ -433,14 +433,14 @@ def is_array(obj,
     else:
         raise ValueErroor(f"invalid sparse parameter: {sparse}")
     # Check that the object is read-only
-    if readonly is not None:
-        if readonly is True:
+    if frozen is not None:
+        if frozen is True:
             if scipy__is_sparse(obj) or obj.flags['WRITEABLE']: return False
-        elif readonly is False:
+        elif frozen is False:
             if not scipy__is_sparse(obj) and not obj.flags['WRITEABLE']:
                 return False
         else:
-            raise ValueError(f"invalid parameter readonly: {readonly}")
+            raise ValueError(f"invalid parameter frozen: {frozen}")
     # Next, check compatibility of the units.
     if unit is None:
         # We are required to not be a quantity.
@@ -454,7 +454,7 @@ def is_array(obj,
     if dtype is None and shape is None and ndim is None: return True
     return _numcoll_match(obj.shape, obj.dtype, ndim, shape, dtype)
 def to_array(obj,
-             dtype=None, order=None, copy=False, sparse=None, readonly=None,
+             dtype=None, order=None, copy=False, sparse=None, frozen=None,
              quant=None, ureg=None, unit=Ellipsis):
     """Reinterprets `obj` as a NumPy array or quantity with an array magnitude.
 
@@ -486,13 +486,13 @@ def to_array(obj,
         (`sparse=False`) based on the given value of `sparse`. The `sparse`
         parameter may also be set to `'bsr'`, `'coo'`, `'csc'`, `'csr'`,
         `'dia'`, or `'dok'` to return specific sparse matrix types.
-    readonly : boolean or None, optional
+    frozen : boolean or None, optional
         Whether the return value should be read-only or not. If `None`, then no
         changes are made to the return value; if a new array is allocated in the
         `to_array()` function call, then it is returned in a writeable form. If
-        `readonly=True`, then the return value is always a read-only array; if
+        `frozen=True`, then the return value is always a read-only array; if
         `obj` is not already read-only, then a copy of `obj` is always returned
-        in this case. If `readonly=False`, then the return-value is never
+        in this case. If `frozen=False`, then the return-value is never
         read-only. Note that `scipy.sparse` arrays do not support read-only
         mode, and thus a `ValueError` is raised if a sparse matrix is requested
         in read-only format.
@@ -633,18 +633,18 @@ def to_array(obj,
         sparse = False
     # If a read-only array is requested, we either return the object itself (if
     # it is already a read-only array), or we make a copy and make it read-only.
-    if readonly is not None:
-        if readonly is True:
+    if frozen is not None:
+        if frozen is True:
             if sparse:
                 raise ValueError("scipy sparse matrices cannot be read-only")
             if arr.flags['WRITEABLE']:
                 if not newarr: arr = np.array(arr)
                 arr.flags['WRITEABLE'] = False
-        elif readonly is False:
+        elif frozen is False:
             if not sparse and not arr.flags['WRITEABLE']:
                 arr = np.array(arr)
         else:
-            raise ValueError(f"bad parameter value for readonly: {readonly}")
+            raise ValueError(f"bad parameter value for frozen: {frozen}")
     # Next, we switch on whether we are being asked to return a quantity or not.
     if quant is True:
         if unit is None:
@@ -1645,7 +1645,7 @@ def strstarts(a, b, case=True, unicode=None, strip=False):
     boolean or None
         `True` if `a` and `b` are both strings and if `a` starts with `b`,
         subject to the constraints of the optional parameters. If either `a` or
-    `b`
+        `b` is not a string, then `None` is returned.
     """
     prep = _strbinop_prep(a, b, case=case, unicode=unicode, strip=strip)
     if prep is None: return None
@@ -1657,34 +1657,37 @@ def strissym(s):
     """Determines if the given string is a valid symbol (identifier).
 
     `strissym(s)` returns `True` if `s` is both a string and a valid identifier.
-    Otherwise, it returns `False`.
+    Otherwise, it returns `False` if `s` is a string and `None` if not.
 
     See also: `striskey`, `strisvar`
     """
-    return is_str(s) and s.isidentifier()
+    return s.isidentifier() if is_str(s) else None
 @docwrap
 def striskey(s):
     """Determines if the given string is a valid keyword.
 
     `strissym(s)` returns `True` if `s` is both a string and a valid keyword
-    (such as `'if'` or `'while'`). Otherwise, it returns `False`.
+    (such as `'if'` or `'while'`). Otherwise, it returns `False` if `s` is a
+    string and `None` if not.
 
     See also: `strissym`, `strisvar`
     """
     from keyword import iskeyword
-    return is_str(s) and iskeyword(s)
+    return iskeyword(s) if is_str(s) else None
 @docwrap
 def strisvar(s):
     """Determines if the given string is a valid variable name.
 
-    `strissym(s)` returns `True` if `s` is both a string and a valid name
-    (i.e., a symbol but not a keyword). Otherwise, it returns `False`.
+    `strissym(s)` returns `True` if `s` is both a string and a valid name (i.e.,
+    a symbol but not a keyword). Otherwise, it returns `False` if `s` is a
+    string and `None` if not.
 
     See also: `strissym`, `striskey`
     """
     from keyword import iskeyword
-    return strissym(s) and not iskeyword(s)
-
+    return (None if not is_str(s) else
+            False if iskeyword(s) else
+            s.isidentifier())
 
 # Builtin Python Abstract Types ################################################
 from collections.abc import Callable
@@ -2254,7 +2257,8 @@ def is_frozen(obj):
 
     `is_frozen(obj)` returns `True` if the given object `obj` is an instance
     of the `frozendict.frozendict`, `frozenset`, or `tuple` types, all of which
-    are "frozen" (immutable).
+    are "frozen" (immutable). If `obj` is a thawed type (`list`, `dict`, or
+    `set`), then `False` is returned. Otherwise, `None` is returned.
 
     In addition to being one of the above types, an object is considered frozen
     if it is a `numpy` array whose `'WRITEABLE'` flag has been set to `False`.
@@ -2266,19 +2270,22 @@ def is_frozen(obj):
 
     Returns
     -------
-    boolean
-        `True` if `obj` is frozen, otherwise `False`.    
+    boolean or None
+        `True` if `obj` is frozen, `False` if `obj` is thawed, otherwise `None`.
     """
     if   isinstance(obj, is_frozen.frozen_types): return True
+    elif isinstance(obj, is_thawed.thawed_types): return False
     elif isinstance(obj, ndarray): return not obj.flags['WRITEABLE']
-    else: return False
-is_frozen.frozen_types = (tuple, frozenset, frozendict)
+    else: return None
+is_frozen.frozen_types = (tuple, frozenset, frozendict, FrozenOrderedDict)
 def is_thawed(obj):
     """Returns `True` if an object is a `dict`, `set`, or `list`.
 
     `is_thawed(obj)` returns `True` if the given object `obj` is an instance of
     the `dict`, `set`, or `list` types, all of which are "thawed" (mutable)
-    instances of other frozen types.
+    instances of other frozen types. If `obj` is a frozen type (`tuple`,
+    `frozendict`, and `frozenset`), then `False` is returned. Otherwise, `None`
+    is returned.
 
     In addition to being one of the above types, an object is considered thawed
     if it is a `numpy` array whose `'WRITEABLE'` flag has been set to `True`.
@@ -2291,13 +2298,17 @@ def is_thawed(obj):
     Returns
     -------
     boolean
-        `True` if `obj` is thawed, otherwise `False`.
+        `True` if `obj` is thawed, `False` is `obj` is frozen, and `None`
+        otherwise.
     """
-    if   isinstance(obj, is_thawed.thawed_types): return True
+    # We check the frozen types first because frozendict objects inherit from
+    # dict, so if we don't do it in this order, they come out as thawed.
+    if   isinstance(obj, is_frozen.frozen_types): return False
+    elif isinstance(obj, is_thawed.thawed_types): return True
     elif isinstance(obj, ndarray): return obj.flags['WRITEABLE']
-    else: return False
-is_thawed.thawed_types = (list, set, dict)
-def frozenarray(arr, copy=None, subok=False):
+    else: return None
+is_thawed.thawed_types = (list, set, dict, OrderedDict)
+def to_frozenarray(arr, copy=None, subok=False):
     """Returns a copy of the given NumPy array that is read-only.
 
     If the argument `arr` is already a NumPy `ndarray` with its `'WRITEABLE'`
@@ -2371,7 +2382,7 @@ def freeze(obj):
     raise TypeError(f"cannot freeze object of type {type(obj)}")
 freeze.freeze_types = {list:        tuple,
                        set:         frozenset,
-                       ndarray:     frozenarray,
+                       ndarray:     to_frozenarray,
                        OrderedDict: FrozenOrderedDict,
                        dict:        frozendict}
 def thaw(obj, copy=False):
@@ -2405,7 +2416,7 @@ def thaw(obj, copy=False):
     """
     if is_thawed(obj):
         return obj.copy() if copy else obj
-    for (base, conv_fn) in that.thawed_types.items():
+    for (base, conv_fn) in thaw.thawed_types.items():
         if isinstance(obj, base):
             return conv_fn(obj)
     raise TypeError(f"cannot thaw object of type {type(obj)}")
