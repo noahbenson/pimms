@@ -24,7 +24,24 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from ._core import (to_pathcache, to_lrucache,
-                    calc, is_calc,
-                    plan, is_plan,
-                    plandict, is_plandict)
+from ._core import (
+    to_pathcache,
+    to_lrucache,
+    calc,
+    is_calc,
+    plan,
+    is_plan,
+    plandict,
+    is_plandict
+)
+
+__all__ = (
+    #"to_pathcache",
+    #"to_lrucache",
+    "calc",
+    "is_calc",
+    "plan",
+    "is_plan",
+    "plandict",
+    "is_plandict"
+)

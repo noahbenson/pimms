@@ -31,13 +31,13 @@ import numpy as np
 import scipy.sparse as sps
 import docrep
 
-from pint   import DimensionalityError
-from ..doc  import docwrap
-from ._core import (alttorch, checktorch, scipy__is_sparse,
-                    torch__is_tensor, torch,
-                    is_set, is_str, is_ureg, is_unit, is_quant,
-                    is_array, is_tensor, is_numeric, is_sparse, to_sparse,
-                    to_array, to_tensor, to_numeric, to_sparse, to_dense)
+from pint      import DimensionalityError
+from ..doc     import docwrap
+from ._core    import (is_set, is_str, is_ureg, is_unit, is_quant)
+from ._numeric import (alttorch, checktorch, scipy__is_sparse,
+                       torch__is_tensor, torch,
+                       is_array, is_tensor, is_numeric, is_sparse, to_sparse,
+                       to_array, to_tensor, to_numeric, to_sparse, to_dense)
 
 class default_ureg(object):
     """Context manager for setting the default `pimms` unit registry.
