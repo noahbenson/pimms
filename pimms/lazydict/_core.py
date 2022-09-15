@@ -219,9 +219,8 @@ def undelay(obj, dask=True):
     else:                               return obj
 
 # #frozendict ##################################################################
-# The pimms frozendict is a thing wrapper around frozendict.frozendict. The
-# entire purpose of this wrapper is to improve the string conversion and to
-# ensure that equality works correctly with lazydict objects.
+# The pimms frozendict is a thin wrapper around frozendict.frozendict. The
+# entire purpose of this wrapper is to improve the string conversion methods.
 class frozendict(fd.frozendict):
     """A persistent dict type based on `frozendict.frozendict`.
 
@@ -247,17 +246,14 @@ class frozendict(fd.frozendict):
     def __new__(cls, *args, **kwargs):
         if len(kwargs) == 0:
             if len(args) == 0:
-                return frozendict._empty
+                return cls._empty
             elif len(args) == 1:
                 arg0 = args[0]
                 if type(arg0) is cls:
                     return arg0
                 elif len(arg0) == 0:
-                    return frozendict._empty
+                    return cls._empty
         return fd.frozendict.__new__(cls, *args, **kwargs)
-    def __hash__(self):
-        # We have to 
-        return fd.frozendict.__hash__(self)
 frozendict._empty = fd.frozendict.__new__(frozendict)
 fdict = frozendict
 # Now that we've made this frozendict type, we want to update the freeze
@@ -405,6 +401,7 @@ class lazydict(frozendict):
 
     `ldict` is an alias for `lazydict`.
     """
+    _empty = None
     @classmethod
     def _prefix(self):
         return '<:'
@@ -412,10 +409,15 @@ class lazydict(frozendict):
     def _suffix(self):
         return ':>'
     def __new__(self, *args, **kw):
-        if len(args) == 1 and len(kw) == 0 and isinstance(args[0], lazydict):
-            return args[0]
-        else:
-            return frozendict.__new__(self, *args, **kw)
+        if len(kw) == 0:
+            if len(args) == 1:
+                if isinstance(args[0], lazydict):
+                    return args[0]
+                elif len(args[0]) == 0:
+                    return self._empty
+            elif len(args) == 0:
+                return self._empty
+        return frozendict.__new__(self, *args, **kw)
     def __repr__(self):
         s = [f'{repr(k)}: {"<lazy>" if self.is_lazy(k) else repr(self[k])}'
              for k in self.keys()]
@@ -568,6 +570,7 @@ class lazydict(frozendict):
     # (intended) effect of dereferencing all the delays.
     def __getstate__(self):
         return dict(self)
+lazydict._empty = fd.frozendict.__new__(lazydict)
 colls_abc.Mapping.register(lazydict)
 colls_abc.Hashable.register(lazydict)
 ldict = lazydict
@@ -596,7 +599,7 @@ def _lazyvalmap_undelay(f, v, *args, **kw):
 def lazyvalmap(f, d, *args, **kwargs):
     """Returns a dict object whose values are transformed by a function.
 
-    `lazyvalmap(f, d)` yields a dict whose keys are the same as those of the
+    `lazyvalmap(f, d)` returns a dict whose keys are the same as those of the
     given dict object and whose values, for each key `k` are `f(d[k])`. All
     values are created lazily.
 
@@ -607,7 +610,7 @@ def lazyvalmap(f, d, *args, **kwargs):
     This function always returns a lazydict object.
     """
     if is_ldict(d):
-        d = {k: delay(_lazyvalmap_undelay, v, *args, **kw)
+        d = {k: delay(_lazyvalmap_undelay, v, *args, **kwargs)
              for (k,v) in d.rawitems()}
     else:
         d = {k: delay(f, v, *args, **kwargs)
@@ -629,7 +632,7 @@ def valmap(f, d, *args, **kwargs):
     otherwise, a dict is returnd.
     """
     if is_ldict(d):
-        return lazyvalmap(f, d, *args, **kw)
+        return lazyvalmap(f, d, *args, **kwargs)
     dd = {k: f(v, *args, **kwargs) for (k,v) in d.items()}
     return fdict(dd) if is_fdict(d) else dd
 def lazykeymap(f, d, *args, **kwargs):
@@ -662,7 +665,7 @@ def keymap(f, d, *args, **kwargs):
     dict is returnd.
     """
     dd = {k: f(k, *args, **kwargs) for k in d.keys()}
-    return ldict(dd) if is_ldict(dd) else fdict(dd) if is_fdict(d) else dd
+    return ldict(dd) if is_ldict(d) else fdict(dd) if is_fdict(d) else dd
 def _lazyitemmap_undelay(f, k, v, *args, **kw):
     return f(k, undelay(v), *args, **kw)
 def lazyitemmap(f, d, *args, **kwargs):
@@ -681,7 +684,7 @@ def lazyitemmap(f, d, *args, **kwargs):
     otherwise, a dict is returnd.
     """
     if is_ldict(d):
-        d = {k: delay(_lazyvalmap_undelay, k, v, *args, **kw)
+        d = {k: delay(_lazyvalmap_undelay, k, v, *args, **kwargs)
              for (k,v) in d.rawitems()}
     else:
         d = {k: delay(f, k, v, *args, **kwargs)
@@ -759,7 +762,7 @@ def merge(*args, **kw):
     # Make the initial dictionary.
     res = args[0]
     lazy = is_lazydict(res)
-    res = dict(res)
+    res = dict(res.rawitems() if lazy else res)
     for d in args[1:]:
         if is_lazydict(d):
             lazy = True

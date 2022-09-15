@@ -29,8 +29,9 @@ The `pimms.test` package contains tests for the pimms library as well as
 examples of the library's usage.
 '''
 
-from .doc  import *
-from .util import *
+from .doc      import *
+from .util     import *
+from .lazydict import *
 
 if __name__ == '__main__':
     from unittest import main

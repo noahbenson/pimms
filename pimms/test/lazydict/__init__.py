@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/lazydict/__init__.py
+# pimms/test/lazydict/__init__.py
 #
-# Lazy persistent dictionaries, related types, and utility functions.
+# Tests of the pimms.lazydict module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -24,71 +24,4 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Declarations of the lazydict type.
-
-The `pimms.lazydict` module contains the definition of the lazydict (or ldict)
-type and the various utility functions that go with it.
-"""
-
-from ._core import (
-    delay,
-    is_delay,
-    is_dask_delayed,
-    is_delayed,
-    undelay,
-    DelayError,
-    frozendict,
-    fdict,
-    lazydict,
-    ldict,
-    is_lazydict,
-    is_ldict,
-    lazykeymap,
-    lazyvalmap,
-    lazyitemmap,
-    keymap,
-    valmap,
-    itemmap,
-    dictmap,
-    frozendictmap,
-    fdictmap,
-    lazydictmap,
-    ldictmap,
-    merge,
-    rmerge,
-    assoc,
-    dissoc,
-    lambdadict
-)
-
-__all__ = (
-    "delay",
-    "is_delay",
-    #"is_dask_delayed",
-    "is_delayed",
-    "undelay",
-    #"DelayError",
-    "frozendict",
-    "fdict",
-    "lazydict",
-    "ldict",
-    "is_lazydict",
-    "is_ldict",
-    "lazykeymap",
-    "lazyvalmap",
-    "lazyitemmap",
-    "keymap",
-    "valmap",
-    "itemmap",
-    "dictmap",
-    "frozendictmap",
-    "fdictmap",
-    "lazydictmap",
-    "ldictmap",
-    "merge",
-    "rmerge",
-    "assoc",
-    "dissoc",
-    "lambdadict"
-)
-
+from .test_core import TestLazyDictCore
