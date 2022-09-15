@@ -32,124 +32,9 @@ import scipy.sparse as sps
 
 from ..doc import docwrap
 
-# Units ########################################################################
-# Units are fundamentally treated as part of the pimms type-system. Pimms
-# functios that deal with an object's type typically take an option `unit` that
-# can be used to change the function's behavior depending on the units attached
-# to an object.
-# Setup pint / units:
-from pint import UnitRegistry
-@docwrap
-def is_ureg(obj):
-    """Returns `True` if an object is a `ping.UnitRegistry` object.
-
-    `is_ureg(obj)` returns `True` if the given object `obj` is an instance
-    of the `pint.UnitRegistry` type.
-
-    Parameters
-    ----------
-    obj : object
-        The object whose quality as an `UnitRegistry` object is to be assessed.
-
-    Returns
-    -------
-    boolean
-        `True` if `obj` is an instance of `UnitRegistry`, otherwise `False`.
-    """
-    return isinstance(obj, UnitRegistry)
-from pint import Unit
-@docwrap
-def is_unit(q, ureg=None):
-    """Returns `True` if `q` is a `pint` unit and `False` otherwise.
-
-    `is_unit(q)` returns `True` if `q` is a `pint` unit and `False` otherwise.
-
-    Parameters
-    ----------
-    q : object
-        The object whose quality as a `pint` unit is to be assessed.
-    ureg : UnitRegistry or None, optional
-        The `pint` `UnitRegistry` object that the given unit object must belong
-        to. If `None` (the default), then any unit registry is allowed. If
-        `Ellipsis`, then the `pimms.units` registry is used. Otherwise, this
-        must be a specific `UnitRegistry` object.
-
-    Returns
-    -------
-    boolean
-        `True` if `q` is a `pint` unit and `False` otherwise.
-
-    Raises
-    ------
-    TypeError
-        If the `ureg` parameter is not a `UnitRegistry`, `Ellipsis`, or `None`.
-    """
-    if ureg is None:
-        return isinstance(q, Unit)
-    elif ureg is Ellipsis:
-        from pimms import units
-        return isinstance(q, units.Unit)
-    elif is_ureg(ureg):
-        return isinstance(q, ureg.Unit)
-    else:
-        raise TypeError("parameter ureg must be a UnitRegistry")
-@docwrap
-def is_quant(obj, unit=Ellipsis, ureg=None):
-    """Returns `True` if given a `pint` quantity and `False` otherwise.
-
-    `is_quant(q)` returns `True` if `q` is a `pint` quantity and `False`
-    otherwise. The optional parameter `unit` may additionally specify a unit
-    that `obj` must be compatible with.
-
-    Parameters
-    ----------
-    obj : object
-        The object whose quality as a quantity is to be assessed.
-    unit : UnitLike or None, optional
-        The unit that the object must have in order to be considered valid. This
-        may be a `pint` unit or unit-name (see also `pimms.unit`), a list or
-        tuple of such units/unit-names, or `None`. If `Ellipsis` (the default),
-        then the object must be a `Quantity` object, but it doesn't matter what
-        the unit of the object is. Otherwise, the object must have a unit
-        equivalent to the unit or to one of the units given (`unit` may be a
-        tuple of possible units). The `UnitRegistry` objects for the units given
-        via this parameter are ignored; only the `ureg` parameter influences the
-        `UnitRegistry` requirements. Note that the value `None` for a unit type
-        indicates a scalar without a unit (i.e., an object that is not a
-        quantity), and so, while `None` is a valid value, this function will
-        always return `False` when it is passed.
-    ureg : pint.UnitRegistry or Ellipsis or None, optional
-        The `pint` `UnitRegistry` object to use for units. If `Ellipsis`, then
-        `pimms.units` is used. If `ureg` is `None` (the default), then a
-        specific unit registry is not checked.
-
-    Returns
-    -------
-    boolean
-        `True` if `obj` is a `pint` quantity whose unit is compatible with the
-        requested `unit` and `False` otherwise.
-
-    Raises
-    ------
-    %(pimms.util._core.is_unit.raises)s
-    """
-    if ureg is None:
-        if not isinstance(obj, pint.Quantity):
-            return False
-    else:
-        if ureg is Ellipsis:
-            from pimms import units
-            ureg = units
-        elif not is_ureg(ureg):
-            raise TypeError("parameter ureg must be a UnitRegistry")
-        if not isinstance(obj, ureg.Quantity):
-            return False
-    return (True  if unit is Ellipsis else
-            False if unit is None     else
-            obj.is_compatible_with(unit))
-
 
 # Strings ######################################################################
+
 @docwrap
 def is_str(obj):
     """Returns `True` if an object is a string and `False` otherwise.
@@ -407,7 +292,9 @@ def strisvar(s):
             False if iskeyword(s) else
             s.isidentifier())
 
+
 # Builtin Python Abstract Types ################################################
+
 from collections.abc import Callable
 @docwrap
 def is_callable(obj):
@@ -726,7 +613,9 @@ def is_hashable(obj):
     """
     return isinstance(obj, Hashable)
 
+
 # Builtin Python Concrete Types ################################################
+
 @docwrap
 def is_list(obj):
     """Returns `True` if an object is a `list` object.

@@ -27,9 +27,9 @@
 # Dependencies #################################################################
 from ..doc     import docwrap
 from ._core    import (is_tuple, is_list, is_seq, is_set,
-                       is_str, streq, strnorm,
-                       is_ureg, is_unit, is_quant)
+                       is_str, streq, strnorm)
 from functools import partial
+import pint
 import numpy as np
 import scipy.sparse as sps
 
@@ -485,7 +485,7 @@ def is_array(obj,
     """
     if ureg is Ellipsis: from pimms import units as ureg
     # If this is a quantity, just extract the magnitude.
-    if is_quant(obj):
+    if isinstance(obj, pint.Quantity):
         if quant is False: return False
         if ureg is None: ureg = obj._REGISTRY
         u = obj.u
@@ -625,7 +625,7 @@ def to_array(obj,
     """
     if ureg is Ellipsis: from pimms import units as ureg
     # If obj is a quantity, we handle things differently.
-    if is_quant(obj):
+    if isinstance(obj, pint.Quantity):
         q = obj
         obj = q.m
         if ureg is None: ureg = q._REGISTRY
@@ -955,7 +955,7 @@ def is_tensor(obj,
     """
     if ureg is Ellipsis: from pimms import units as ureg
     # If this is a quantity, just extract the magnitude.
-    if is_quant(obj):
+    if isinstance(obj, pint.Quantity):
         if quant is False: return False
         if ureg is None: ureg = obj._REGISTRY
         u = obj.u
@@ -1071,7 +1071,7 @@ def to_tensor(obj,
     if ureg is Ellipsis: from pimms import units as ureg
     if dtype is not None: dtype = to_torchdtype(dtype)
     # If obj is a quantity, we handle things differently.
-    if is_quant(obj):
+    if isinstance(obj, pint.Quantity):
         q = obj
         obj = q.m
         if ureg is None: ureg = q._REGISTRY
@@ -1457,3 +1457,85 @@ def to_dense(obj,
     """
     return to_numeric(obj, sparse=False,
                       dtype=dtype, quant=quant, ureg=ureg, unit=unit)
+
+# Scalar Utilities #############################################################
+def is_scalar(obj):
+    """Determines whether the argument is a scalar number or not.
+
+    `is_scalar(x)` returns `True` if `x` is a scalar number and false otherwise.
+
+    See also: `like_scalar`
+    """
+    # Fundamentally, scalar objects are just numbers.
+    return isinstance(obj, Number)
+def _like_scalar_wouttorch(obj):
+    if isinstance(obj, Number):
+        return True
+    elif isinstance(obj, np.ndarray):
+        return (np.issubdtype(obj.dtype, _number_npdtype) and obj.size == 1)
+    else:
+        return False
+@alttorch(_like_scalar_wouttorch)
+def like_scalar(obj):
+    """Determines whether the argument holds a scalar value or not.
+
+    `like_scalar(x)` returns `True` if `x` is already a scalar number, if `x` is
+    a single-element numpy array or tensor, or if `x` is a sequence or set that
+    has only one numerical element; otherwise, it returns `False`.
+
+    If `like_scalar(x)` returns `True`, then `to_scalar(x)` will always return a
+    valid Python number (i.e., an object of type `numbers.Number`).
+
+    See also: `is_scalar`, `to_scalar`
+    """
+    if isinstance(obj, Number):
+        return True
+    elif isinstance(obj, np.ndarray):
+        return (np.issubdtype(obj.dtype, _number_npdtype) and obj.size == 1)
+    elif torch__is_tensor(obj):
+        return torch.numel(obj) == 1
+    else:
+        return False
+def _to_scalar_wouttorch(obj):
+    if isinstance(obj, Number):
+        return obj
+    elif (isinstance(obj, np.ndarray)
+          and obj.size == 1
+          and np.issubdtype(obj.dtype, _number_npdtype)):
+        return obj.item()
+    else:
+        raise TypeError(f"given object is not scalar-like: {obj}")
+def to_scalar(obj):
+    """Converts the argument into a simple Python number.
+
+    `to_scalar(x)` returns a simple Python number representation of `x` (in
+    other words, `x` will be a subtype of Python's `numbers.Number` type). Any
+    number, any NumPy array with only one element, and any PyTorch tensor with
+    only one element can be converted into a scalar.
+
+    Parameters
+    ----------
+    obj : object
+        The object that is to be converted into a scalar.
+
+    Returns
+    -------
+    number
+        A scalar number that is an object whose class is a subtype of
+        `numbers.Number`.
+
+    Raises
+    ------
+    TypeError
+        If the argument is not like a scalar object.
+    """
+    if isinstance(obj, Number):
+        return obj
+    elif (isinstance(obj, np.ndarray)
+          and obj.size == 1
+          and np.issubdtype(obj.dtype, _number_npdtype)):
+        return obj.item()
+    elif (torch__is_tensor(obj) and torch.numel(obj) == 1):
+        return obj.item()
+    else:
+        raise TypeError(f"given object is not scalar-like: {obj}")
