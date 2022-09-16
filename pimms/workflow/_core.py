@@ -1005,7 +1005,12 @@ class plandict(ldict):
         # Finally, now that we have the object entirely initialized, we can run
         # the required calculations.
         for r in plan.requirements:
+            tmp = plan[r]
+            for k in tmp.inputs:
+                self[k]
             tmp = calcs[r]
+            for k in tmp.keys():
+                self[k]
         # That's all!
         return self
     @classmethod
@@ -1047,7 +1052,7 @@ class plandict(ldict):
         calcs = merge(pd.calcs, new_calcs)
         mut_values.update(values.rawitems())
         # We now have everything we need--go ahead and instantiate the lazydict.
-        self = ldict.__new__(cls, values)
+        self = fdict.__new__(cls, values.rawitems())
         # And set our special member-values.
         object.__setattr__(self, 'plan', plan)
         object.__setattr__(self, 'inputs', params)
@@ -1056,7 +1061,12 @@ class plandict(ldict):
         # run the required calculations.
         for r in plan.requirements:
             # Just extract their lazydicts / forces evaluation.
-            tmp = new_calcs.get(r, None)
+            tmp = plan[r]
+            for k in tmp.inputs:
+                self[k]
+            tmp = new_calcs.get(r, {})
+            for k in tmp.keys():
+                self[k]
         # That's all!
         return self
     def set(self, k, v):
