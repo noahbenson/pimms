@@ -215,13 +215,16 @@ class TestWorkflowCore(TestCase):
         pd = nwm(x=[-1.0, 1.0, 2.0, 8.5], mu=1.5)
         self.assertIsInstance(pd, plandict)
         self.assertEqual(len(pd), 5)
-        # Because we put a (lazy) filter on x, that input will be lazy but the
-        # rest will not be.
-        self.assertTrue(pd.is_lazy('x'))
+        # Because we put a (lazy) filter on x, that input would normally be lazy
+        # while the rest would normally not be. However, since the calculation
+        # of weights is non-lazy, everything it requires, including x, will be
+        # non-lazy.
+        self.assertTrue(pd.is_eager('x'))
         self.assertTrue(pd.is_eager('mu'))
         self.assertTrue(pd.is_eager('std'))
-        # The outputs should not be eager.
-        self.assertTrue(pd.is_lazy('weights'))
+        # The weights outputs should be eager because it was declared to be
+        # non-lazy; the mean should remain lazy, though.
+        self.assertTrue(pd.is_eager('weights'))
         self.assertTrue(pd.is_lazy('mean'))
         # It will have converted the x value into an array.
         self.assertIsInstance(pd['x'], np.ndarray)
