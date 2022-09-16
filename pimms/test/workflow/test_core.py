@@ -213,6 +213,8 @@ class TestWorkflowCore(TestCase):
         # plandict, which is a lazydict that agglomerates all of the input and
         # output values of all the calculations.
         pd = nwm(x=[-1.0, 1.0, 2.0, 8.5], mu=1.5)
+        self.assertIsInstance(pd, plandict)
+        self.assertEqual(len(pd), 5)
         # Because we put a (lazy) filter on x, that input will be lazy but the
         # rest will not be.
         self.assertTrue(pd.is_lazy('x'))

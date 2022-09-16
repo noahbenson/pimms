@@ -405,16 +405,20 @@ class lazydict(frozendict):
     @classmethod
     def _suffix(self):
         return ':>'
-    def __new__(self, *args, **kw):
+    def __new__(cls, *args, **kw):
         if len(kw) == 0:
             if len(args) == 1:
                 if isinstance(args[0], lazydict):
                     return args[0]
                 elif len(args[0]) == 0:
-                    return self._empty
+                    return cls._empty
             elif len(args) == 0:
-                return self._empty
-        return frozendict.__new__(self, *args, **kw)
+                return cls._empty
+        # If the first positional argument is a lazydict, we preserve its lazy
+        # values by turning it into an iterator of rawitems.
+        if len(args) > 0 and isinstance(args[0], lazydict):
+            args = (args[0].rawitems(),) + args[1:]
+        return frozendict.__new__(cls, *args, **kw)
     def __repr__(self):
         s = [f'{repr(k)}: {"<lazy>" if self.is_lazy(k) else repr(self[k])}'
              for k in self.keys()]

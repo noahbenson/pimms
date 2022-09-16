@@ -997,7 +997,7 @@ class plandict(ldict):
         # We now have everything we need--go ahead and instantiate the lazydict.
         values = merge(params, outputs)
         mut_values.update(values.rawitems() if is_ldict(values) else values)
-        self = ldict.__new__(cls, values)
+        self = fdict.__new__(cls, values.rawitems())
         # And set our special member-values.
         object.__setattr__(self, 'plan', plan)
         object.__setattr__(self, 'inputs', params)
