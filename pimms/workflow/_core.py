@@ -474,17 +474,18 @@ class calc:
         raise TypeError('calc objects are immutable')
     @staticmethod
     def _tr_map(tr, m):
+        if m is None: return None
         is_ld = is_ldict(m)
         it = m.rawitems() if is_ld else m.items()
-        d = {d.get(k,k): v for (k,v) in it}
+        d = {tr.get(k,k): v for (k,v) in it}
         if is_ld: return ldict(d)
         else: return fdict(d)
     @staticmethod
     def _tr_tup(tr, t):
-        return tuple(tr.get(k,k) for k in t)
+        return None if t is None else tuple(tr.get(k,k) for k in t)
     @staticmethod
     def _tr_set(tr, t):
-        return frozenset(tr.get(k,k) for k in t)
+        return None if t is None else frozenset(tr.get(k,k) for k in t)
     def tr(self, *args, **kwargs):
         """Returns a copy of the calculation with translated inputs and outputs.
         
@@ -497,23 +498,29 @@ class calc:
         # The reversed version of d.
         r = {v:k for (k,v) in d.items()}
         # Make a copy.
-        tr = copy.copy(self)
+        tr = object.__new__(calc)
         # Simple changes first.
-        object.__setattr__(tr, 'name', tr.name + f'.tr{hex(id(tr))}')
-        object.__setattr__(tr, 'inputs', calc._tr_set(d, tr.inputs))
-        object.__setattr__(tr, 'outputs', calc._tr_tup(d, tr.outputs))
-        object.__setattr__(tr, 'defaults', calc._tr_map(d, tr.defaults))
-        object.__setattr__(tr, 'input_docs', calc._tr_map(d, tr.input_docs))
-        object.__setattr__(tr, 'output_docs', calc._tr_map(d, tr.output_docs))
+        object.__setattr__(tr, 'name', self.name + f'.tr{hex(id(tr))}')
+        object.__setattr__(tr, 'base_function', self.base_function)
+        object.__setattr__(tr, 'cache_memory', self.cache_memory)
+        object.__setattr__(tr, 'cache_path', self.cache_path)
+        object.__setattr__(tr, 'argspec', self.argspec)
+        object.__setattr__(tr, 'inputs', calc._tr_set(d, self.inputs))
+        object.__setattr__(tr, 'outputs', calc._tr_tup(d, self.outputs))
+        object.__setattr__(tr, 'defaults', calc._tr_map(d, self.defaults))
+        object.__setattr__(tr, 'lazy', self.lazy)
+        object.__setattr__(tr, 'input_docs', calc._tr_map(d, self.input_docs))
+        object.__setattr__(tr, 'output_docs', calc._tr_map(d, self.output_docs))
         # Translate the argspec.
         from inspect import FullArgSpec
         spec = self.argspec
-        spec = FullArgSpec(args=calc._tr_tup(d, spec.args),
-                           varargs=None, varkw=None,
-                           defaults=calc._tr_map(d, spec.defaults),
-                           kwonlyargs=calc._tr_tup(d, spec.kwonlyargs),
-                           kwonlydefaults=calc._tr_map(d, spec.kwonlydefaults),
-                           annotations=calc._tr_map(d, spec.annotations))
+        spec = FullArgSpec(
+            args=calc._tr_tup(d, spec.args),
+            varargs=None, varkw=None,
+            defaults=calc._tr_tup(d, spec.defaults),
+            kwonlyargs=calc._tr_tup(d, spec.kwonlyargs),
+            kwonlydefaults=calc._tr_map(d, spec.kwonlydefaults),
+            annotations=calc._tr_map(d, spec.annotations))
         object.__setattr__(tr, 'argspec', spec)
         # The function also needs a wrapper.
         from functools import wraps
@@ -522,9 +529,12 @@ class calc:
             # We may need to untranslate some of the keys.
             kwargs = {r.get(k,k):v for (k,v) in kwargs.items()}
             res = fn(*args, **kwargs)
-            return calc._tr_map(d, res)
-        object.__setattr__(translation, 'function', wraps(fn)(_tr_fn_wrapper))
-        return translation
+            if is_map(res):
+                return calc._tr_map(d, res)
+            else:
+                return res
+        object.__setattr__(tr, 'function', wraps(fn)(_tr_fn_wrapper))
+        return tr
     def with_cache_memory(self, new_cache):
         "Returns a copy of a calc with a different in-memory cache strategy."
         new_cache = to_lrucache(new_cache)
@@ -549,7 +559,8 @@ class calc:
         A `calc` is a valid filter if it has exaclty one input and one output
         both of which are the same.
         """
-        return (len(self.inputs) == 1 and self.inputs == self.outputs)
+        return (len(self.inputs) == 1
+                and next(iter(self.inputs)) == self.outputs[0])
 @docwrap
 def is_calc(arg):
     """Determines if an object is a `calc` instance.
@@ -697,7 +708,7 @@ class plan(frozendict):
                 nm = k[7:]
                 if not is_calc(v):
                     v = calc(nm)(v)
-                if not is_filter(v):
+                if not v.is_filter():
                     raise ValueError(f"{k} calc is not a valid filter")
                 filts[nm] = v
                 continue
@@ -823,13 +834,13 @@ class plan(frozendict):
                 c = self[k]
                 for (inp,doc) in c.input_docs.items():
                     if not doc: continue
-                    s = f"{k} input: {inp.name}"
+                    s = f"{k} input: {inp}"
                     if len(s) > 80: s = s[77] + '...'
-                    if inp in params: input_docs.append(s + '\n' + doc)
-                    else:             output_docs.append(s + '\n' + doc)
+                    if inp in params: input_docs[inp].append(s + '\n' + doc)
+                    else:             output_docs[inp].append(s + '\n' + doc)
                 for (out,doc) in c.output_docs.items():
                     if not doc: continue
-                    s = f"{k} output: {out.name}"
+                    s = f"{k} output: {out}"
                     if len(s) > 80: s = s[77] + '...'
                     output_docs[out].append(s + '\n' + doc)
         connectfn = lambda v: '\n---\n'.join(v)
@@ -958,9 +969,11 @@ class plandict(ldict):
         # (lazily) through the filters.
         params = merge(plan.defaults, *args, **kwargs)
         if plan.filters:
-            params = {k: delay(plandict._run_filt, filt, params, k)
-                      for (k,filt) in plan.filters.items()}
-            params = ldict(params)
+            new_params = {k: (delay(plandict._run_filt, filt, params, k)
+                              if filt.lazy else
+                              plandict._run_filt(filt, params, k))
+                          for (k,filt) in plan.filters.items()}
+            params = merge(params, ldict(new_params))
         # We must have all the parameters and only the parameters.
         if (len(params) != len(plan.inputs) or
             not all(k in params for k in plan.inputs)):
@@ -989,10 +1002,9 @@ class plandict(ldict):
         object.__setattr__(self, 'plan', plan)
         object.__setattr__(self, 'inputs', params)
         object.__setattr__(self, 'calcs', calcs)
-        # Finally, now that we have the object entirely initialized, we can
-        # run the required calculations.
+        # Finally, now that we have the object entirely initialized, we can run
+        # the required calculations.
         for r in plan.requirements:
-            # Just extract their lazydicts / forces evaluation.
             tmp = calcs[r]
         # That's all!
         return self
@@ -1003,10 +1015,12 @@ class plandict(ldict):
         # (lazily) through the filters.
         params = merge(plan.defaults, *args, **kwargs)
         if plan.filters:
-            params = {k: delay(plandict._run_filt, filt, params, k)
-                      for (k,filt) in plan.filters.items()
-                      if k in params}
-            params = ldict(params)
+            new_params = {k: (delay(plandict._run_filt, filt, params, k)
+                              if filt.lazy else
+                              plandict._run_filt(filt, params, k))
+                          for (k,filt) in plan.filters.items()
+                          if k in params}
+            params = merge(params, ldict(new_params))
         # There must only be parameters here.
         if not all(k in plan.inputs for k in params.keys()):
             (params, inp) = (set(params.keys()), set(plan.inputs))
@@ -1055,9 +1069,9 @@ class plandict(ldict):
         raise TypeError("cannot delete from a plandict")
 @docwrap
 def is_plandict(arg):
-    """Determines in an object is a `PlanDict` instance.
+    """Determines if an object is a `plandict` instance.
 
-    `is_plandict(x)` returns `True` if `x` is a `PlanDict` object and `False`
+    `is_plandict(x)` returns `True` if `x` is a `plandict` object and `False`
     otherwise.
     """
     return isinstance(arg, plandict)

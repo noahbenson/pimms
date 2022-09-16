@@ -237,9 +237,6 @@ class frozendict(fd.frozendict):
     @classmethod
     def _suffix(self):
         return '>'
-    def __str__(self):
-        s = dict.__str__(self)
-        return self._prefix() + s + self._suffix()
     def __repr__(self):
         s = dict.__repr__(self)
         return self._prefix() + s + self._suffix()
@@ -424,7 +421,7 @@ class lazydict(frozendict):
         s = ', '.join(s)
         return self._prefix() + '{' + s + '}' + self._suffix()
     def __str__(self):
-        s = [f'{str(k)}: {"<lazy>" if self.is_lazy(k) else str(self[k])}'
+        s = [f'{repr(k)}: {"<lazy>" if self.is_lazy(k) else repr(self[k])}'
              for k in self.keys()]
         s = ', '.join(s)
         return self._prefix() + '{' + s + '}' + self._suffix()

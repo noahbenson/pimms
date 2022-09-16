@@ -80,9 +80,9 @@ def reload_pimms():
     generally needed or advised.
     """
     import sys, importlib
-    for mod in modules:
-        reload(sys.modules[mod])
-    return reload(sys.modules['pimms'])
+    for mod in submodules:
+        importlib.reload(sys.modules[mod])
+    return importlib.reload(sys.modules['pimms'])
 
 # Package Meta-Code ############################################################
 __version__ = '1.0.0rc1'
