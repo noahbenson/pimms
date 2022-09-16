@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/plantype/__init__.py
+# pimms/test/workflow/__init__.py
 #
-# Definition of the plantype machinery of pimms.
+# Tests of the pimms.workflow module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -24,4 +24,5 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from ._core import (plantype, planobject, is_plantype, is_planobject)
+from .test_core     import TestWorkflowCore
+from .test_plantype import TestWorkflowPlanType

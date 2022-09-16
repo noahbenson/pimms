@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/calculation/_core.py
+# pimms/workflow/_core.py
 #
-# Core implementation of the pimms calculation code.
+# Core implementation of the pimms workflow code.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -242,7 +242,8 @@ class calc:
         return fn
     @classmethod
     def _new(cls, fn, outputs,
-             name=None, lazy=True, cache_memory=0, cache_path=None, indent=4):
+             name=None, lazy=True, indent=None,
+             cache_memory=0, cache_path=None):
         # Check the name.
         if name is None:
             name = fn.__module__ + '.' + fn.__name__
@@ -311,7 +312,7 @@ class calc:
         return self
     def __new__(cls, *args,
                 name=None, lazy=True,
-                cache_memory=0, cache_path=None, indent=4):
+                cache_memory=0, cache_path=None, indent=None):
         kw = dict(name=name, lazy=lazy, cache_memory=cache_memory,
                   cache_path=cache_path, indent=indent)
         if len(args) == 0:
@@ -457,7 +458,7 @@ class calc:
         # Then make a lazy map of all the outputs, each of which pulls from this
         # delay object to get its values.
         return ldict({k: delay(lambda k: calldel()[k], k)
-                      for k in calc_obj.outputs})
+                      for k in self.outputs})
     def mapcall(self, *args, **kwargs):
         """Calls the calculation and returns the results dictionary.
 

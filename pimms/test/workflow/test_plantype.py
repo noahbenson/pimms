@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/calculation/__init__.py
+# pimms/test/workflow/test_plantype.py
 #
-# Definition of the calc/plan machinery of pimms.
+# Tests of the plantype system in pimms: i.e., tests for the code in the
+# pimms.workflow._plantype module.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -24,24 +25,9 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from ._core import (
-    to_pathcache,
-    to_lrucache,
-    calc,
-    is_calc,
-    plan,
-    is_plan,
-    plandict,
-    is_plandict
-)
+# Dependencies #################################################################
+from unittest import TestCase
 
-__all__ = (
-    #"to_pathcache",
-    #"to_lrucache",
-    "calc",
-    "is_calc",
-    "plan",
-    "is_plan",
-    "plandict",
-    "is_plandict"
-)
+class TestWorkflowPlanType(TestCase):
+    """Tests the pimms.workflow._plantype module."""
+    pass

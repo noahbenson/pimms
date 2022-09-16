@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
 ################################################################################
-# pimms/test/__init__.py
+# pimms/workflow/__init__.py
 #
-# Core test package for pimms, using unittest.
+# Definition of the calc/plan machinery of pimms.
 #
 # Copyright 2022 Noah C. Benson
 # 
@@ -23,17 +24,35 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-'''The core pimms test module.
+from ._core import (
+    to_pathcache,
+    to_lrucache,
+    calc,
+    is_calc,
+    plan,
+    is_plan,
+    plandict,
+    is_plandict
+)
 
-The `pimms.test` package contains tests for the pimms library as well as
-examples of the library's usage.
-'''
+from ._plantype import (
+    plantype,
+    planobject,
+    is_plantype,
+    is_planobject
+)
 
-from .doc      import *
-from .util     import *
-from .lazydict import *
-from .workflow import *
-
-if __name__ == '__main__':
-    from unittest import main
-    main()
+__all__ = (
+    #"to_pathcache",
+    #"to_lrucache",
+    "calc",
+    "is_calc",
+    "plan",
+    "is_plan",
+    "plandict",
+    "is_plandict",
+    "plantype",
+    "planobject",
+    "is_plantype",
+    "is_planobject"
+)

@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 ################################################################################
-# pimms/plantype/_core.py
+# pimms/workflow/_plantype.py
 #
 # Simple meta-class for lazily-calculating plantype classes.
 #
@@ -29,8 +29,8 @@ import copy, types, inspect
 from collections import (defaultdict, namedtuple)
 
 from ..util import (is_str, is_fdict)
-from ..lazydict import (ldict, fdict, is_ldict, assoc)
-from ..calculation import (calc, plan, plandict, is_calc)
+from ..lazydict import (ldict, fdict, is_ldict, assoc, merge)
+from ._core import (calc, plan, plandict, is_calc)
 
 # #plantype ####################################################################
 class plantype(type):

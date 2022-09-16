@@ -78,20 +78,20 @@ def _docwrap(f, fnname, indent=None, proc=docproc):
             # The minimum is the one we want.
             indent = min(indents) if len(indents) > 0 else 0
     ff = f
-    ff = docproc.with_indent(indent)(ff)
-    fd = docproc.get_sections(base=fnname, sections=docproc.param_like_sections)
+    ff = proc.with_indent(indent)(ff)
+    fd = proc.get_sections(base=fnname, sections=proc.param_like_sections)
     ff = fd(ff)
     ff = _wraps(f)(ff)
     # Post-process the documentation sections.
     for section in ['parameters', 'other_parameters', 'inputs', 'outputs']:
         k = fnname + '.' + section
-        v = docproc.params.get(k, '')
+        v = proc.params.get(k, '')
         if len(v) == 0: continue
         for ln in v.split('\n'):
             # Skip lines that start with whitespace.
             if ln[0].strip() == '': continue
             pname = ln.split(':')[0].strip()
-            docproc.keep_params(k, pname)
+            proc.keep_params(k, pname)
     return ff
 def docwrap(f=None, indent=None, proc=docproc):
     """Applies standard doc-string processing to the decorated function.
