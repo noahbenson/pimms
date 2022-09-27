@@ -1,0 +1,69 @@
+# -*- coding: utf-8 -*-
+################################################################################
+# .github/workflows/deploy.yml
+#
+# GitHub Actions Workflow for deploying pimms to PyPI.
+#
+# Copyright 2022 Noah C. Benson
+# 
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
+name: Deploy to PyPI
+
+# We only run this manually.
+on:
+  workflow_dispatch:
+
+# Because pimms contains no C-modules (it's a pure-python library), we only need
+# to deploy the source-code distribution.
+jobs:
+  #-----------------------------------------------------------------------------
+  deploy-source:
+    name: Source
+    runs-on: ubuntu-latest
+    env:
+      TWINE_USERNAME: __token__
+      TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      TWINE_DEST: pypi
+    steps:
+      # Check out the repository (goes to $GITHUB_WORKSPACE)
+      - name: Checkout
+        uses: actions/checkout@v2
+      # Setup the Python Environment.
+      - name: Setup Python Environment
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3
+          architecture: x64
+      # We need to install twine also for uploading to PyPI.
+      - name: Install Twine
+        run: |
+          pip install twine
+      # Make sure the tests pass before we upload anything.
+      - name: Run Tests
+        run: |
+          python setup.py build
+          python setup.py install
+          python -m unittest pimms.test
+      # Go ahead and build and deploy.
+      - name: Build and Upload Source Distribution
+        run: |
+          rm dist/*
+          python setup.py sdist
+          twine upload -r $TWINE_DEST dist/pimms-*.tar.gz
