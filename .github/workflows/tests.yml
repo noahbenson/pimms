@@ -103,7 +103,7 @@ jobs:
       # Run the actual tests.
       - name: Run Tests
         run: |
-          coverage run -m unittest pimms.test
-          #python -m unittest pimms.test
+          coverage run -m pimms.test
+          #python -m pimms.test
       - name: Process Code Coverage
         uses: codecov/codecov-action@v1
