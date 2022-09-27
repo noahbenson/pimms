@@ -33,7 +33,3 @@ from .doc      import *
 from .util     import *
 from .lazydict import *
 from .workflow import *
-
-if __name__ == '__main__':
-    from unittest import main
-    main()
