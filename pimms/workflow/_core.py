@@ -29,7 +29,7 @@ import copy, types, os, warnings
 import numpy as np
 from collections.abc import Callable
 from collections import (defaultdict, namedtuple)
-from functools import (reduce, lru_cache)
+from functools import (reduce, lru_cache, wraps)
 from inspect import getfullargspec
 
 from ..doc import (docwrap, docproc, make_docproc)
@@ -247,8 +247,35 @@ class calc:
         # Check the name.
         if name is None:
             name = fn.__module__ + '.' + fn.__name__
+        # Okay, let's run the fn through docwrap to get the input and output
+        # documentation.
+        if (hasattr(fn, '__doc__') and
+            fn.__doc__ is not None and fn.__doc__.strip() != '' and
+            name is not None):
+            fndoc = fn.__doc__
+            dp = make_docproc()
+            fn = docwrap('fn', indent=indent, proc=dp)(fn)
+            input_docs  = {k[10:]: doc
+                           for (k,doc) in dp.params.items()
+                           if k.startswith('fn.inputs.')}
+            output_docs = {k[11:]: doc
+                           for (k,doc) in dp.params.items()
+                           if k.startswith('fn.outputs.')}
+            input_docs  = fdict(input_docs)
+            output_docs = fdict(output_docs)
+        else:
+            input_docs = fdict()
+            output_docs = fdict()
+            fndoc = None
+        # We make a new class that is a subtype of calc and that runs this
+        # specific function when called. This lets us update the documentation.
+        class LambdaClass(cls):
+            @wraps(fn)
+            def __call__(self, *args, **kw):
+                return cls.__call__(self, *args, **kw)
+        LambdaClass.__doc__ = fndoc
         # Go ahead and allocate the object we're creating.
-        self = object.__new__(cls)
+        self = object.__new__(LambdaClass)
         # Set some attributes.
         object.__setattr__(self, 'name', name)
         # Save the base_function before we do anything to it.
@@ -288,24 +315,8 @@ class calc:
             arglst = arglst[-len(argdfs):]
             dflts.update(zip(arglst, argdfs))
         object.__setattr__(self, 'defaults', fdict(dflts))
-        # Save the laziness status.
+        # Save the laziness status and the documentations.
         object.__setattr__(self, 'lazy', bool(lazy))
-        # Okay, let's run the fn through docwrap to get the input and output
-        # documentation.
-        if fn.__doc__ is not None and name is not None:
-            dp = make_docproc()
-            fn = docwrap('fn', indent=indent, proc=dp)(fn)
-            input_docs  = {k[10:]: doc
-                           for (k,doc) in dp.params.items()
-                           if k.startswith('fn.inputs.')}
-            output_docs = {k[11:]: doc
-                           for (k,doc) in dp.params.items()
-                           if k.startswith('fn.outputs.')}
-            input_docs  = fdict(input_docs)
-            output_docs = fdict(output_docs)
-        else:
-            input_docs = fdict()
-            output_docs = fdict()
         object.__setattr__(self, 'input_docs', input_docs)
         object.__setattr__(self, 'output_docs', output_docs)
         # That is all for the constructor.
