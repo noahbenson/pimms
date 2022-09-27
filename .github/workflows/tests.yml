@@ -29,7 +29,9 @@ name: CI
 # We run on either pushes or pulls into main or dev
 on:
   push:
-    branches: [ main dev ]
+    branches:
+      - 'main'
+      - 'dev'
     paths-ignore:
       - '**/README.md'
       - '**/.gitignore'
