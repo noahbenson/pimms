@@ -1,6 +1,6 @@
 frozendict >= 2.3.2
-numpy >= 1.20.3
-scipy >= 1.7.3
+numpy >= 1.16.5
+scipy >= 1.7.0
 pint >= 0.18.0
 docrep >= 0.3.2
 joblib >= 1.1.0
