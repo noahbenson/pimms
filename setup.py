@@ -30,7 +30,6 @@ setup(
     url='https://github.com/noahbenson/pimms',
     download_url='https://github.com/noahbenson/pimms',
     classifiers=[
-        'Development Status :: 3 - Alpha',
         'Intended Audience :: Science/Research',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: MIT',
@@ -48,7 +47,8 @@ setup(
         'Operating System :: Unix',
         'Operating System :: MacOS'],
     license='MIT',
-    packages=['pimms.doc', 'pimms.types', 'pimms.math', 'pimms', 'pimms.test'],
+    packages=['pimms.doc', 'pimms.util', 'pimms.lazydict', 'pimms.workflow',
+              'pimms', 'pimms.test'],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
     install_requires=requirements)
