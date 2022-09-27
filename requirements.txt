@@ -1,4 +1,4 @@
-frozendict >= 2.3.2
+frozendict >= 2.3.0
 
 scipy >= 1.5.0, < 1.6.0; python_version == "3.6"
 scipy >= 1.6.0;          python_version >= "3.7"

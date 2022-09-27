@@ -442,13 +442,13 @@ class lazydict(frozendict):
         d = frozendict.__getitem__(self, k)
         if isinstance(d, delay):
             d = d()
-            dict.__setitem__(self, k, d)
+            #dict.__setitem__(self, k, d)
         return d
     def get(self, k, default=None):
         d = frozendict.get(self, k, default=default)
         if isinstance(d, delay):
             d = d()
-            dict.__setitem__(self, k, d)
+            #dict.__setitem__(self, k, d)
         return d
     def raw(self):
         """Returns a frozendict copy of the lazydict without undelaying.
@@ -539,7 +539,7 @@ class lazydict(frozendict):
             If the key `k` is not in the lazydict.
         """
         v = frozendict.__getitem__(self, k)
-        return is_delay(v)
+        return is_delay(v) and not v.is_cached()
     def is_eager(self, k):
         """Determines if the given key is associated with a non-lazy value.
 
@@ -565,7 +565,7 @@ class lazydict(frozendict):
             If the key `k` is not in the lazydict.
         """
         v = frozendict.__getitem__(self, k)
-        return not is_delay(v)
+        return not is_delay(v) or v.is_cached()
     # In order to support pickling, we define the following; note that these
     # methods pickle the data by casting it to a plain dict, which has the
     # (intended) effect of dereferencing all the delays.
