@@ -99,7 +99,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade coverage
           python -m pip install -e ".[d]"
-          python -m pip install --upgrade torch -f https://download.pytorch.org/whl/torch_stable.html
+          python -m pip install "torch >= 1.7.0" -f https://download.pytorch.org/whl/torch_stable.html
       - name: Install pimms
         run: |
           python setup.py build
