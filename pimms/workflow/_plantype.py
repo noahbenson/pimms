@@ -60,19 +60,21 @@ class plantype(type):
         """
         __slots__ = ('__plandict__',)
         def __getattr__(self, k):
-            pd = self.__paramdict__
-            r = pd.get(r, pd)
+            pd = object.__getattribute__(self, '__plandict__')
+            if k == '__plandict__': return pd
+            r = pd.get(k, pd)
             if r is pd:
-                return object.__getattr__(self, k)
+                return object.__getattribute__(self, k)
             else:
                 return r
         def __setattr__(self, k, v):
-            if type(self.__plandict__) is dict:
+            pd = object.__getattribute__(self, '__plandict__')
+            if type(pd) is dict:
                 plan = type(self).plan
                 if k not in plan.inputs:
                     raise ValueError("planobject inputs become immutable after"
                                      " the __init__ method returns")
-                self.__plandict__[k] = v
+                pd[k] = v
             else:
                 raise TypeError(f"type {type(self)} is immutable")
         def __new__(cls, *args, **kwargs):
@@ -83,8 +85,9 @@ class plantype(type):
             # cleaned up (this is guaranteed by the plantype meta-class).
             return obj
         def __dir__(self):
-            l = object.__dir__(self)
-            for k in self.__plandict__.keys():
+            object.__getattribute__(self, '__plandict__')
+            l = type.__dir__(self)
+            for k in pd.keys():
                 l.append(k)
             return l
         def __init__(self, *args, **kwargs):
@@ -109,7 +112,8 @@ class plantype(type):
             """
             # If the plandict is not a mutable dictionary, we have already been
             # initialized.
-            if is_fdict(self.__plandict__):
+            pd = object.__getattribute__(self, '__plandict__')
+            if is_fdict(pd):
                 raise RuntimeError("_init_wrapper method called on an already-"
                                    "initialized planobject")
             # This method is the real initializer for the class (what the
@@ -117,7 +121,7 @@ class plantype(type):
             r = self.__planobject_init__(*args, **kwargs)
             # Postprocess the argument.
             plan = type(self).plan
-            params = dict(plan.defaults, **self.__plandict__)
+            params = dict(plan.defaults, **pd)
             if params.keys() != plan.inputs:
                 raise ValueError(f"bad parameters for plantype {type(self)};"
                                  f" expected {tuple(plan.inputs)} but found"
@@ -201,7 +205,8 @@ class planobject(plantype.planobject_base, metaclass=plantype):
     """
     __slots__ = ()
     def __str__(self):
-        p = self.__plandict__.plan
+        pd = object.__getattribute__(self, '__plandict__')
+        p = pd.plan
         s = ", ".join([f"{k}={v}" for (k,v) in p.items()])
         return f"{type(self)}({s})"
     def __repr__(self):

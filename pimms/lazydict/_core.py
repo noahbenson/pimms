@@ -445,7 +445,7 @@ class lazydict(frozendict):
             #dict.__setitem__(self, k, d)
         return d
     def get(self, k, default=None):
-        d = frozendict.get(self, k, default=default)
+        d = frozendict.get(self, k, default)
         if isinstance(d, delay):
             d = d()
             #dict.__setitem__(self, k, d)

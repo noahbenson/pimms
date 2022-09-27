@@ -31,7 +31,11 @@ from ._core    import (is_tuple, is_list, is_seq, is_set,
 from functools import partial
 import pint
 import numpy as np
-import scipy.sparse as sps
+import scipy as sp, scipy.sparse as sps
+
+# Numpy and SciPy Configuration ################################################
+_scipy_version = tuple(map(int, sp.version.short_version.split('.')))
+_numpy_version = tuple(map(int, np.version.short_version.split('.')))
 
 # PyTorch Configuration ########################################################
 # If PyTorch isn't imported, that's fine, we just write our methods to generate
@@ -113,6 +117,19 @@ except (ModuleNotFoundError, ImportError) as e:
         """
         from functools import wraps
         return (lambda f: wraps(f)(f_alt))
+# Get the torch version setup.
+if torch is None:
+    _torch_version = (0, 0, 0)
+else:
+    _torch_version = torch.__version__.split('.')
+    try:
+        _torch_version = (int(_torch_version[0]),
+                          int(_torch_version[1]),
+                          int(_torch_version[2]))
+    except Exception:
+        _torch_version = (int(_torch_version[0]),
+                          int(_torch_version[1]),
+                          _torch_version[2])
 
 # Numerical Types ##############################################################
 from numpy import ndarray
@@ -1362,6 +1379,11 @@ def is_sparse(obj,
     %(pimms.util._numeric.is_numeric.parameters.quant)s
     %(pimms.util._numeric.is_numeric.parameters.ureg)s
     %(pimms.util._numeric.is_numeric.parameters.unit)s
+    sparsetype : 'matrix' or 'array' or None, optional
+        The kind of sparse array to accept: either `'matrix'` for the scipy
+        sparse matrix types (e.g., `scipy.sparse.csr_matrix`) or `'array'` for
+        the sparse array types (e.g., `scipy.sparse.csr_array`). If the value is
+        `None` (the default) then either is accepted.
 
     Returns
     -------
