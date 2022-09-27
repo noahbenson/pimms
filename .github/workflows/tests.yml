@@ -101,7 +101,7 @@ jobs:
           python setup.py build
           python setup.py install
           cd ~
-          pip install coverage
+          pip install coverage torch
           coverage run -m unittest pimms.test
           #python -m unittest pimms.test
       - name: Process Code Coverage
