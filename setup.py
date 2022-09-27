@@ -48,7 +48,9 @@ setup(
         'Operating System :: MacOS'],
     license='MIT',
     packages=['pimms.doc', 'pimms.util', 'pimms.lazydict', 'pimms.workflow',
-              'pimms', 'pimms.test'],
+              'pimms',
+              'pimms.test.doc', 'pimms.test.util', 'pimms.test.lazydict',
+              'pimms.test.workflow', 'pimms.test'],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
     install_requires=requirements)
