@@ -64,14 +64,15 @@ jobs:
           - '3.10'
         os:
           - ubuntu-latest
+          - windows-latest
           - macos-latest
         arch:
           - 'x64'
-        include:
-          - {"os": "windows-latest", "arch": "x86", "version": "3.7"}
-          - {"os": "windows-latest", "arch": "x86", "version": "3.8"}
-          - {"os": "windows-latest", "arch": "x86", "version": "3.9"}
-          - {"os": "windows-latest", "arch": "x86", "version": "3.10"}
+        #include:
+        #  - {"os": "windows-latest", "arch": "x86", "version": "3.7"}
+        #  - {"os": "windows-latest", "arch": "x86", "version": "3.8"}
+        #  - {"os": "windows-latest", "arch": "x86", "version": "3.9"}
+        #  - {"os": "windows-latest", "arch": "x86", "version": "3.10"}
     # The job environment.
     env:
       OS: ${{ matrix.os }}
@@ -99,7 +100,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade coverage
           python -m pip install -e ".[d]"
-          python -m pip install "torch >= 1.7.0+cpu" -f https://download.pytorch.org/whl/torch_stable.html
+          python -m pip install torch==1.7.1
       - name: Install pimms
         run: |
           python setup.py build
