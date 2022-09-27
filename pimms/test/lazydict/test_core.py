@@ -92,10 +92,12 @@ class TestLazyDictCore(TestCase):
         self.assertIn('b', ld)
         self.assertIn('c', ld)
         self.assertEqual(3, len(ld))
-        # lazydicts are instances of dict and frozendict
+        # lazydicts are instances of frozendict
         self.assertIsInstance(ld, lazydict)
         self.assertIsInstance(ld, frozendict)
-        self.assertIsInstance(ld, dict)
+        # Weirdly, whether a frozendict is a dict is dependent on frozendict and
+        # whether the C or Python source version is installed.
+        #self.assertIsInstance(ld, dict)
         # The keys can be tested for their status as lazy or eager.
         self.assertTrue(ld.is_eager('a'))
         self.assertTrue(ld.is_eager('b'))
