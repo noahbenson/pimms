@@ -99,8 +99,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade coverage
           python -m pip install -e ".[d]"
-          python -m pip install light-the-torch
-          ltt install --upgrade torch
+          python -m pip install --upgrade torch https://download.pytorch.org/whl/torch_stable.html
       - name: Install pimms
         run: |
           python setup.py build
