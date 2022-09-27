@@ -69,7 +69,6 @@ jobs:
         arch:
           - 'x64'
         include:
-          - {"os": "windows-latest", "arch": "x86", "version": "3.6"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.7"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.8"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.9"}
@@ -101,7 +100,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade coverage
           python -m pip install -e ".[d]"
-          python -m pip install --upgrade torch
+          python -m pip install --upgrade torch --extra-index-url https://download.pytorch.org/whl/cu113
       - name: Install pimms
         run: |
           python setup.py build
