@@ -7,6 +7,7 @@ import os
 base_path = os.path.dirname(__file__)
 with open(os.path.join(base_path, 'requirements.txt'), 'r') as fl:
     requirements = fl.read().split('\n')
+    requirements = [k for k in requirements if k.strim() != '']
 with open(os.path.join(base_path, 'pimms', '__init__.py'), 'r') as fl:
     init_lines = fl.read().split('\n')
 version = None
