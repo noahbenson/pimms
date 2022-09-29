@@ -655,4 +655,74 @@ class TestUtilNumeric(TestCase):
                                        (5,5))
         self.assertFalse(issparse(to_dense(sp_a)))
         self.assertFalse(to_dense(sp_t).is_sparse)
-
+    def test_like_scalar(self):
+        from pimms import like_scalar
+        import torch, numpy as np
+        # like_scalar returns True if the argument is a scalar number or if it
+        # is convertible into a scalar number by the to_scalar function. Such
+        # values include numbers and any numeric numpy array or PyTorch tensor
+        # that has exactly one value.
+        self.assertTrue(like_scalar(10))
+        self.assertTrue(like_scalar(10.0))
+        self.assertTrue(like_scalar(10.0 + 20.5j))
+        self.assertTrue(like_scalar(True))
+        self.assertTrue(like_scalar(np.array(10)))
+        self.assertTrue(like_scalar(torch.tensor(10)))
+        self.assertTrue(like_scalar([10]))
+        self.assertTrue(like_scalar([[10]]))
+        self.assertTrue(like_scalar([[[10]]]))
+        self.assertTrue(like_scalar(np.array([10])))
+        self.assertTrue(like_scalar(np.array([[10]])))
+        self.assertTrue(like_scalar(np.array([[[10]]])))
+        self.assertTrue(like_scalar(torch.tensor([10])))
+        self.assertTrue(like_scalar(torch.tensor([[10]])))
+        self.assertTrue(like_scalar(torch.tensor([[[10]]])))
+        self.assertFalse(like_scalar('10'))
+        self.assertFalse(like_scalar({'a':10}))
+        self.assertFalse(like_scalar([1,2,3]))
+    def test_is_scalar(self):
+        from pimms import is_scalar
+        import torch, numpy as np
+        # is_scalar returns True if the argument is a scalar number; otherwise
+        # it returns false.
+        self.assertTrue(is_scalar(10))
+        self.assertTrue(is_scalar(10.0))
+        self.assertTrue(is_scalar(10.0 + 20.5j))
+        self.assertTrue(is_scalar(True))
+        self.assertFalse(is_scalar(np.array(10)))
+        self.assertFalse(is_scalar(torch.tensor(10)))
+        self.assertFalse(is_scalar([10]))
+        self.assertFalse(is_scalar([[10]]))
+        self.assertFalse(is_scalar([[[10]]]))
+        self.assertFalse(is_scalar(np.array([10])))
+        self.assertFalse(is_scalar(np.array([[10]])))
+        self.assertFalse(is_scalar(np.array([[[10]]])))
+        self.assertFalse(is_scalar(torch.tensor([10])))
+        self.assertFalse(is_scalar(torch.tensor([[10]])))
+        self.assertFalse(is_scalar(torch.tensor([[[10]]])))
+        self.assertFalse(is_scalar('10'))
+        self.assertFalse(is_scalar({'a':10}))
+        self.assertFalse(is_scalar([1,2,3]))
+    def test_to_scalar(self):
+        from pimms import to_scalar
+        import torch, numpy as np
+        # to_scalar returns a scalar version of the given argument assuming that
+        # the argument is like a scalar (see like_scalar).
+        self.assertEqual(to_scalar(10), 10)
+        self.assertEqual(to_scalar(10.0), 10.0)
+        self.assertEqual(to_scalar(10.0 + 20.5j), 10.0 + 20.5j)
+        self.assertEqual(to_scalar(True), True)
+        self.assertEqual(to_scalar(np.array(10)), 10)
+        self.assertEqual(to_scalar(torch.tensor(10)), 10)
+        self.assertEqual(to_scalar([10]), 10)
+        self.assertEqual(to_scalar([[10]]), 10)
+        self.assertEqual(to_scalar([[[10]]]), 10)
+        self.assertEqual(to_scalar(np.array([10])), 10)
+        self.assertEqual(to_scalar(np.array([[10]])), 10)
+        self.assertEqual(to_scalar(np.array([[[10]]])), 10)
+        self.assertEqual(to_scalar(torch.tensor([10])), 10)
+        self.assertEqual(to_scalar(torch.tensor([[10]])), 10)
+        self.assertEqual(to_scalar(torch.tensor([[[10]]])), 10)
+        with self.assertRaises(TypeError): to_scalar('10')
+        with self.assertRaises(TypeError): to_scalar({'a':10})
+        with self.assertRaises(TypeError): to_scalar([1,2,3])

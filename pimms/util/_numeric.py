@@ -1494,10 +1494,13 @@ def is_scalar(obj):
 def _like_scalar_wouttorch(obj):
     if isinstance(obj, Number):
         return True
-    elif isinstance(obj, np.ndarray):
-        return (np.issubdtype(obj.dtype, _number_npdtype) and obj.size == 1)
-    else:
-        return False
+    if not isinstance(obj, np.ndarray):
+        try:
+            obj = np.asarray(obj)
+        except TypeError:
+            return False
+    return (obj.size == 1 and 
+            any(np.issubdtype(obj.dtype, tt) for tt in _number_npdtype))
 @alttorch(_like_scalar_wouttorch)
 def like_scalar(obj):
     """Determines whether the argument holds a scalar value or not.
@@ -1513,21 +1516,29 @@ def like_scalar(obj):
     """
     if isinstance(obj, Number):
         return True
-    elif isinstance(obj, np.ndarray):
-        return (np.issubdtype(obj.dtype, _number_npdtype) and obj.size == 1)
-    elif torch__is_tensor(obj):
+    if torch__is_tensor(obj):
         return torch.numel(obj) == 1
-    else:
-        return False
+    if not isinstance(obj, np.ndarray):
+        try:
+            obj = np.asarray(obj)
+        except TypeError:
+            return False
+    return (obj.size == 1 and 
+            any(np.issubdtype(obj.dtype, tt) for tt in _number_npdtype))
 def _to_scalar_wouttorch(obj):
     if isinstance(obj, Number):
         return obj
-    elif (isinstance(obj, np.ndarray)
-          and obj.size == 1
-          and np.issubdtype(obj.dtype, _number_npdtype)):
-        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        if (obj.size == 1 and
+            any(np.issubdtype(obj.dtype, tt) for tt in _number_npdtype)):
+            return obj.item()
     else:
-        raise TypeError(f"given object is not scalar-like: {obj}")
+        try:
+            u = np.asarray(obj)
+            return _to_scalar_wouttorch(u)
+        except TypeError:
+            pass
+    raise TypeError(f"given object is not scalar-like: {obj}")
 def to_scalar(obj):
     """Converts the argument into a simple Python number.
 
@@ -1554,11 +1565,17 @@ def to_scalar(obj):
     """
     if isinstance(obj, Number):
         return obj
-    elif (isinstance(obj, np.ndarray)
-          and obj.size == 1
-          and np.issubdtype(obj.dtype, _number_npdtype)):
-        return obj.item()
-    elif (torch__is_tensor(obj) and torch.numel(obj) == 1):
-        return obj.item()
+    elif isinstance(obj, np.ndarray):
+        if (obj.size == 1 and 
+            any(np.issubdtype(obj.dtype, tt) for tt in _number_npdtype)):
+            return obj.item()
+    elif torch__is_tensor(obj):
+        if torch.numel(obj) == 1:
+            return obj.item()
     else:
-        raise TypeError(f"given object is not scalar-like: {obj}")
+        try:
+            u = np.asarray(obj)
+            return to_scalar(u)
+        except TypeError:
+            pass
+    raise TypeError(f"given object is not scalar-like: {obj}")
