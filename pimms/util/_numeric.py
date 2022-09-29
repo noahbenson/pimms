@@ -413,6 +413,13 @@ def to_numpydtype(dt):
     if   is_numpydtype(dt): return dt
     elif is_torchdtype(dt): return torch.as_tensor((), dtype=dt).numpy().dtype
     else: return np.dtype(dt)
+_sparse_types = {'bsr': sps.bsr_matrix,
+                 'coo': sps.coo_matrix,
+                 'csc': sps.csc_matrix,
+                 'csr': sps.csr_matrix,
+                 'dia': sps.dia_matrix,
+                 'dok': sps.dok_matrix,
+                 'lil': sps.lil_matrix}
 @docwrap
 def is_array(obj,
              dtype=None, shape=None, ndim=None, numel=None, frozen=None,
@@ -523,33 +530,27 @@ def is_array(obj,
         if not (isinstance(obj, ndarray) or scipy__is_sparse(obj)): return False
     elif is_str(sparse):
         sparse = strnorm(sparse.strip(), case=True, unicode=False)
-        if sparse == 'bsr':
-            if not isinstance(obj, sps.bsr_matrix): return False
-        elif sparse == 'coo':
-            if not isinstance(obj, sps.coo_matrix): return False
-        elif sparse == 'csc':
-            if not isinstance(obj, sps.csc_matrix): return False
-        elif sparse == 'csr':
-            if not isinstance(obj, sps.csr_matrix): return False
-        elif sparse == 'dia':
-            if not isinstance(obj, sps.dia_matrix): return False
-        elif sparse == 'dok':
-            if not isinstance(obj, sps.dok_matrix): return False
-        elif sparse == 'lil':
-            if not isinstance(obj, sps.lil_matrix): return False
-        else:
+        mtype = _sparse_types.get(sparse, None)
+        if mtype is None:
             raise ValueErroor(f"invalid sparse matrix type: {sparse}")
+        if not isinstance(obj, mtype): return False
     else:
         raise ValueErroor(f"invalid sparse parameter: {sparse}")
     # Check that the object is read-only
-    if frozen is not None:
-        if frozen is True:
-            if scipy__is_sparse(obj) or obj.flags['WRITEABLE']: return False
-        elif frozen is False:
-            if not scipy__is_sparse(obj) and not obj.flags['WRITEABLE']:
-                return False
+    if frozen is None:
+        pass
+    elif frozen is True:
+        if scipy__is_sparse(obj):
+            if obj.data.flags['WRITEABLE']: return False
         else:
-            raise ValueError(f"invalid parameter frozen: {frozen}")
+            if obj.flags['WRITEABLE']: return False
+    elif frozen is False:
+        if scipy__is_sparse(obj):
+            if not obj.data.flags['WRITEABLE']: return False
+        else:
+            if not obj.flags['WRITEABLE']: return False
+    else:
+        raise ValueError(f"invalid parameter frozen: {frozen}")
     # Next, check compatibility of the units.
     if unit is None:
         # We are required to not be a quantity.
@@ -667,14 +668,7 @@ def to_array(obj,
             else:
                 sparse = 'coo'
         sparse = strnorm(sparse.strip(), case=True, unicode=False)
-        mtype = (sps.bsr_matrix if sparse == 'bsr' else
-                 sps.coo_matrix if sparse == 'coo' else
-                 sps.csc_matrix if sparse == 'csc' else
-                 sps.csr_matrix if sparse == 'csr' else
-                 sps.dia_matrix if sparse == 'dia' else
-                 sps.dok_matrix if sparse == 'dok' else
-                 sps.lil_matrix if sparse == 'lil' else
-                 None)
+        mtype = _sparse_types.get(sparse, None)
         if mtype is None:
             raise ValueError(f"unrecognized scipy sparse matrix name: {sparse}")
         if obj_is_sparse:
@@ -746,12 +740,18 @@ def to_array(obj,
     if frozen is not None:
         if frozen is True:
             if sparse:
-                raise ValueError("scipy sparse matrices cannot be read-only")
-            if arr.flags['WRITEABLE']:
+                if arr.data.flags['WRITEABLE']:
+                    if not newarr: arr = arr.copy()
+                    arr.data.setflags(write=False)
+            elif arr.flags['WRITEABLE']:
                 if not newarr: arr = np.array(arr)
                 arr.flags['WRITEABLE'] = False
         elif frozen is False:
-            if not sparse and not arr.flags['WRITEABLE']:
+            if sparse:
+                if not arr.data.flags['WRITEABLE']:
+                    if not newarr: arr = arr.copy()
+                    arr.data.setflags(write=True)
+            elif not arr.flags['WRITEABLE']:
                 arr = np.array(arr)
         else:
             raise ValueError(f"bad parameter value for frozen: {frozen}")
@@ -1133,7 +1133,8 @@ def to_tensor(obj,
                                       requires_grad=requires_grad)
         # Convert to a CSR tensor if we were given a CSR matrix.
         if isinstance(obj, sps.csr_matrix): arr = arr.to_sparse_csr()
-    elif copy or requires_grad is True:
+    elif (copy or requires_grad is True or 
+          (isinstance(obj, np.ndarray) and not obj.flags['WRITEABLE'])):
         arr = torch.tensor(obj, dtype=dtype, device=devce,
                            requires_grad=requires_grad)
         dtype = arr.dtype

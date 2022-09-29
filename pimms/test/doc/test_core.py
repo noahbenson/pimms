@@ -103,5 +103,6 @@ class TestDocCore(TestCase):
                   "d : int or None, optional",
                   "The second optional parameter to the function."]:
             self.assertIn(s, fn2.__doc__)
-    
+        self.assertEqual(fn1(1,2,3), (1,2,3))
+        self.assertEqual(fn2(1,2,3,4), (1,2,3,4))
 

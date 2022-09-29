@@ -793,6 +793,7 @@ def is_fodict(obj):
         `False`.
     """
     return isinstance(obj, FrozenOrderedDict)
+@docwrap
 def hashsafe(obj):
     """Returns `hash(obj)` if `obj` is hashable, otherwise returns `None`.
 
@@ -815,6 +816,7 @@ def hashsafe(obj):
     """
     try:              return hash(obj)
     except TypeError: return None
+@docwrap
 def can_hash(obj):
     """Returns `True` if `obj` is safe to hash and `False` otherwise.
 
@@ -828,6 +830,7 @@ def can_hash(obj):
     See also: `is_hashable`, `hashsafe`
     """
     return hashsafe(obj) is not None
+@docwrap
 def itersafe(obj):
     """Returns an iterator or None if the given object is not iterable.
 
@@ -846,6 +849,7 @@ def itersafe(obj):
     """
     try:              return iter(obj)
     except TypeError: return None
+@docwrap
 def can_iter(obj):
     """Returns `True` if `obj` is safe to iterate and `False` otherwise.
 
@@ -859,6 +863,7 @@ def can_iter(obj):
     See also: `is_iterable`, `itersafe`
     """
     return itersafe(obj) is not None
+@docwrap
 def is_frozen(obj):
     """Returns `True` if an object is a `frozendict`, `frozenset`, or `tuple`.
 
@@ -883,8 +888,10 @@ def is_frozen(obj):
     if   isinstance(obj, is_frozen.frozen_types): return True
     elif isinstance(obj, is_thawed.thawed_types): return False
     elif isinstance(obj, np.ndarray): return not obj.flags['WRITEABLE']
+    elif sps.issparse(obj): return not obj.data.flags['WRITEABLE']
     else: return None
 is_frozen.frozen_types = (tuple, frozenset, frozendict, FrozenOrderedDict)
+@docwrap
 def is_thawed(obj):
     """Returns `True` if an object is a `dict`, `set`, or `list`.
 
@@ -913,8 +920,10 @@ def is_thawed(obj):
     if   isinstance(obj, is_frozen.frozen_types): return False
     elif isinstance(obj, is_thawed.thawed_types): return True
     elif isinstance(obj, np.ndarray): return obj.flags['WRITEABLE']
+    elif sps.issparse(obj): return obj.data.flags['WRITEABLE']
     else: return None
 is_thawed.thawed_types = (list, set, dict, OrderedDict)
+@docwrap
 def to_frozenarray(arr, copy=None, subok=False):
     """Returns a copy of the given NumPy array that is read-only.
 
@@ -947,9 +956,12 @@ def to_frozenarray(arr, copy=None, subok=False):
     TypeError
         If `arr` is not a NumPy array.
     """
-    if not isinstance(arr, np.ndarray):
-        if copy is None: copy = True
-        arr = np.array(arr, copy=copy, subok=subok)
+    if sps.issparse(arr):
+        if not (arr.data.flags['WRITEABLE'] or copy): return arr
+        arr = arr.copy()
+        arr.data.flags['WRITEABLE'] = False
+    elif not isinstance(arr, np.ndarray):
+        arr = np.array(arr, copy=(True if copy is None else copy), subok=subok)
         copy = False
     rw = arr.flags['WRITEABLE']
     if copy is None: copy = rw
@@ -957,6 +969,7 @@ def to_frozenarray(arr, copy=None, subok=False):
     if rw: arr.setflags(write=False)
     return arr
 to_farray = to_frozenarray
+@docwrap
 def frozenarray(obj, *args, **kwargs):
     """Equivalent to `numpy.array` but returns read-only arrays.
 
@@ -980,6 +993,7 @@ def frozenarray(obj, *args, **kwargs):
     arr.setflags(write=False)
     return arr
 farray = frozenarray
+@docwrap
 def freeze(obj):
     """Converts certain collections into frozen (immutable) versions.
 
@@ -1016,6 +1030,7 @@ freeze.freeze_types = {list:        tuple,
                        np.ndarray:  to_frozenarray,
                        OrderedDict: FrozenOrderedDict,
                        dict:        frozendict}
+@docwrap
 def thaw(obj, copy=False):
     """Converts certain frozen collections into thawed (mutable) versions.
 

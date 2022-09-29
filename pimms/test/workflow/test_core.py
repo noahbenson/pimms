@@ -139,6 +139,7 @@ class TestWorkflowCore(TestCase):
         # is_calc(x) is just an alias for isinstance(x, calc).
         self.assertTrue(is_calc(result))
         self.assertFalse(is_calc(lambda x:x))
+        self.assertEqual(result(2,0)['result'], [0, 0])
     def test_plan(self):
         import numpy as np
         from pimms.workflow import (calc, plan, plandict)
@@ -185,12 +186,6 @@ class TestWorkflowCore(TestCase):
         # Filter calculations can be used to update the input variables to a
         # plan--they are calc units that accept only 1 input and that return
         # same input.
-        @calc('x')
-        def filter_x(x):
-            x = np.asarray(x)
-            assert len(x.shape) == 1, "x must be a vector"
-            assert np.issubdtype(x.dtype, np.number), "x must be numeric"
-            return x
         @calc('x')
         def filter_x(x):
             x = np.asarray(x)
