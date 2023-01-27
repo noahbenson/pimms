@@ -295,7 +295,7 @@ class TestUtilNumeric(TestCase):
         from pimms import (to_array, quant, is_quant, units)
         from numpy import (array, linspace, dot)
         from scipy.sparse import (csr_matrix, issparse)
-        import torch, numpy as np
+        import torch, numpy as np, pint
         # We'll use a few objects throughout our tests, which we setup now.
         arr = linspace(0, 1, 25)
         mtx = dot(linspace(0, 1, 10)[:,None], linspace(0, 2, 10)[None,:])
@@ -344,7 +344,10 @@ class TestUtilNumeric(TestCase):
         # However, a non-quantity is always assumed to already have the units
         # requested, so converting it to a particular unit (but not converting
         # it to a quantity) results in the same object.
-        self.assertIs(to_array(arr, unit='mm'), arr)
+        self.assertIs(to_array(arr, quant=False, unit='mm'), arr)
+        # If we simply request an array with a unit, without specifying that it
+        # not be a quantity, we get a quantity back.
+        self.assertIsInstance(to_array(arr, unit='mm'), pint.Quantity)
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_array(arr, quant=True, unit=None)
@@ -512,6 +515,7 @@ class TestUtilNumeric(TestCase):
     def test_to_tensor(self):
         from pimms import (to_tensor, quant, is_quant, units)
         import torch, numpy as np
+        import pint
         # We'll use a few objects throughout our tests, which we setup now.
         arr = torch.linspace(0, 1, 25)
         mtx = torch.mm(torch.linspace(0, 1, 10)[:,None],
@@ -557,7 +561,10 @@ class TestUtilNumeric(TestCase):
         # However, a non-quantity is always assumed to already have the units
         # requested, so converting it to a particular unit (but not converting
         # it to a quantity) results in the same object.
-        self.assertIs(to_tensor(arr, unit='mm'), arr)
+        self.assertIs(to_tensor(arr, quant=False, unit='mm'), arr)
+        # If we simply request an array with a unit, without specifying that it
+        # not be a quantity, we get a quantity back.
+        self.assertIsInstance(to_tensor(arr, unit='mm'), pint.Quantity)
         # An error is raised if you try to request no units for a quantity.
         with self.assertRaises(ValueError):
             to_tensor(arr, quant=True, unit=None)
