@@ -385,8 +385,11 @@ class lazydict_values(colls_abc.ValuesView, colls_abc.Sequence):
             return map(lazydict_values._take_value, it)
         else:
             return map(self._undelay, it)
-    def __contains__(self, v):
-        return (k in self._lazydict and self._filter(k))
+    def __contains__(self, val):
+        for (k,v) in self._lazydict_items:
+            if self._filter(k) and undelay(v) == val:
+                return True
+        return False
     def __len__(self):
         return self._count()
 class lazydict(frozendict):
@@ -677,7 +680,7 @@ def lazyitemmap(f, d, *args, **kwargs):
 
     `itemmap(f, d, *args, **kw)` additionally passes the given arguments to the
     function `f`, such that in the resulting map, each key `k` is mapped to
-    `f(k, *args, **kw)`.
+    `f(k, d[k], *args, **kw)`.
 
     Unlike `lazyitemmap`, this function returns either a dict, a frozendict, or
     a lazydict depending on the input argument `d`. If `d` is a lazydict, then a
@@ -699,7 +702,7 @@ def itemmap(f, d, *args, **kwargs):
 
     `itemmap(f, d, *args, **kw)` additionally passes the given arguments to the
     function `f`, such that in the resulting map, each key `k` is mapped to
-    `f(k, *args, **kw)`.
+    `f(k, d[k], *args, **kw)`.
 
     Unlike `lazyitemap`, this function returns either a dict, a frozendict, or a
     lazydict depending on the input argument `d`. If `d` is a lazydict, then a
