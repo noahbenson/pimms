@@ -36,7 +36,7 @@ on:
       - '/LICENSE.txt'
       - '/.github/workflows/deploy.yml'
   pull_request:
-    branches: [ main dev ]
+    branches: [ main, dev ]
     paths-ignore:
       - '**/README.md'
       - '**/.gitignore'
