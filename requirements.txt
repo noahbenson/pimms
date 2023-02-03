@@ -1,4 +1,5 @@
 pyrsistent >= 0.11.0
 six >= 1.10.0
 numpy >= 1.2.0
+scipy >= 1.2.0
 pint >= 0.7.0
