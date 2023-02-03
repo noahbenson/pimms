@@ -19,4 +19,5 @@ setup(
     install_requires=['pyrsistent>=0.11',
                       'six>=1.10',
                       'numpy>=1.2',
+                      'scipy>=1.2',
                       'pint>=0.7'])
