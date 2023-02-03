@@ -29,7 +29,7 @@ name: CI
 # We run on either pushes or pulls into main or dev
 on:
   push:
-    branches: [ main dev ]
+    branches: [ main, dev ]
     paths-ignore:
       - '**/README.md'
       - '**/.gitignore'
@@ -56,11 +56,11 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '3.6'
           - '3.7'
           - '3.8'
           - '3.9'
           - '3.10'
+          - '3.11'
         os:
           - ubuntu-latest
           - windows-latest
@@ -68,11 +68,11 @@ jobs:
         arch:
           - 'x64'
         include:
-          - {"os": "windows-latest", "arch": "x86", "version": "3.6"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.7"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.8"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.9"}
           - {"os": "windows-latest", "arch": "x86", "version": "3.10"}
+          - {"os": "windows-latest", "arch": "x86", "version": "3.11"}
     # The job environment.
     env:
       OS: ${{ matrix.os }}
@@ -97,8 +97,7 @@ jobs:
       # Run the actual tests.
       - name: Run Tests
         run: |
-          python setup.py build
-          python setup.py install
+          pip install -e .
           cd ~
           pip install coverage
           coverage run -m unittest pimms.test
