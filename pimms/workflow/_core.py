@@ -843,7 +843,7 @@ class plan(pdict):
             if k not in params:
                 print("\n", "=" * 60)
                 print(' -> ', k, (k == 'a', k == 'b', k == 'c'))
-                print(' .. ', k in params, k in paramstmp, params is paramstmp)
+                print(' .. ', {el: k == el for el in params})
                 print('    ', tup1, tup2)
                 msg = f"filter for {k}, which is not in params: {params}"
                 raise ValueError(msg)
