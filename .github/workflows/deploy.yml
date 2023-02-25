@@ -58,8 +58,10 @@ jobs:
       # Make sure the tests pass before we upload anything.
       - name: Run Tests
         run: |
-          python setup.py build
-          python setup.py install
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[d]"
+          python -m pip install 'torch>=1.7.1'
+          python -m pip install -e .
           python -m unittest pimms.test
       # Go ahead and build and deploy.
       - name: Build and Upload Source Distribution
