@@ -28,8 +28,10 @@
 import copy, types, inspect
 from collections import (defaultdict, namedtuple)
 
-from ..util import (is_str, is_fdict)
-from ..lazydict import (ldict, fdict, is_ldict, assoc, merge)
+from pcollections import (pdict, ldict, lazy)
+
+from ..doc import docwrap
+from ..util import (is_str, is_pdict, is_ldict, assoc, merge)
 from ._core import (calc, plan, plandict, is_calc)
 
 # #plantype ####################################################################
@@ -113,7 +115,7 @@ class plantype(type):
             # If the plandict is not a mutable dictionary, we have already been
             # initialized.
             pd = object.__getattribute__(self, '__plandict__')
-            if is_fdict(pd):
+            if is_pdict(pd):
                 raise RuntimeError("_init_wrapper method called on an already-"
                                    "initialized planobject")
             # This method is the real initializer for the class (what the
@@ -228,6 +230,7 @@ class planobject(plantype.planobject_base, metaclass=plantype):
         return obj
 
 # Utilities ####################################################################
+@docwrap
 def is_planobject(obj):
     '''Determines if an object is an instance of a `pimms` `plantype` object.
     
@@ -237,6 +240,7 @@ def is_planobject(obj):
     See also: `plantype`, `is_plantype`
     '''
     return isinstance(obj, planobject)
+@docwrap
 def is_plantype(obj):
     '''Determines if an object is a `pimms` `plantype`.
     

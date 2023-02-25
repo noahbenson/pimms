@@ -26,7 +26,7 @@
 
 # Dependencies #################################################################
 from ..doc     import docwrap
-from ._core    import (is_tuple, is_list, is_seq, is_set,
+from ._core    import (is_tuple, is_list, is_aseq, is_aset,
                        is_str, streq, strnorm)
 from functools import partial
 import pint
@@ -284,7 +284,7 @@ def _numcoll_match(numcoll_shape, numcoll_dtype, ndim, shape, numel, dtype):
         assert len(sh_suf) + len(sh_pre) + int(sh_mid) == len(shape), \
             "only one Ellipsis may be used in the shape filter"
     # Parse ndim.
-    if not (is_tuple(ndim) or is_set(ndim) or is_list(ndim) or ndim is None):
+    if not (is_tuple(ndim) or is_aset(ndim) or is_list(ndim) or ndim is None):
         ndim = (ndim,)
     # See if we match in terms of numel, ndim, and shape
     sh = numcoll_shape
@@ -313,7 +313,7 @@ def _numcoll_match(numcoll_shape, numcoll_dtype, ndim, shape, numel, dtype):
     # See if we match the dtype.
     if dtype is not None:
         if is_numpydtype(numcoll_dtype):
-            if is_seq(dtype) or is_set(dtype):
+            if is_aseq(dtype) or is_aset(dtype):
                 dtype = [to_numpydtype(dt) for dt in dtype]
             else:
                 # If we have been given a torch dtype, we convert it, but
@@ -324,7 +324,7 @@ def _numcoll_match(numcoll_shape, numcoll_dtype, ndim, shape, numel, dtype):
                     return False
                 dtype = (numcoll_dtype,)
         elif is_torchdtype(numcoll_dtype):
-            if is_seq(dtype) or is_set(dtype):
+            if is_aseq(dtype) or is_aset(dtype):
                 dtype = [to_torchdtype(dt) for dt in dtype]
             else: dtype = [to_torchdtype(dtype)]
         if numcoll_dtype not in dtype: return False
@@ -610,8 +610,9 @@ def to_array(obj,
     quant : boolean or None, optional
         Whether the return value should be a `Quantity` object wrapping the
         array (`quant=True`) or the array itself (`quant=False`). If `quant` is
-        `None` (the default) then the return value is a quantity if `obj` is a
-        quantity and is not a quantity if `obj` is not a quantity.
+        `None` (the default) then the return value is a quantity if either `obj`
+        is a quantity or an explicit `unit` parameter is given and is not a
+        quantity if `obj` is not a quantity.
     ureg : pint.UnitRegistry or None, optional
         The `pint` `UnitRegistry` object to use for units. If `ureg` is
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
@@ -647,11 +648,9 @@ def to_array(obj,
         q = obj
         obj = q.m
         if ureg is None: ureg = q._REGISTRY
-        if quant is None: quant = True
     else:
         q = None
         if ureg is None: from pimms import units as ureg
-        if quant is None: quant = False
     # Translate obj depending on whether it's a pytorch array / scipy sparse
     # matrix.  We need to think about whether the output array is being
     # requested in sparse format. If so, we handle the conversion differently.
@@ -756,6 +755,8 @@ def to_array(obj,
         else:
             raise ValueError(f"bad parameter value for frozen: {frozen}")
     # Next, we switch on whether we are being asked to return a quantity or not.
+    if quant is None:
+        quant = (q if unit is Ellipsis else unit) is not None
     if quant is True:
         if unit is None:
             raise ValueError("to_array: cannot make a quantity (quant=True)"
@@ -1053,9 +1054,10 @@ def to_tensor(obj,
         set to `'coo'` or `'csr'` to return specific sparse layouts.
     quant : boolean or None, optional
         Whether the return value should be a `Quantity` object wrapping the
-        array (`quant=True`) or the array itself (`quant=False`). If `quant` is
-        `None` (the default) then the return value is a quantity if `obj` is a
-        quantity and is not a quantity if `obj` is not a quantity.
+        array (`quant=True`) or the tensor itself (`quant=False`). If `quant` is
+        `None` (the default) then the return value is a quantity if either `obj`
+        is a quantity or an explicit `unit` parameter is given and is not a
+        quantity if `obj` is not a quantity.
     ureg : pint.UnitRegistry or None, optional
         The `pint` `UnitRegistry` object to use for units. If `ureg` is
         `Ellipsis`, then `pimms.units` is used. If `ureg` is `None` (the
@@ -1084,6 +1086,7 @@ def to_tensor(obj,
     ------
     ValueError
         If invalid parameter values are given or if the parameters conflict.
+
     """
     if ureg is Ellipsis: from pimms import units as ureg
     if dtype is not None: dtype = to_torchdtype(dtype)
@@ -1092,11 +1095,9 @@ def to_tensor(obj,
         q = obj
         obj = q.m
         if ureg is None: ureg = q._REGISTRY
-        if quant is None: quant = True
     else:
         q = None
         if ureg is None: from pimms import units as ureg
-        if quant is None: quant = False
     # Translate obj depending on whether it's a pytorch tensor already or a
     # scipy sparse matrix.
     if torch.is_tensor(obj):
@@ -1135,7 +1136,7 @@ def to_tensor(obj,
         if isinstance(obj, sps.csr_matrix): arr = arr.to_sparse_csr()
     elif (copy or requires_grad is True or 
           (isinstance(obj, np.ndarray) and not obj.flags['WRITEABLE'])):
-        arr = torch.tensor(obj, dtype=dtype, device=devce,
+        arr = torch.tensor(obj, dtype=dtype, device=device,
                            requires_grad=requires_grad)
         dtype = arr.dtype
     else:
@@ -1162,6 +1163,8 @@ def to_tensor(obj,
     elif sparse is not None:
         raise ValueError(f"invalid value for parameter sparse: {sparse}")
     # Next, we switch on whether we are being asked to return a quantity or not.
+    if quant is None:
+        quant = (q if unit is Ellipsis else unit) is not None
     if quant is True:
         if unit is None:
             raise ValueError("to_array: cannot make a quantity (quant=True)"

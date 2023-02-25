@@ -37,7 +37,6 @@ declaring workflows and immutable data-structures with full inheritance support.
 #
 from .doc      import *
 from .util     import *
-from .lazydict import *
 from .workflow import *
 # Import the Global UnitRegistry object to the global pimms scope. This is the
 # value that gets updated when one runs `pimms.default_ureg()`, and this is the
@@ -59,8 +58,6 @@ submodules = ('pimms.doc._core',
               'pimms.util._numeric',
               'pimms.util._quantity',
               'pimms.util',
-              'pimms.lazydict._core',
-              'pimms.lazydict',
               'pimms.workflow._core',
               'pimms.workflow._plantype',
               'pimms.workflow')
@@ -86,10 +83,11 @@ def reload_pimms():
 
 # Package Meta-Code ############################################################
 __version__ = '1.0.0rc1'
-__all__ = tuple([k
-                 for k in locals()
-                 if k[0] != '_'
-                 if k != 'reload_pimms'
-                 if k != 'description'
-                 if k != 'submodules'
-                 if ('pimms.' + k) not in submodules])
+__all__ = [
+    k for k in locals()
+    if k[0] != '_'
+    if k != 'reload_pimms'
+    if k != 'description'
+    if k != 'submodules'
+    if ('pimms.' + k) not in submodules
+]

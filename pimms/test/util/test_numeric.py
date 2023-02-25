@@ -30,6 +30,8 @@ from unittest import TestCase
 
 class TestUtilNumeric(TestCase):
     """Tests the pimms.util._numeric module."""
+
+    # Numeric Types ############################################################
     def test_is_number(self):
         from pimms import is_number
         import torch, numpy as np

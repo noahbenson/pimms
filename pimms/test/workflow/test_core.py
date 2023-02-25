@@ -32,7 +32,7 @@ class TestWorkflowCore(TestCase):
     """Tests the pimms.workflow._core module."""
     def test_calc(self):
         from pimms.workflow import calc
-        from pimms import (ldict, fdict)
+        from pcollections import (ldict, pdict)
         # The calc decorator creates calculation objects.
         @calc
         def result(input_1, input_2=None):
@@ -89,7 +89,7 @@ class TestWorkflowCore(TestCase):
         # the return value is a lazy dict, and the calc isn't actually run until
         # the values are requested; when eager, the call is run right away, and
         # the return value is an frozendict instead of a lazydict.
-        self.assertIsInstance(result.eager_call(1), fdict)
+        self.assertIsInstance(result.eager_call(1), pdict)
         self.assertEqual(result.eager_call(1), {'result': [None]})
         self.assertEqual(result.eager_call(2, 0), {'result': [0, 0]})
         self.assertIsInstance(result.lazy_call(1), ldict)
@@ -101,7 +101,7 @@ class TestWorkflowCore(TestCase):
         self.assertEqual(result.mapcall(m1), {'result': [None]})
         self.assertEqual(result.mapcall(m2), {'result': [0,0]})
         # These can also be lazy or eager.
-        self.assertIsInstance(result.eager_mapcall(m1), fdict)
+        self.assertIsInstance(result.eager_mapcall(m1), pdict)
         self.assertEqual(result.eager_mapcall(m1), {'result': [None]})
         self.assertEqual(result.eager_mapcall(m2), {'result': [0, 0]})
         self.assertIsInstance(result.lazy_mapcall(m1), ldict)
@@ -143,7 +143,6 @@ class TestWorkflowCore(TestCase):
     def test_plan(self):
         import numpy as np
         from pimms.workflow import (calc, plan, plandict)
-        from pimms.lazydict import DelayError
         # Plans are just collections of calc objects, each of which gets built
         # into a directed acyclic graph of calculation dependencies.
         @calc('weights', lazy=False)
@@ -214,12 +213,12 @@ class TestWorkflowCore(TestCase):
         # while the rest would normally not be. However, since the calculation
         # of weights is non-lazy, everything it requires, including x, will be
         # non-lazy.
-        self.assertTrue(pd.is_eager('x'))
-        self.assertTrue(pd.is_eager('mu'))
-        self.assertTrue(pd.is_eager('std'))
+        self.assertFalse(pd.is_lazy('x'))
+        self.assertFalse(pd.is_lazy('mu'))
+        self.assertFalse(pd.is_lazy('std'))
         # The weights outputs should be eager because it was declared to be
         # non-lazy; the mean should remain lazy, though.
-        self.assertTrue(pd.is_eager('weights'))
+        self.assertFalse(pd.is_lazy('weights'))
         self.assertTrue(pd.is_lazy('mean'))
         # It will have converted the x value into an array.
         self.assertIsInstance(pd['x'], np.ndarray)
@@ -229,4 +228,4 @@ class TestWorkflowCore(TestCase):
         self.assertAlmostEqual(pd['mean'], 1.4392777559)
         # Since we marked the filter as non-lazy, it should raise errors when
         # the plan is fulfilled.
-        with self.assertRaises(DelayError): nwm(x=10)
+        with self.assertRaises(RuntimeError): nwm(x=10)

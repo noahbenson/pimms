@@ -31,5 +31,4 @@ examples of the library's usage.
 
 from .doc      import *
 from .util     import *
-from .lazydict import *
 from .workflow import *

@@ -30,6 +30,65 @@ from unittest import TestCase
 
 class TestUtilQuantity(TestCase):
     """Tests the pimms.util._quantity module."""
+    # Pint Utilities ###########################################################
+    def test_is_ureg(self):
+        from pimms import (units, is_ureg)
+        from pint import UnitRegistry
+        # pimms.units is a registry.
+        self.assertTrue(is_ureg(units))
+        # So is any new UnitsRegistry we create.
+        self.assertTrue(is_ureg(UnitRegistry()))
+        # Other objects are not.
+        self.assertFalse(is_ureg(None))
+    def test_is_unit(self):
+        from pimms import (units, is_unit)
+        from pint import UnitRegistry
+        # We will use an alternate unit registry in some tests.
+        alt_units = UnitRegistry()
+        # Units from any unit registry are allowed by default.
+        self.assertTrue(is_unit(units.mm))
+        self.assertTrue(is_unit(units.gram))
+        self.assertTrue(is_unit(alt_units.mm))
+        self.assertTrue(is_unit(alt_units.gram))
+        # Things that aren't units are never units.
+        self.assertFalse(is_unit('mm'))
+        self.assertFalse(is_unit(10.0))
+        self.assertFalse(is_unit(None))
+        self.assertFalse(is_unit(10.0 * units.mm))
+        # If the ureg parameter is ..., then only units from the pimms units
+        # registry are allowed.
+        self.assertTrue(is_unit(units.mm, ureg=...))
+        self.assertFalse(is_unit(alt_units.mm, ureg=...))
+        # Alternately, the ureg parameter may be a specific unit registry.
+        self.assertFalse(is_unit(units.mm, ureg=alt_units))
+        self.assertTrue(is_unit(alt_units.mm, ureg=alt_units))
+    def test_is_quant(self):
+        from pimms import (units, is_quant)
+        from pint import UnitRegistry
+        # We will use an alternate unit registry in some tests.
+        alt_units = UnitRegistry()
+        # By default, it does not matter what registry a quantity comes from;
+        # it is considered a quantity.
+        q = 10.0 * units.mm
+        alt_q = 10.0 * alt_units.mm
+        self.assertTrue(is_quant(q))
+        self.assertTrue(is_quant(alt_q))
+        # Other objects aren't quantities.
+        self.assertFalse(is_quant(10.0))
+        self.assertFalse(is_quant(units.mm))
+        self.assertFalse(is_quant(None))
+        # We can require that a quantity meet a certain kind of unit type.
+        self.assertTrue(is_quant(q, unit=units.mm))
+        self.assertTrue(is_quant(q, unit='inches'))
+        self.assertFalse(is_quant(q, unit=units.grams))
+        self.assertFalse(is_quant(q, unit='seconds'))
+        # The ureg parameter changes whether any unit registry is allowed (the
+        # default, or ureg=None), only pimms.units is allowed (ureg=Ellipsis),
+        # or a specific unit registry is allowed.
+        self.assertTrue(is_quant(q, ureg=...))
+        self.assertFalse(is_quant(alt_q, ureg=...))
+        self.assertFalse(is_quant(q, ureg=alt_units))
+        self.assertTrue(is_quant(alt_q, ureg=alt_units))
     def test_default_ureg(self):
         from pimms import default_ureg
         from pint import UnitRegistry

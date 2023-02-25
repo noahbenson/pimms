@@ -32,11 +32,11 @@ from collections import (defaultdict, namedtuple)
 from functools import (reduce, lru_cache, wraps)
 from inspect import getfullargspec
 
+from pcollections import (pdict, ldict, lazy, pset, plist)
+
 from ..doc import (docwrap, docproc, make_docproc)
-from ..util import (is_fdict, is_str, is_number, is_tuple, is_dict, is_array,
-                    is_integer, strisvar, is_map)
-from ..lazydict import (merge, lazydict, is_ldict, ldict, frozendict, fdict,
-                        valmap, delay, undelay)
+from ..util import (is_pdict, is_str, is_number, is_tuple, is_dict, is_ldict,
+                    is_array, is_integer, strisvar, is_amap, merge, valmap)
 
 
 ################################################################################
@@ -193,21 +193,21 @@ class calc:
         are due to translation calls). The `argspec` also differs from a true
         `argspec` object in that its members are all persistent objects such as
         `tuple`s instead of `list`s.
-    inputs : frozenset of str
+    inputs : pset of strs
         The names of the input parameters for the calculation.
     outputs : tuple of str
         The names of the output values of the calculation.
     defaults : mapping
-        A frozen dictionary whose keys are input parameter names and whose
+        A persistent dictionary whose keys are input parameter names and whose
         values are the default values for the associated parameters.
     lazy : boolean
         Whether the calculation is intended as a lazy (`True`) or eager
         (`False`) calculation.
     input_docs : mapping
-        A frozen dict object whose keys are input names and whose values are the
+        A pdict object whose keys are input names and whose values are the
         documentation for the associated input parameters.
     output_docs : mapping
-        A frozen dict object whose keys are output names and whose values are
+        A pdict object whose keys are output names and whose values are
         the documentation for the associated output values.
 
     '''
@@ -217,7 +217,7 @@ class calc:
     @staticmethod
     def _dict_persist(arg):
         if arg is None: return arg
-        else: return fdict(arg)
+        else: return pdict(arg)
     @staticmethod
     def _argspec_persist(spec):
         from inspect import FullArgSpec
@@ -261,11 +261,11 @@ class calc:
             output_docs = {k[11:]: doc
                            for (k,doc) in dp.params.items()
                            if k.startswith('fn.outputs.')}
-            input_docs  = fdict(input_docs)
-            output_docs = fdict(output_docs)
+            input_docs  = pdict(input_docs)
+            output_docs = pdict(output_docs)
         else:
-            input_docs = fdict()
-            output_docs = fdict()
+            input_docs = pdict()
+            output_docs = pdict()
             fndoc = None
         # We make a new class that is a subtype of calc and that runs this
         # specific function when called. This lets us update the documentation.
@@ -299,7 +299,7 @@ class calc:
         spec = calc._argspec_persist(spec)
         object.__setattr__(self, 'argspec', spec)
         # Figure out the inputs from the argspec.
-        inputs = frozenset(spec.args + spec.kwonlyargs)
+        inputs = pset(spec.args + spec.kwonlyargs)
         object.__setattr__(self, 'inputs', inputs)
         # Check that the outputs are okay.
         outputs = tuple(outputs)
@@ -314,7 +314,7 @@ class calc:
             if not arglst or not argdfs: continue
             arglst = arglst[-len(argdfs):]
             dflts.update(zip(arglst, argdfs))
-        object.__setattr__(self, 'defaults', fdict(dflts))
+        object.__setattr__(self, 'defaults', pdict(dflts))
         # Save the laziness status and the documentations.
         object.__setattr__(self, 'lazy', bool(lazy))
         object.__setattr__(self, 'input_docs', input_docs)
@@ -375,7 +375,7 @@ class calc:
             # case.
             return ldict({})
         n = len(outs)
-        if is_map(res) and len(res) == n and all(k in res for k in outs):
+        if is_amap(res) and len(res) == n and all(k in res for k in outs):
             pass
         elif is_tuple(res) and len(res) == n:
             res = {k:v for (k,v) in zip(outs, res)}
@@ -386,7 +386,7 @@ class calc:
         else:
             raise ValueError(f'return value from function call ({self.name}):'
                              ' did not match efferents')
-        # We always convert delays into values by returning a lazydict.
+        # We always convert lazys into values by returning a lazydict.
         return ldict(res)
     def lazy_call(self, *args, **kwargs):
         """Returns a lazy-dict of the results of calling the calculation.
@@ -398,11 +398,11 @@ class calc:
 
         See also `calc.mapcall` annd `calc.lazy_mapcall`.
         """
-        # First, create a delay for the actual call:
-        calldel = delay(self.eager_call, *args, **kwargs)
+        # First, create a lazy for the actual call:
+        calldel = lazy(self.eager_call, *args, **kwargs)
         # Then make a lazy map of all the outputs, each of which pulls from this
         # delay object to get its values.
-        return ldict({k: delay(lambda k: calldel()[k], k)
+        return ldict({k: lazy(lambda k: calldel()[k], k)
                       for k in self.outputs})
     def __call__(self, *args, **kwargs):
         if self.lazy: return self.lazy_call(*args, **kwargs)
@@ -461,14 +461,14 @@ class calc:
         See also `calc.eager_mapcall`, `calc.lazy_call`, and `calc.eager_call`.
         """
         # Note that all the args must be dictionaries, so we make copies of them
-        # if they're not frozen dictionaries. This prevents later modifications
-        # from affecting the results downstream.
-        args = [d if is_fdict(d) else dict(d) for d in args]
-        # First, create a delay for the actual call:
-        calldel = delay(self.eager_mapcall, *args, **kwargs)
+        # if they're not persistent dictionaries. This prevents later
+        # modifications from affecting the results downstream.
+        args = [d if is_pdict(d) else dict(d) for d in args]
+        # First, create a lazy for the actual call:
+        calldel = lazy(self.eager_mapcall, *args, **kwargs)
         # Then make a lazy map of all the outputs, each of which pulls from this
-        # delay object to get its values.
-        return ldict({k: delay(lambda k: calldel()[k], k)
+        # lazy object to get its values.
+        return ldict({k: lazy(lambda k: calldel()[k], k)
                       for k in self.outputs})
     def mapcall(self, *args, **kwargs):
         """Calls the calculation and returns the results dictionary.
@@ -487,16 +487,16 @@ class calc:
     def _tr_map(tr, m):
         if m is None: return None
         is_ld = is_ldict(m)
-        it = m.rawitems() if is_ld else m.items()
+        it = (m.transient() if is_ld else m).items()
         d = {tr.get(k,k): v for (k,v) in it}
         if is_ld: return ldict(d)
-        else: return fdict(d)
+        else: return pdict(d)
     @staticmethod
     def _tr_tup(tr, t):
         return None if t is None else tuple(tr.get(k,k) for k in t)
     @staticmethod
     def _tr_set(tr, t):
-        return None if t is None else frozenset(tr.get(k,k) for k in t)
+        return None if t is None else pset(tr.get(k,k) for k in t)
     def tr(self, *args, **kwargs):
         """Returns a copy of the calculation with translated inputs and outputs.
         
@@ -540,7 +540,7 @@ class calc:
             # We may need to untranslate some of the keys.
             kwargs = {r.get(k,k):v for (k,v) in kwargs.items()}
             res = fn(*args, **kwargs)
-            if is_map(res):
+            if is_amap(res):
                 return calc._tr_map(d, res)
             else:
                 return res
@@ -582,7 +582,7 @@ def is_calc(arg):
     return isinstance(arg, calc)
 
 # plan #########################################################################
-class plan(frozendict):
+class plan(pdict):
     '''Represents a directed acyclic graph of calculations.
     
     The `plan` class encapsulates individual functions that require parameters
@@ -591,11 +591,11 @@ class plan(frozendict):
     specifying their parameters; they always return a dictionary of the values
     they calculate, even if they calculate only a single value.
 
-    Superficially, a `plan` is a `frozendict` object whose values must all be
-    `calc` objects. However, under the hood, every `plan` object maintains a
-    directed acyclic graph of dependencies of the inputs and outputs of the
-    calculation objects such that it can create `plandict` objects that reify
-    the outputs of the various calculations lazily.
+    Superficially, a `plan` is a `pdict` object whose values must all be `calc`
+    objects. However, under the hood, every `plan` object maintains a directed
+    acyclic graph of dependencies of the inputs and outputs of the calculation
+    objects such that it can create `plandict` objects that reify the outputs of
+    the various calculations lazily.
 
     The keys that are used in a plan must be strings and must obey the following
     rules:
@@ -619,40 +619,40 @@ class plan(frozendict):
 
     Attributes
     ----------
-    inputs : frozenset of str
-        A frozenset of the input parameter names, as defined by the plan's
+    inputs : pset of strs
+        A pset of the input parameter names, as defined by the plan's
         calculations.
-    outputs : frozenset of str
-        A frozenset of the output parameter names, as defined by the plan's
+    outputs : pset of strs
+        A pset of the output parameter names, as defined by the plan's
         calculations.
     calcs : tuple of str
         A tuple of the caclulation names of the normal (non-filter and
         non-default) calculations in the plan.
-    defaults : frozendict
-        A frozendict whose keys are input parameter names and whose values are
+    defaults : pdict
+        A pdict whose keys are input parameter names and whose values are
         the default values of the associated parameter. Inputs that don't have
         default values are not included.
-    calc_defaults : frozendict
-        A frozendict similar to `defaults` but limited to the defaults listed
+    calc_defaults : pdict
+        A pdict similar to `defaults` but limited to the defaults listed
         in the `defaults` of the calculations (i.e., the default values in the
         argument lists of the calculations). When two calculations at the same
         layer in the plan (see `plan.layers`) have different default values for
         the same input parameter, then one of them is chosen, but which is not
         defined.
-    dependencies : frozendict
-        A frozendict whose keys are each of the output value names from the
+    dependencies : pdict
+        A pdict whose keys are each of the output value names from the
         plan's calculations and whose values are tuples of the input value names
         that the associated output value depends on.
-    dependants : frozendict
-        A frozendict whose keys are each of the input value names from the
+    dependants : pdict
+        A pdict whose keys are each of the input value names from the
         plan's calculations and whose values are tuples of the output value
         names that depend on the associated input value.
-    filters : frozendict
-        A frozendict whose keys are the input value names of all inputs that
+    filters : pdict
+        A pdict whose keys are the input value names of all inputs that
         have defined filters in the plan and whose values are the filter calc
         for the associated input.
-    requirements : frozendict
-        A frozendict whose keys are the required calculations of the plan and
+    requirements : pdict
+        A pdict whose keys are the required calculations of the plan and
         whose values are tuples of the names of the input parameters they
         require.
     layers : tuple of plan.Layer tuples
@@ -662,14 +662,15 @@ class plan(frozendict):
         layer of the plan; the `calcs` are the calculations that can run using
         those inputs; and the `outputs` are the output values that are newly
         available after that layer of the plan is calculated.
-    input_docs : frozendict
+    input_docs : pdict
         A dictionary whose keys are input parameter names and whose values are
         the combined documentation for the associated parameter across all
         calculations in the plan.
-    output_docs : frozendict
+    output_docs : pdict
         A dictionary whose keys are output value names and whose values are the
         combined documentation for the associated outputs across all
         calculations in the plan.
+
     '''
     Layer = namedtuple('PlanLayer', ('inputs', 'calcs', 'outputs'))
     __slots__ = ('inputs', 'outputs', 'defaults', 'calc_defaults',
@@ -698,9 +699,8 @@ class plan(frozendict):
         return tc_rparams
     # Constructor
     def __init__(self, *args, **kwargs):
-        # We ignore the arguments because they are handled by frozendict's
-        # __new__ method.
-        # We need to start by building up the graph of dependencies.
+        # We ignore the arguments because they are handled by pdict's __new__
+        # method.  We need to start by building up the graph of dependencies.
         deps = defaultdict(lambda:set([]))
         inputs = set([])
         outputs = set([])
@@ -762,22 +762,22 @@ class plan(frozendict):
         params = inputs - outputs
         # Next, we want to make the layers of the calculation. Layers represent
         # the required order of execution of the calculation plan. Each layer is
-        # a tuple of three frozensets: (input_names, calc_names,
+        # a tuple of three psets: (input_names, calc_names,
         # new_output_names). The calc_names are the names of the calculations
         # that require input from only the layers above this layer while the
         # new_output_names are the values that are available after this layer of
         # calculations has been run. The first layer, layers[0], is special in
-        # that it is always (frozenset([]), noinput_calcs, inputs |
+        # that it is always (pset([]), noinput_calcs, inputs |
         # noinput_calc_outputs) where noinput_calcs are the calculations that
         # don't require any input parameters, and noinput_calc_outputs are the
         # outputs of those calcs.
         params_sofar = params | noinput_calc_outputs
-        params = frozenset(params)
-        noinput_calcs = frozenset(noinput_calcs)
+        params = pset(params)
+        noinput_calcs = pset(noinput_calcs)
         calc_defaults = {}
-        layers = [plan.Layer(frozenset([]),
+        layers = [plan.Layer(pset([]),
                              noinput_calcs,
-                             frozenset(params_sofar))]
+                             pset(params_sofar))]
         allcalcs = noinput_calcs | normal_calcs
         while len(normal_calcs) > 0:
             (calcs, vals) = (set([]), set([]))
@@ -793,9 +793,9 @@ class plan(frozendict):
             if not params_sofar.isdisjoint(vals):
                 isect = tuple(params_sofar.intersection(vals))
                 raise ValueError(f"dependency loop detected: {isect}")
-            layer = plan.Layer(frozenset(params_sofar),
-                               frozenset(calcs),
-                               frozenset(vals))
+            layer = plan.Layer(pset(params_sofar),
+                               pset(calcs),
+                               pset(vals))
             layers.append(layer)
             # We have some postprocessing to do on the calcs that were added to
             # this layer.
@@ -826,7 +826,7 @@ class plan(frozendict):
             if c.inputs:
                 for inp in c.inputs:
                     cdeps.update(tc_params.get(inp, ()))
-            calctc_params[k] = frozenset(cdeps)
+            calctc_params[k] = pset(cdeps)
         calctc_rparams = plan._tc_params_to_rparams(calctc_params)
         # Finally, collect all the input and output documentations.
         input_docs = {k: [] for k in params} # Just the params, not all inputs
@@ -855,21 +855,21 @@ class plan(frozendict):
                     if len(s) > 80: s = s[77] + '...'
                     output_docs[out].append(s + '\n' + doc)
         connectfn = lambda v: '\n---\n'.join(v)
-        input_docs = fdict(valmap(connectfn, input_docs))
-        output_docs = fdict(valmap(connectfn, output_docs))
+        input_docs = pdict(valmap(connectfn, input_docs))
+        output_docs = pdict(valmap(connectfn, output_docs))
         # Okay, set everything in the object.
-        object.__setattr__(self, 'inputs', frozenset(params))
-        object.__setattr__(self, 'outputs', frozenset(outputs))
+        object.__setattr__(self, 'inputs', pset(params))
+        object.__setattr__(self, 'outputs', pset(outputs))
         object.__setattr__(self, 'defaults', merge(calc_defaults, defaults))
-        object.__setattr__(self, 'calc_defaults', fdict(calc_defaults))
-        object.__setattr__(self, 'dependencies', fdict(tc_params))
-        object.__setattr__(self, 'dependants', fdict(tc_rparams))
-        object.__setattr__(self, 'calc_dependencies', fdict(calctc_params))
-        object.__setattr__(self, 'dependant_calcs', fdict(calctc_rparams))
-        object.__setattr__(self, 'calc_sources', fdict(calc_src))
+        object.__setattr__(self, 'calc_defaults', pdict(calc_defaults))
+        object.__setattr__(self, 'dependencies', pdict(tc_params))
+        object.__setattr__(self, 'dependants', pdict(tc_rparams))
+        object.__setattr__(self, 'calc_dependencies', pdict(calctc_params))
+        object.__setattr__(self, 'dependant_calcs', pdict(calctc_rparams))
+        object.__setattr__(self, 'calc_sources', pdict(calc_src))
         object.__setattr__(self, 'calcs', tuple(allcalcs))
-        object.__setattr__(self, 'filters', fdict(filts))
-        object.__setattr__(self, 'requirements', frozenset(reqs))
+        object.__setattr__(self, 'filters', pdict(filts))
+        object.__setattr__(self, 'requirements', pset(reqs))
         object.__setattr__(self, 'layers', tuple(layers))
         object.__setattr__(self, 'input_docs', input_docs)
         object.__setattr__(self, 'output_docs', output_docs)
@@ -905,7 +905,7 @@ def is_plan(arg):
 
 # #plandict ####################################################################
 class plandict(ldict):
-    """A frozen dictionary type that manages the outputs of executing a plan.
+    """A persistent dict type that manages the outputs of executing a plan.
 
     `plandict(plan, params)` instantiates a plan object with the given dict-like
     object of parameters, `params`.
@@ -939,11 +939,11 @@ class plandict(ldict):
     ----------
     plan : plan
         The plan object on which this plandict is based.
-    inputs : frozendict
+    inputs : pdict
         The parameters that fulfill the plan. Note that these are the only keys
         in the `plandict` that can be updated using methods like `set` and
         `setdefault`.
-    calcs : frozendict
+    calcs : pdict
         A `lazydict` whose keys are the calculation names from `plan` and whose
         values are the `lazydict`s that result from running the associated
         calculation with this `plandict`'s parameters.
@@ -951,7 +951,12 @@ class plandict(ldict):
     __slots__ = ('plan', 'inputs', 'calcs')
     @staticmethod
     def _run_calc(plan, calc, mutvals):
-        return calc.eager_mapcall({k: undelay(mutvals[k]) for k in calc.inputs})
+        d = {}
+        for k in calc.inputs:
+            u = mutvals[k]
+            if isinstance(u, lazy): u = u()
+            d[k] = u
+        return calc.eager_mapcall(d)
     @staticmethod
     def _run_filt(filt, params, k):
         res = filt.eager_mapcall({k: params[k]})
@@ -980,7 +985,7 @@ class plandict(ldict):
         # (lazily) through the filters.
         params = merge(plan.defaults, *args, **kwargs)
         if plan.filters:
-            new_params = {k: (delay(plandict._run_filt, filt, params, k)
+            new_params = {k: (lazy(plandict._run_filt, filt, params, k)
                               if filt.lazy else
                               plandict._run_filt(filt, params, k))
                           for (k,filt) in plan.filters.items()}
@@ -997,18 +1002,20 @@ class plandict(ldict):
         # we need to be able to pass the calcs the delays that we will make
         # after them, so we use a mutable dict as a hack.
         mut_values = {}
-        calcs = ldict({k: delay(plandict._run_calc, plan, plan[k], mut_values)
+        calcs = ldict({k: lazy(plandict._run_calc, plan, plan[k], mut_values)
                        for k in plan.calcs})
         # Go ahead and run the 
         # The outputs come from these.
-        outputs = {k: delay(plandict._get_val, calcs, plan.calc_sources[k], k)
+        outputs = {k: lazy(plandict._get_val, calcs, plan.calc_sources[k], k)
                    for k in plan.outputs}
         outputs = ldict(outputs)
         # We now want to run all the required calculations.
         # We now have everything we need--go ahead and instantiate the lazydict.
         values = merge(params, outputs)
-        mut_values.update(values.rawitems() if is_ldict(values) else values)
-        self = fdict.__new__(cls, values.rawitems())
+        values = values.transient() if is_ldict(values) else values
+        valitems = values.items()
+        mut_values.update(valitems)
+        self = super(plandict, cls).__new__(cls, valitems)
         # And set our special member-values.
         object.__setattr__(self, 'plan', plan)
         object.__setattr__(self, 'inputs', params)
@@ -1031,7 +1038,7 @@ class plandict(ldict):
         # (lazily) through the filters.
         params = merge(plan.defaults, *args, **kwargs)
         if plan.filters:
-            new_params = {k: (delay(plandict._run_filt, filt, params, k)
+            new_params = {k: (lazy(plandict._run_filt, filt, params, k)
                               if filt.lazy else
                               plandict._run_filt(filt, params, k))
                           for (k,filt) in plan.filters.items()
@@ -1051,19 +1058,20 @@ class plandict(ldict):
         # Like in _new_from_plan above, we need to make a dict of the (lazy)
         # calculations first, and we do so using a mutable dict as a hack.
         mut_values = {}
-        new_calcs = {k: delay(plandict._run_calc, plan, plan[k], mut_values)
+        new_calcs = {k: lazy(plandict._run_calc, plan, plan[k], mut_values)
                      for k in depcalcs}
         new_calcs = ldict(new_calcs)
-        new_outs = {k: delay(plandict._get_val, new_calcs,
-                             plan.calc_sources[k], k)
+        new_outs = {k: lazy(plandict._get_val, new_calcs,
+                            plan.calc_sources[k], k)
                     for k in depouts}
         new_outs = ldict(new_outs)
         params = merge(pd.params, new_params)
         values = merge(pd, new_params, new_outs)
         calcs = merge(pd.calcs, new_calcs)
-        mut_values.update(values.rawitems())
+        valitems = (values.transient() if is_ldict(values) else values).items()
+        mut_values.update(valitems)
         # We now have everything we need--go ahead and instantiate the lazydict.
-        self = fdict.__new__(cls, values.rawitems())
+        self = super(plandict, cls).__new__(cls, valitems)
         # And set our special member-values.
         object.__setattr__(self, 'plan', plan)
         object.__setattr__(self, 'inputs', params)
