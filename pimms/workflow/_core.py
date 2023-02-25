@@ -774,7 +774,8 @@ class plan(pdict):
         # outputs of those calcs.
         params_sofar = params | noinput_calc_outputs
         params = pset(params)
-        print('     ', params)
+        print('     ', list(iter(params._idx)))
+        print('     ', list(iter(params._els)))
         noinput_calcs = pset(noinput_calcs)
         calc_defaults = {}
         layers = [plan.Layer(pset([]),
