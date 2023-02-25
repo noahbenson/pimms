@@ -760,6 +760,7 @@ class plan(pdict):
         # Now that we have all inputs and all outputs, we can find the input
         # parameters by removing the outputs from the inputs.
         params = inputs - outputs
+        print(' *** ', inputs, '->', outputs, ' *** ')
         # Next, we want to make the layers of the calculation. Layers represent
         # the required order of execution of the calculation plan. Each layer is
         # a tuple of three psets: (input_names, calc_names,
@@ -773,6 +774,7 @@ class plan(pdict):
         # outputs of those calcs.
         params_sofar = params | noinput_calc_outputs
         params = pset(params)
+        print('     ', params)
         noinput_calcs = pset(noinput_calcs)
         calc_defaults = {}
         layers = [plan.Layer(pset([]),
