@@ -834,7 +834,8 @@ class plan(pdict):
         # For the params, start with their filters.
         for (k,filt) in filts.items():
             if k not in params:
-                raise ValueError(f"filter for {k}, which is not a param")
+                msg = f"filter for {k}, which is not in params: {params}"
+                raise ValueError(msg)
             try: doc = filt.__doc__
             except Exception: doc = None
             if doc:
