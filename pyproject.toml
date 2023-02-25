@@ -1,0 +1,47 @@
+[project]
+name = "pimms"
+version = "1.0.0rc1"
+description = "Python Immutable Scientific Library"
+authors = [
+    {name="Noah C. Benson", email="nben@uw.edu"}
+]
+license = {"text"="MIT"}
+readme = "README.md"
+requires-python = ">=3.6"
+
+keywords = ["persistent", "immutable", "functional", "scientific", "workflow"]
+
+classifiers = [
+    'Intended Audience :: Science/Research',
+    'Intended Audience :: Developers',
+    'License :: OSI Approved :: MIT License',
+    'Programming Language :: Python :: 3',
+    'Programming Language :: Python :: 3.7',
+    'Programming Language :: Python :: 3.8',
+    'Programming Language :: Python :: 3.9',
+    'Programming Language :: Python :: 3.10',
+    'Programming Language :: Python :: 3.11',
+    'Topic :: Software Development',
+    'Topic :: Software Development :: Libraries',
+    'Topic :: Software Development :: Libraries :: Python Modules',
+    'Topic :: Scientific/Engineering',
+    'Topic :: Scientific/Engineering :: Information Analysis',
+    'Operating System :: Microsoft :: Windows',
+    'Operating System :: POSIX',
+    'Operating System :: Unix',
+    'Operating System :: MacOS'
+]
+
+dependencies = [
+    "pcollections >= 0.2.0",
+    "numpy >= 1.20.3",
+    "scipy >= 1.7.3",
+    "pint >= 0.18.0",
+    "docrep >= 0.3.2",
+    "joblib >= 1.1.0"
+]
+
+[project.urls]
+homepage = "https://github.com/noahbenson/pimms"
+documentation = "https://github.com/noahbenson/pimms"
+repository = "https://github.com/noahbenson/pimms"
