@@ -773,9 +773,12 @@ class plan(pdict):
         # don't require any input parameters, and noinput_calc_outputs are the
         # outputs of those calcs.
         params_sofar = params | noinput_calc_outputs
+        tup1 = ('a' in params, 'b' in params, 'c' in params)
         params = pset(params)
+        tup2 = ('a' in params, 'b' in params, 'c' in params)
         print('     ', list(iter(params._idx)))
         print('     ', list(iter(params._els)))
+        print('   - ', tup1, tup2)
         noinput_calcs = pset(noinput_calcs)
         calc_defaults = {}
         layers = [plan.Layer(pset([]),
