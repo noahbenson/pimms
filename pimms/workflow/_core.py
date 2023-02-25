@@ -845,6 +845,8 @@ class plan(pdict):
                 print(' -> ', k, (k == 'a', k == 'b', k == 'c'))
                 print(' .. ', {el: k == el for el in params})
                 print('    ', hash(k), tup1, tup2)
+                print('    ', list(iter(params._idx)))
+                print('    ', list(iter(params._els)))
                 msg = f"filter for {k}, which is not in params: {params}"
                 raise ValueError(msg)
             try: doc = filt.__doc__
