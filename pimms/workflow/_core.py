@@ -775,6 +775,7 @@ class plan(pdict):
         params_sofar = params | noinput_calc_outputs
         tup1 = ('a' in params, 'b' in params, 'c' in params)
         params = pset(params)
+        paramstmp = params
         tup2 = ('a' in params, 'b' in params, 'c' in params)
         print('     ', list(iter(params._idx)))
         print('     ', list(iter(params._els)))
@@ -840,6 +841,9 @@ class plan(pdict):
         # For the params, start with their filters.
         for (k,filt) in filts.items():
             if k not in params:
+                print("\n", "=" * 60)
+                print(' -> ', k in params, k in paramstmp, params is paramstmp)
+                print('    ', tup1, tup2)
                 msg = f"filter for {k}, which is not in params: {params}"
                 raise ValueError(msg)
             try: doc = filt.__doc__
