@@ -1,4 +1,4 @@
-pcollections >= 0.2.0
+pcollections >= 0.2.2
 scipy >= 1.5.0
 pint >= 0.20.0
 docrep >= 0.3.2
