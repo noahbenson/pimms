@@ -1144,8 +1144,12 @@ def to_tcoll(obj, copy=True):
     """
     if not copy and is_tcoll(obj):
         return obj
-    if isinstance(obj, (plist, pset, pdict)):
+    if isinstance(obj, (PersistentList, PersistentSet, PersistentMapping)):
         return obj.transient()
+    elif isinstance(obj, (TransientList, TransientSet, TransientMapping)):
+        # This makes a duplicate but prevents tldicts from becoming tdicts and
+        # tllists from becoming tlists.
+        return obj.persistent().transient()
     elif isinstance(obj, Sequence):
         return tlist(obj)
     elif isinstance(obj, Set):
@@ -1572,7 +1576,7 @@ def merge(*args, **kw):
     for d in args[1:]:
         if is_ldict(d):
             lazy = True
-            res.update(d.transient().items())
+            res.update(d.to_pdict())
         else:
             res.update(d)
     res.update(kw)
@@ -1597,7 +1601,7 @@ def rmerge(*args, **kw):
     for d in reversed(args):
         if is_ldict(d):
             lazy = True
-            res.update(d.transient())
+            res.update(d.to_pdict())
         else:
             res.update(d)
     res.update(kw)
@@ -1715,7 +1719,7 @@ def lambdadict(*args, **kwargs):
     """
     d = merge(*args, **kwargs)
     finals = d.transient()
-    for (k,v) in d.transient().items():
+    for (k,v) in d.to_pdict().items():
         if isinstance(v, LambdaType):
             finals[k] = lazy(_lambdadict_call, finals, v)
         else:

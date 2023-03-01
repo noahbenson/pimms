@@ -209,17 +209,23 @@ class TestWorkflowCore(TestCase):
         pd = nwm(x=[-1.0, 1.0, 2.0, 8.5], mu=1.5)
         self.assertIsInstance(pd, plandict)
         self.assertEqual(len(pd), 5)
-        # Because we put a (lazy) filter on x, that input would normally be lazy
-        # while the rest would normally not be. However, since the calculation
-        # of weights is non-lazy, everything it requires, including x, will be
-        # non-lazy.
-        self.assertFalse(pd.is_lazy('x'))
+        # There is a filter on x, which dictates that x be a lazy value
+        # but immediately cached (ready).
+        self.assertTrue(pd.is_lazy('x'))
+        self.assertTrue(pd.is_ready('x'))
+        # In this case, because we have a non-lazy calc (normal_pdf), all of
+        # that calc's inputs are also automatically ready (this is not a
+        # surprise--its other inputs are plain params so are not lazy objects).
         self.assertFalse(pd.is_lazy('mu'))
         self.assertFalse(pd.is_lazy('std'))
-        # The weights outputs should be eager because it was declared to be
+        self.assertTrue(pd.is_ready('mu'))
+        self.assertTrue(pd.is_ready('std'))
+        # The weights outputs should be ready because it was declared to be
         # non-lazy; the mean should remain lazy, though.
-        self.assertFalse(pd.is_lazy('weights'))
+        self.assertTrue(pd.is_lazy('weights'))
+        self.assertTrue(pd.is_ready('weights'))
         self.assertTrue(pd.is_lazy('mean'))
+        self.assertFalse(pd.is_ready('mean'))
         # It will have converted the x value into an array.
         self.assertIsInstance(pd['x'], np.ndarray)
         self.assertTrue(np.array_equal(pd['x'], [-1, 1, 2, 8.5]))

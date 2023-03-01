@@ -487,7 +487,7 @@ class calc:
     def _tr_map(tr, m):
         if m is None: return None
         is_ld = is_ldict(m)
-        it = (m.transient() if is_ld else m).items()
+        it = (m.to_pdict() if is_ld else m).items()
         d = {tr.get(k,k): v for (k,v) in it}
         if is_ld: return ldict(d)
         else: return pdict(d)
@@ -760,7 +760,6 @@ class plan(pdict):
         # Now that we have all inputs and all outputs, we can find the input
         # parameters by removing the outputs from the inputs.
         params = inputs - outputs
-        print(' *** ', inputs, '->', outputs, ' *** ')
         # Next, we want to make the layers of the calculation. Layers represent
         # the required order of execution of the calculation plan. Each layer is
         # a tuple of three psets: (input_names, calc_names,
@@ -773,13 +772,7 @@ class plan(pdict):
         # don't require any input parameters, and noinput_calc_outputs are the
         # outputs of those calcs.
         params_sofar = params | noinput_calc_outputs
-        tup1 = ('a' in params, 'b' in params, 'c' in params)
         params = pset(params)
-        paramstmp = params
-        tup2 = ('a' in params, 'b' in params, 'c' in params)
-        print('     ', list(iter(params._idx)))
-        print('     ', list(iter(params._els)))
-        print('   - ', tup1, tup2)
         noinput_calcs = pset(noinput_calcs)
         calc_defaults = {}
         layers = [plan.Layer(pset([]),
@@ -841,12 +834,6 @@ class plan(pdict):
         # For the params, start with their filters.
         for (k,filt) in filts.items():
             if k not in params:
-                print("\n", "=" * 60)
-                print(' -> ', k, (k == 'a', k == 'b', k == 'c'))
-                print(' .. ', {el: k == el for el in params})
-                print('    ', hash(k), tup1, tup2)
-                #print('    ', list(iter(params._idx)))
-                print('    ', list(iter(params._els)))
                 msg = f"filter for {k}, which is not in params: {params}"
                 raise ValueError(msg)
             try: doc = filt.__doc__
@@ -1026,7 +1013,7 @@ class plandict(ldict):
         # We now want to run all the required calculations.
         # We now have everything we need--go ahead and instantiate the lazydict.
         values = merge(params, outputs)
-        values = values.transient() if is_ldict(values) else values
+        values = values.to_pdict() if is_ldict(values) else values
         valitems = values.items()
         mut_values.update(valitems)
         self = super(plandict, cls).__new__(cls, valitems)
@@ -1082,7 +1069,7 @@ class plandict(ldict):
         params = merge(pd.params, new_params)
         values = merge(pd, new_params, new_outs)
         calcs = merge(pd.calcs, new_calcs)
-        valitems = (values.transient() if is_ldict(values) else values).items()
+        valitems = (values.to_pdict() if is_ldict(values) else values).items()
         mut_values.update(valitems)
         # We now have everything we need--go ahead and instantiate the lazydict.
         self = super(plandict, cls).__new__(cls, valitems)
