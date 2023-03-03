@@ -7,7 +7,7 @@ authors = [
 ]
 license = {"text"="MIT"}
 readme = "README.md"
-requires-python = ">=3.6"
+requires-python = ">=3.7"
 
 keywords = ["persistent", "immutable", "functional", "scientific", "workflow"]
 
