@@ -33,7 +33,7 @@ classifiers = [
 ]
 
 dependencies = [
-    "pcollections >= 0.2.4",
+    "pcollections >= 0.2.5",
     "numpy >= 1.20.3",
     "scipy >= 1.7.3",
     "pint >= 0.18.0",
