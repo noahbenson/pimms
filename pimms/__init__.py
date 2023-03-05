@@ -38,6 +38,8 @@ declaring workflows and immutable data-structures with full inheritance support.
 from .doc      import *
 from .util     import *
 from .workflow import *
+# We want the version object from the ._version namespace.
+from ._version import version
 # Import the Global UnitRegistry object to the global pimms scope. This is the
 # value that gets updated when one runs `pimms.default_ureg()`, and this is the
 # UnitRegistry that is used as the default registry for all `pimms` functions.
@@ -60,7 +62,8 @@ submodules = ('pimms.doc._core',
               'pimms.util',
               'pimms.workflow._core',
               'pimms.workflow._plantype',
-              'pimms.workflow')
+              'pimms.workflow',
+              'pimms._version')
 """tuple: a list of all pimms subpackage names in load-order.
 
 `pimms.submodules` is a tuple of strings, each of which is the name of one of
@@ -87,7 +90,6 @@ __all__ = [
     k for k in locals()
     if k[0] != '_'
     if k != 'reload_pimms'
-    if k != 'description'
     if k != 'submodules'
     if ('pimms.' + k) not in submodules
 ]
