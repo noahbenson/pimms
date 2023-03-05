@@ -8,19 +8,18 @@ base_path = os.path.dirname(__file__)
 with open(os.path.join(base_path, 'requirements.txt'), 'r') as fl:
     requirements = fl.read().split('\n')
     requirements = [k for k in requirements if k.strip() != '']
-with open(os.path.join(base_path, 'pimms', '__init__.py'), 'r') as fl:
-    init_lines = fl.read().split('\n')
+with open(os.path.join(base_path, 'pyproject.toml'), 'r') as fl:
+    toml_lines = fl.read().split('\n')
 version = None
-desc = None
-for ln in init_lines:
-    if ln.startswith('__version__ = '):
-        version = ln.split("'")
-        if len(version) != 3: version = ln.split('"')
-        version = version[1]
-    elif ln.startswith('description = '):
-        desc = ln.split("'")
-        if len(desc) != 3: desc = ln.split('"')
-        desc = desc[1]
+for ln in toml_lines:
+    ln = ln.strip()
+    if ln.startswith('version = '):
+        version = ln.split('"')[1]
+        break
+with open(os.path.join(base_path, 'pimms', '__init__.py'), 'r') as fl:
+    init_text = fl.read()
+desc = init_text.split("'''")[1]
+
 setup(
     name='pimms',
     version=version,
