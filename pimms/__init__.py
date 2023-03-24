@@ -37,6 +37,7 @@ declaring workflows and immutable data-structures with full inheritance support.
 #
 from .doc      import *
 from .util     import *
+from .pathlib  import *
 from .workflow import *
 # We want the version object from the ._version namespace.
 from ._version import version
@@ -60,6 +61,10 @@ submodules = ('pimms.doc._core',
               'pimms.util._numeric',
               'pimms.util._quantity',
               'pimms.util',
+              'pimms.pathlib._osf',
+              'pimms.pathlib._cache',
+              'pimms.pathlib._core',
+              'pimms.pathlib',
               'pimms.workflow._core',
               'pimms.workflow._plantype',
               'pimms.workflow',
