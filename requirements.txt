@@ -4,3 +4,4 @@ scipy >= 1.5.0
 pint >= 0.18.0
 docrep >= 0.3.2
 joblib >= 1.1.0
+cloudpathlib[s3,gs,azure] >= 0.13.0
