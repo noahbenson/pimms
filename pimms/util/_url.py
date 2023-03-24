@@ -6,7 +6,7 @@
 
 # Dependencies #################################################################
 
-import urllib
+import urllib, shutil
 from pathlib import Path
 
 
