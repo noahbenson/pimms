@@ -264,7 +264,7 @@ class OSFClient(Client):
                  mkdir_mode=0o775):
         super().__init__(
             file_cache_mode=file_cache_mode,
-            local_cache_dir=Path(local_cache_dir),
+            local_cache_dir=local_cache_dir,
             content_type_method=content_type_method)
         # Currently, root must always be '/' (it's not in the options list).
         root = '/'
