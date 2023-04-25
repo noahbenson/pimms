@@ -75,7 +75,7 @@ def reload_pimms():
 
 # Package Meta-Code ############################################################
 
-__version__ = '1.0.0rc1'
+__version__ = version.string
 __all__ = [
     k for k in locals()
     if k[0] != '_'
