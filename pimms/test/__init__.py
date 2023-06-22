@@ -63,6 +63,7 @@ class TestPimms(unittest.TestCase):
         tpred(pimms.is_pmap, [lm,pm], [qr,qi,mr,vi,sr,si,l,u,b,f0,f1,d])
         # Numpy types require a little attention due to their optional arguments and the
         # complexities of the type relationships
+        self.assertTrue(pimms.is_nparray(qr))
         tpred(pimms.is_nparray, [qr,qi,mr,vi,sr], [l,lx,u,b,f0,f1,d,pm,lm])
         self.assertTrue(pimms.is_nparray(qr, 'real'))
         self.assertTrue(pimms.is_nparray(qr, 'any', 1))
@@ -271,7 +272,7 @@ class TestPimms(unittest.TestCase):
             self.assertEqual(len(set(lm.itermemoized())), len(lazy_ks))
             self.assertEqual(len(set(lm.iterlazy())), 0)
             # it should be an error to delete anything or set anything
-            for k in (lm.keys() + ['random_key1', 'random_key2']):
+            for k in (list(lm.keys()) + ['random_key1', 'random_key2']):
                 with self.assertRaises(TypeError): lm[k] = 10
                 with self.assertRaises(TypeError): del lm[k]
         # Okay, we can test a few lazy maps now:

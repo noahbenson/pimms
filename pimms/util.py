@@ -61,7 +61,8 @@ def is_unit(q):
         except Exception: return False
     else:
         cls = type(q)
-        return cls.__module__.startswith('pint.') and cls.__name__ == 'Unit'
+        mod = cls.__module__
+        return (mod == 'pint' or mod.startswith('pint.')) and cls.__name__ == 'Unit'
 def is_quantity(q):
     '''
     is_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) and False
@@ -71,7 +72,8 @@ def is_quantity(q):
         return len(q) == 2 and is_unit(q[1])
     else:
         cls = type(q)
-        return cls.__module__.startswith('pint.') and cls.__name__ == 'Quantity'
+        mod = cls.__module__
+        return (mod == 'pint' or mod.startswith('pint.')) and cls.__name__ == 'Quantity'
 def unit(u):
     '''
     unit(u) yields the pimms-library unit object for the given unit object u (which may be from a
@@ -83,10 +85,10 @@ def unit(u):
     if u is None:    return None
     elif is_unit(u): return getattr(units, str(u))
     elif is_quantity(u):
-        if isinstance(u, tuple): return getattr(units, str(u[1]))
-        else: return getattr(units, str(u.u))
+        if isinstance(u, tuple): return unit(str(u[1]))
+        else: return unit(str(u.u))
     else:
-        raise ValueError('unrecotnized unit argument')
+        raise ValueError('unrecognized unit argument: ' + repr(u))
 def mag(val, u=Ellipsis):
     '''
     mag(scalar) yields scalar for the given scalar (numeric value without a unit).
@@ -478,8 +480,8 @@ def is_str(arg):
       False otherwise. 
     '''
     return (isinstance(arg, six.string_types) or
-            is_npscalar(arg, 'string') or
-            is_npvalue(arg, 'string'))
+            (isinstance(arg, np.ndarray) and (is_npscalar(arg, 'string') or
+                                              is_npvalue(arg, 'string'))))
 def is_class(arg):
     '''
     is_class(x) yields True if x is a class object and False otherwise.
@@ -632,8 +634,15 @@ def is_nparray(u, dtype=None, dims=None):
     elif not isinstance(u, np.ndarray): return False
     # it's an array... check dtype
     if dtype is not None:
-        if (not any(np.issubdtype(u.dtype, d) for d in numpy_type(dtype)) and
-            not any(np.issubdtype(u.dtype, np.dtype(d)) for d in numpy_type(dtype))):
+        npt = numpy_type(dtype)
+        a = False
+        for d in numpy_type(dtype):
+            if not (isinstance(d, np.dtype) or issubclass(d, np.generic)):
+                d = np.dtype(d)
+            if np.issubdtype(u.dtype, d):
+                a = True
+                break
+        if not a:
             return False
     # okay, the dtype is fine; check the dims
     if dims is None: return True
