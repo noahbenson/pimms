@@ -493,6 +493,7 @@ _numpy_type_names = {'bool':    (np.bool_,),
                      'int':     (np.integer, np.bool_),
                      'integer': (np.integer, np.bool_),
                      'float':   (np.floating, np.integer, np.bool_),
+                     'floating':(np.floating, np.integer, np.bool_),
                      'real':    (np.floating, np.integer, np.bool_),
                      'complex': (np.number,),
                      'number':  (np.number,),
@@ -554,19 +555,20 @@ def numpy_type(type_id):
     elif type_id is object:                  return _numpy_type_names['object']
     elif np.issubdtype(type_id, np.generic): return (type_id,)
     else: raise ValueError('Could not deduce numpy type for %s' % type_id)
-_numpy_best_type_names = {'bool':    np.bool_,
-                          'int':     np.integer,
-                          'integer': np.integer,
-                          'float':   np.floating,
-                          'real':    np.floating,
-                          'complex': np.complex_,
-                          'number':  np.complex_,
-                          'string':  (np.bytes_ if six.PY2 else np.unicode_),
-                          'unicode': np.unicode_,
-                          'bytes':   np.bytes_,
-                          'chars':   np.character,
-                          'object':  np.object_,
-                          'any':     np.object_}
+_numpy_best_type_names = {'bool':    np.bool_ if six.PY2 else bool,
+                          'int':     np.int_ if six.PY2 else int,
+                          'integer': np.int_ if six.PY2 else int,
+                          'float':   np.float_ if six.PY2 else float,
+                          'floating':np.float_ if six.PY2 else float,
+                          'real':    np.float_ if six.PY2 else float,
+                          'complex': np.complex_ if six.PY2 else complex,
+                          'number':  np.complex_ if six.PY2 else complex,
+                          'string':  np.bytes_ if six.PY2 else str,
+                          'unicode': np.unicode_ if six.PY2 else str,
+                          'bytes':   np.bytes_ if six.PY2 else bytes,
+                          'chars':   np.dtype('S1'),
+                          'object':  np.object_ if six.PY2 else object,
+                          'any':     np.object_ if six.PY2 else object}
 def numpy_best_type(type_id):
     '''
     numpy_best_type(type) yields a single valid numpy type that can best represent the type
@@ -599,9 +601,17 @@ def numpy_best_type(type_id):
     if is_str(type_id):
         return _numpy_best_type_names[type_id.lower()]
     elif isinstance(type_id, (list, tuple)):
-        return tuple([dt for s in type_id for dt in numpy_type(s)])
+        return tuple([numpy_best_type(s) for s in type_id])
     elif type_id is None:
         return _numpy_best_type_names['any']
+    elif isinstance(type_id, np.dtype):
+        return type_id.type
+    elif np.issubdtype(type_id, np.generic):
+        if   type_id is np.integer:  return _numpy_best_type_names['int']
+        elif type_id is np.floating: return _numpy_best_type_names['float']
+        elif type_id is np.cfloat:   return _numpy_best_type_names['complex']
+        elif type_id is np.number:   return _numpy_best_type_names['complex']
+        else: return type_id
     elif type_id in six.integer_types:       return _numpy_best_type_names['int']
     elif type_id is float:                   return _numpy_best_type_names['float']
     elif type_id is numbers.Real:            return _numpy_best_type_names['real']
@@ -612,7 +622,6 @@ def numpy_best_type(type_id):
     elif type_id is unicode:                 return _numpy_best_type_names['unicode']
     elif type_id is bytes:                   return _numpy_best_type_names['bytes']
     elif type_id is object:                  return _numpy_best_type_names['object']
-    elif np.issubdtype(type_id, np.generic): return type_id
     else: raise ValueError('Could not deduce numpy best-type for %s' % type_id)
 
 def is_nparray(u, dtype=None, dims=None):
