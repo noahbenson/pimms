@@ -6,7 +6,7 @@
 import copy, types, os, sys, re, warnings, pickle, pint, six
 import pyrsistent as ps, numpy as np
 from functools import reduce
-from .util  import (merge, is_pmap, is_str, is_map, is_lazy_map, is_vector, is_quantity, quant, mag,
+from .util  import (merge, is_pmap, is_str, is_map, is_lazy_map, is_vector, quant, mag,
                     units, qhash, save, load, is_nparray, getargspec_py27like, cache_filename,
                     cache_lmap, qhashform)
 from .table import (itable, is_itable)

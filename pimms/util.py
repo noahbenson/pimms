@@ -68,12 +68,23 @@ def is_quantity(q):
     is_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) and False
       otherwise.
     '''
-    if isinstance(q, tuple):
-        return len(q) == 2 and is_unit(q[1])
+    cls = type(q)
+    if issubclass(pint.Quantity, cls):
+        return True
     else:
-        cls = type(q)
         mod = cls.__module__
         return (mod == 'pint' or mod.startswith('pint.')) and cls.__name__ == 'Quantity'
+def like_quantity(q):
+    '''
+    like_quantity(q) yields True if q is a pint quantity or a tuple (scalar, unit) that could be
+      converted into a quantity and False otherwise.
+    '''
+    if is_quantity(q):
+        return True
+    elif isinstance(q, tuple):
+        return len(q) == 2 and is_unit(q[1])
+    else:
+        return False
 def unit(u):
     '''
     unit(u) yields the pimms-library unit object for the given unit object u (which may be from a
@@ -85,8 +96,9 @@ def unit(u):
     if u is None:    return None
     elif is_unit(u): return getattr(units, str(u))
     elif is_quantity(u):
-        if isinstance(u, tuple): return unit(str(u[1]))
-        else: return unit(str(u.u))
+        return unit(str(u.u))
+    elif like_quantity(u):
+        return unit(str(u[1]))
     else:
         raise ValueError('unrecognized unit argument: ' + repr(u))
 def mag(val, u=Ellipsis):
@@ -100,8 +112,9 @@ def mag(val, u=Ellipsis):
     The quant arguments in the above list may be replaced with (scalar, unit) as in (10, 'degrees')
     or (14, 'mm'). Note that mag always translates all lists and tuples into numpy ndarrays.
     '''
-    if not is_quantity(val): return val
-    if isinstance(val, tuple):
+    if not like_quantity(val):
+        return val
+    if not is_quantity(val):
         val = units.Quantity(val[0], val[1])
     return val.m if u is Ellipsis else val.to(unit(u)).m
 def imm_array(q):
@@ -110,7 +123,7 @@ def imm_array(q):
       read-only numpy array, then it is returned as-is; if it is not, then it is cast copied to a
       numpy array, duplicated, the read-only flag is set on the new object, and then it is returned.
     '''
-    if is_quantity(q):
+    if like_quantity(q):
         m = mag(q)
         mm = imm_array(m)
         return q if mm is m else units.Quantity(mm, unit(q))
@@ -129,18 +142,20 @@ def quant(val, u=Ellipsis):
       conversion; otherwise, x must be a quantity whose unit can be converted into the unit u.
     '''
     if is_quantity(val):
-        if isinstance(val, tuple) or val._REGISTRY is not units:
+        if val._REGISTRY is not units:
             val = units.Quantity(mag(val), unit(val))
-        return val if u is Ellipsis or u is None else val.to(unit(u))
+    elif like_quantity(val):
+        val = units.Quantity(mag(val), unit(val))
     else:
         return units.Quantity(val, units.dimensionless if u is Ellipsis or u is None else unit(u))
+    return val if u is Ellipsis or u is None else val.to(unit(u))
 def iquant(val, u=Ellipsis):
     '''
     iquant(...) is equivalent to quant(...) except that the magnitude of the return value is always
       a read-only numpy array object.
     '''
     if u is not Ellipsis and u is not None: u = unit(u)
-    if is_quantity(val):
+    if like_quantity(val):
         uu = unit(val)
         if u is Ellipsis or u == uu:
             # no conversion necessary; might be able to reuse old array
@@ -162,8 +177,8 @@ def like_units(a, b):
     like_units(a,b) yields True if a and b can be cast to each other in terms of units and False
       otherwise. Non-united units are considered dimensionless units.
     '''
-    a = quant(0.0, a) if is_unit(a) else a if is_quantity(a) else quant(a, units.dimensionless)
-    b = quant(0.0, b) if is_unit(b) else b if is_quantity(b) else quant(b, units.dimensionless)
+    a = quant(0.0, a) if is_unit(a) else a if like_quantity(a) else quant(a, units.dimensionless)
+    b = quant(0.0, b) if is_unit(b) else b if like_quantity(b) else quant(b, units.dimensionless)
     if a == b: return True
     try:
         c = a.to(b.u)
@@ -795,7 +810,7 @@ def is_int(arg):
       standard Python integer types as well as numpy single integer arrays (i.e., where
       x.shape == ()) and quantities with integer magnitudes.
     '''
-    return (is_int(mag(arg)) if is_quantity(arg)                   else
+    return (is_int(mag(arg)) if like_quantity(arg)                 else
             True             if isinstance(arg, six.integer_types) else
             is_npscalar(arg, 'int') or is_npvalue(arg, 'int'))
 def is_float(arg):
@@ -806,7 +821,7 @@ def is_float(arg):
     Note that is_float(i) will yield True for an integer or bool i; to check for floating-point
     representations of numbers, use is_array(x, numpy.floating) or similar.
     '''
-    return (is_float(mag(arg)) if is_quantity(arg)       else
+    return (is_float(mag(arg)) if like_quantity(arg)     else
             True               if isinstance(arg, float) else
             is_npscalar(arg, 'real') or is_npvalue(arg, 'real'))
 def is_real(arg):
@@ -816,7 +831,7 @@ def is_real(arg):
     Note that is_real(i) will yield True for an integer or bool i; to check for floating-point
     representations of numbers, use is_array(x, numpy.floating) or similar.
     '''
-    return (is_real(mag(arg)) if is_quantity(arg)       else
+    return (is_real(mag(arg)) if like_quantity(arg)     else
             True              if isinstance(arg, float) else
             is_npscalar(arg, 'real') or is_npvalue(arg, 'real'))
 def is_inexact(arg):
@@ -824,7 +839,7 @@ def is_inexact(arg):
     is_inexact(x) yields True if x is a number represented by floating-point data (i.e., either a
       non-integer real number or a complex number) and False otherwise.
     '''
-    return (is_inexact(mag(arg)) if is_quantity(arg) else
+    return (is_inexact(mag(arg)) if like_quantity(arg) else
             is_npscalar(u, np.inexact) or is_npvalue(arg, np.inexact))
 def is_complex(arg):
     '''
@@ -832,14 +847,14 @@ def is_complex(arg):
       includes anything representable as as a complex number such as an integer or a boolean value.
       In effect, this makes this function an alias for is_number(arg).
     '''
-    return (is_complex(mag(arg)) if is_quantity(arg)                 else
+    return (is_complex(mag(arg)) if like_quantity(arg)               else
             True                 if isinstance(arg, numbers.Complex) else
             is_npscalar(arg, 'complex') or is_npvalue(arg, 'complex'))
 def is_number(arg):
     '''
     is_number(x) yields True if x is a numeric object and False otherwise.
     '''
-    return (is_number(mag(arg)) if is_quantity(arg)              else
+    return (is_number(mag(arg)) if like_quantity(arg) else
             is_npscalar(arg, 'number') or is_npvalue(arg, 'number'))
 def is_map(arg):
     '''
@@ -1230,7 +1245,7 @@ def is_persistent(arg):
     from .immutable import (is_imm, imm_is_persistent)
     if is_imm(arg): return imm_is_persistent(arg)
     elif isinstance(arg, (np.generic, np.ndarray)): return not arg.flags.writeable
-    elif is_quantity(arg) and isinstance(mag(arg), (np.generic, np.ndarray)):
+    elif like_quantity(arg) and isinstance(mag(arg), (np.generic, np.ndarray)):
         return not mag(arg).flags.writable
     elif is_str(arg): return True
     elif is_number(arg): return True

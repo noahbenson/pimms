@@ -8,9 +8,9 @@ import numpy                      as     np
 import pyrsistent                 as     ps
 from   functools                  import reduce
 from   .util                      import (merge, is_pmap, is_map, LazyPMap, lazy_map, is_lazy_map,
-                                          is_quantity, is_unit, is_str, is_int, is_vector,
-                                          quant, iquant, mag, unit, qhash, units, imm_array,
-                                          getargspec_py27like, rmerge)
+                                          is_quantity, like_quantity, is_unit, is_str, is_int,
+                                          is_vector, quant, iquant, mag, unit, qhash, units,
+                                          imm_array, getargspec_py27like, rmerge)
 from   .immutable                 import (immutable, value, param, require, option)
 
 if sys.version_info[0] == 3: from   collections import abc as colls
@@ -74,7 +74,7 @@ class ITable(colls.Mapping):
         return qhash(self.data)
     def __getstate__(self):
         d = self.__dict__.copy()
-        d['data'] = {k:(mag(v), unit(v)) if is_quantity(v) else (v, None)
+        d['data'] = {k:(mag(v), unit(v)) if like_quantity(v) else (v, None)
                      for (k,v) in six.iteritems(self.data)}
         return d
     def __setstate__(self, d):
@@ -88,7 +88,7 @@ class ITable(colls.Mapping):
         '_filter_col(vec) yields a read-only numpy array version of the given column vector'
         if isinstance(vec, types.FunctionType) and getargspec_py27like(vec)[0] == []:
             return lambda:ITable._filter_col(vec())
-        elif is_quantity(vec):
+        elif like_quantity(vec):
             m = mag(vec)
             mm = ITable._filter_col(m)
             return vec if m is mm else quant(mm, unit(vec))

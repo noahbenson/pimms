@@ -126,7 +126,7 @@ from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lm
                           is_nparray, is_npscalar, is_npvector, is_npmatrix, is_npvalue,
                           is_array, is_scalar, is_vector, is_matrix,
                           is_tuple, is_list, is_set, is_seq, is_pseq,
-                          is_int, is_float, is_real, is_complex, is_number,
+                          is_int, is_float, is_real, is_complex, is_number, like_quantity,
                           is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
                           imm_array, qhashform, qhash, digest, save, load, io_formats, persist,
                           assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)

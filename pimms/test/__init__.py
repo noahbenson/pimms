@@ -115,7 +115,8 @@ class TestPimms(unittest.TestCase):
         tpred(pimms.is_number, [vi[0],si,1,10,sr], [u,b,f0,f1,d,pm,lm,lx,mr,qr])
         tpred(pimms.is_str, ['abc'], [vi,si,1,10,sr,qr,f0,f1,d,pm,lm,lx,mr])
         tpred(pimms.is_class, [str,int], [vi,si,1,10,sr,qr,u,b,f0,f1,d,pm,lm,lx,mr])
-        tpred(pimms.is_quantity, [qr,qi,si], [vi,10,sr,u,b,f0,f1,d,pm,lm,lx,mr])
+        tpred(pimms.is_quantity, [qr,qi,si], [vi,10,sr,u,b,f0,f1,d,pm,lm,lx,mr,(10,'mm')])
+        tpred(pimms.like_quantity, [(10,'mm'),qr,qi,si], [vi,10,sr,u,b,f0,f1,d,pm,lm,lx,mr])
         tpred(pimms.is_unit,
               ('seconds', 's', 'mm', 'deg', pimms.units.seconds, pimms.units.s, pimms.units.mm,
                pimms.units.deg),
