@@ -355,7 +355,7 @@ def quant(mag, unit=Ellipsis, ureg=None):
     else:
         return q
 @docwrap
-def mag(val, unit=Ellipsis):
+def mag(val, unit=Ellipsis, strict=False):
     """Returns the magnitude of the given object.
 
     `mag(quantity)` returns the magnitude of the given quantity, regardless of
@@ -384,6 +384,12 @@ def mag(val, unit=Ellipsis):
         native unit, if any, should be used. A value of `None` indicates that
         the `val` must have no units (i.e., not be a quantity), otherwise an
         exception is raised.
+    strict : boolean, optional
+        Whether strict matching of the unit is performed. If `False` (the
+        default), then a non-quantity (such as a plain numpy array) is treated
+        as a quantity whose unit is the type passed in the `unit` parameter; if
+        `True`, then `val` must be compatible with the `unit` parameter or an
+        error is raised.
 
     Returns
     -------
@@ -397,7 +403,8 @@ def mag(val, unit=Ellipsis):
         If the given `val` is a quantity whose unit is not compatible with the
         `unit` parameter.
     ValueError
-        If `unit` is None but `val` is a quantity.
+        If `unit` is None but `val` is a quantity or if a unit is requested of a
+        non-quantity with the `strict` option enabled.
     """
     if is_quant(val):
         if unit is None:
@@ -406,9 +413,11 @@ def mag(val, unit=Ellipsis):
             return val.m
         else:
             return val.m_as(unit)
-    else:
-        return val
-
+    elif strict is True:
+        if unit is not None:
+            raise ValueError(
+                f"unit '{unit}' does not strictly match non-quantity")
+    return val
 
 # Promotion ####################################################################
 def _array_promote(*args, ureg=None):
@@ -446,19 +455,33 @@ def promote(*args, ureg=None):
         A list of the arguments after each has been promoted.
     """
     if ureg is None: from pimms import units as ureg
-    # We can start by converting the args into a list of quantities.
-    qs = [quant(arg, ureg=ureg) for arg in args]
+    # We can start by making sure that the quants in the args use ureg
+    if ureg is not None:
+        args = [
+            (quant(arg, ureg=ureg) if is_quant(arg, ureg=ureg) else
+             arg                   if torch.is_tensor(arg)     else
+             arg                   if scipy__is_sparse(arg)    else
+             np.asarray(arg))
+            for arg in args]
     # Basic question: are any of them tensors?
-    first_tensor = next((q for q in qs if torch.is_tensor(q.m)), None)
+    first_tensor = next(
+        (a for a in args
+         if (is_quant(a) and torch.is_tensor(a.m)) or torch.is_tensor(a)),
+        None)
     # If there isn't any, qs is fine as-is.
-    if first_tensor is None: return qs
+    if first_tensor is None: return args
     device = first_tensor.device
     # Otherwise, we need to turn them all into tensors like this one.
-    for (ii,q) in enumerate(qs):
+    for (ii,q) in enumerate(args):
         if q is first_tensor: continue
-        mag = q.m
-        mag = to_tensor(mag, device=device)
-        if mag is not q.m:
-            qs[ii] = q.__class__(mag, q.u)
+        if is_quant(q):
+            mag = q.m
+            mag = to_tensor(mag, device=device)
+            if mag is not q.m:
+                args[ii] = q.__class__(mag, q.u)
+        else:
+            mag = to_tensor(q, device=device)
+            if mag is not q:
+                args[ii] = mag
     # That's all that is needed.
-    return qs
+    return args

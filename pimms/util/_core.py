@@ -1296,7 +1296,7 @@ def get(d, *args, **kw):
         default = None
     if len(kw) > 0:
         k = repr(next(iter(kw.keys())))
-        raise TypeError(f"nestget() got an unexpected keyword argument {k}")
+        raise TypeError(f"get() got an unexpected keyword argument {k}")
     if isinstance(d, Mapping):
         if k in d:
             return d[k]
@@ -1318,7 +1318,7 @@ def get(d, *args, **kw):
 def nestget(d, *args, **kw):
     """Returns a value from a data structure of nested mappings and sequences.
 
-    The `nget` function is essentially a nested version of the `get` method
+    The `nestget` function is essentially a nested version of the `get` method
     that works for both `Mapping` and `Sequence` types (e.g., `dict`s, `list`s,
     `tuple`s, and related types that implement these abstract bases).
 
@@ -1458,7 +1458,7 @@ def keymap(f, d, *args, **kwargs):
     returnd.
     """
     if is_ldict(d):
-        return lazykeymap(d)
+        return lazykeymap(f, d, *args, **kwargs)
     elif is_pdict(d):
         t = tdict()
         for k in d.keys():
