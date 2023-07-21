@@ -421,7 +421,7 @@ def mag(val, unit=Ellipsis, strict=False):
 
 # Promotion ####################################################################
 def _array_promote(*args, ureg=None):
-    return [to_array(el, quant=True, ureg=ureg) for el in args]
+    return [to_array(el, ureg=ureg) for el in args]
 @alttorch(_array_promote)
 @docwrap
 def promote(*args, ureg=None):
