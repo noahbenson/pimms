@@ -222,7 +222,7 @@ class planobject(plantype.planobject_base, metaclass=plantype):
     def __hash__(self):
         return hash((type(self), self.__plandict__.inputs))
     def copy(self, **kwargs):
-        """Creates a copy of the plabobject with optional parameter updates.
+        """Creates a copy of the planobject with optional parameter updates.
         """
         pd = plandict(self.__plandict__, **kwargs)
         obj = object.__new__(cls)

@@ -46,7 +46,7 @@ from ..util import (is_pdict, is_str, is_number, is_tuple, is_dict, is_ldict,
 def to_pathcache(obj):
     """Returns a joblib.Memory object that corresponds to the given path object.
 
-    `to_pathcache(obj)` converts the giveb object `obj` into a `joblib.Memory`
+    `to_pathcache(obj)` converts the given object `obj` into a `joblib.Memory`
     cache manager. The object may be any of the following:
      * a `joblib.Memory` object;
      * a filename or pathlib object pointing to a directory; or
@@ -473,9 +473,13 @@ class calc:
     def mapcall(self, *args, **kwargs):
         """Calls the calculation and returns the results dictionary.
 
-        `c.call(...)` is an alias for `c(...)`.
+        `c.mapcall(map1, map2..., key1=val1, key2=val2...)` returns the
+        result of calling the calculation `c(...)` using the parameters found in
+        the provided mappings and key-value pairs. All arguments of `mapcall`
+        are merged left-to-right using `pimms.merge` then passed to `c.function`
+        as required by it.
 
-        See also `calc.mapcall`, `calc.eager_call`, and `calc.lazy_call`.
+        See also `calc.lazy_mapcall`, `calc.eager_mapcall`, and `calc.call`.
         """
         if self.lazy: return self.lazy_mapcall(*args, **kwargs)
         else:         return self.eager_mapcall(*args, **kwargs)
