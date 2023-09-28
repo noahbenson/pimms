@@ -16,6 +16,7 @@ from ._osf  import (
     OSFPath,
 )
 from ._core import (
+    pathstr,
     filepath,
     s3path,
     gspath,
@@ -33,10 +34,16 @@ from ._core import (
     like_azpath,
     like_gspath,
     like_osfpath,
+    like_path,
+    # Symbols that aren't exported via __all__:
+    PathTypeRecord,
+    pathtypes,
+    pathtype,
 )
 __all__ = [
     "OSFClient",
     "OSFPath",
+    "pathstr",
     "filepath",
     "s3path",
     "gspath",
@@ -54,4 +61,5 @@ __all__ = [
     "like_azpath",
     "like_gspath",
     "like_osfpath",
+    "like_path",
 ]

@@ -14,11 +14,11 @@ from cloudpathlib import (CloudPath,
                           S3Path, AzureBlobPath, GSPath,
                           S3Client, AzureBlobClient, GSClient)
 
-from   ..doc      import docwrap
-from   ..util     import (is_str, is_amap, is_aseq, strstarts, strends)
+from ..doc        import docwrap
+from ..util       import (is_str, is_amap, is_aseq, strstarts, strends)
 
-from   ._osf      import (OSFClient, OSFPath)
-from   ._cache    import CloudCachePath
+from ._osf        import (OSFClient, OSFPath)
+from ._cache      import CloudCachePath
 
 
 # Global Values ################################################################
@@ -60,7 +60,7 @@ is_windows_drive.__doc__ = \
 
 @docwrap
 def pathstr(obj):
-    """Returns a string representation of a path.
+    """Returns a string or bytes representation of a path.
 
     `pathstr(obj)` returns `obj` itself if `obj` is either a `str` or `bytes`
     object. If `obj` is a `CloudPath` object, then `str(obj)` is returned. 
@@ -117,6 +117,7 @@ def like_osfpath(obj):
         return True
     url = urlparse(pathstr(obj))
     return bool(url.scheme == 'osf' and url.netloc)
+@docwrap
 def osfpath(obj, *args,
             client=None,
             cache_path=Ellipsis,
@@ -256,6 +257,7 @@ def like_s3path(obj):
         return True
     url = urlparse(pathstr(obj))
     return bool(url.scheme == 's3' and url.netloc)
+@docwrap
 def s3path(obj, *args, **kwargs):
     """Creates and returns an `S3Path` representing an AWS S3 repository.
 
@@ -359,6 +361,7 @@ def like_gspath(obj):
         return True
     url = urlparse(pathstr(obj))
     return bool(url.scheme == 'gs' and url.netloc)
+@docwrap
 def gspath(obj, *args, **kwargs):
     """Creates and returns an `GSPath` representing a Google Storage repository.
 
@@ -464,6 +467,7 @@ def like_azpath(obj):
         return True
     url = urlparse(pathstr(obj))
     return bool(url.scheme == 'az' and url.netloc)
+@docwrap
 def azpath(obj, *args, **kwargs):
     """Creates and returns an `AzureBlobPath` representing an Azure repository.
 
@@ -572,14 +576,14 @@ def like_filepath(obj):
 def filepath(p, *args):
     """Returns a local `Path` object for the given path if possible.
 
-    The `fspath` function is intended to coerce remote paths (such as the
+    The `filepath` function is intended to coerce remote paths (such as the
     S3 or OSF paths managed through the `cloudpathlib.CloudPath` class) into
     paths representing their local caches. If a local file is requested, then it
     is always downloaded before the `Path` is returned. For directories, the
     cache directory itself will always exist, but no such guarantee is made
     about its contents.
 
-    If the argument to `fspath` is a string and not a path object, then
+    If the argument to `filepath` is a string and not a path object, then
     it is converted into a path via the `pimms.path` function.
 
     Parameters
@@ -625,7 +629,7 @@ pathtypes = dict(
     file=PathTypeRecord(filepath, is_filepath, like_filepath, lambda path:path))
 scheme_sep = '://'
 @docwrap
-def pathtype(path, default='file'):
+def pathtype(path, default='file', encoding='utf-8'):
     """Given a path, returns the pathtype record and remaining path.
 
     This is an internal function that looks up the pathtype for a path from the
@@ -641,6 +645,9 @@ def pathtype(path, default='file'):
     default : object, optional
         The scheme that is assumed if no scheme is specified (i.e., `str(path)`
         does not begin with `'<scheme>://'`. By default this is `'file'`.
+    encoding : str, optional
+        The encoding to use if the path argument is a `bytes` object; the
+        default is `'utf-8'`.
 
     Returns
     -------
@@ -652,6 +659,8 @@ def pathtype(path, default='file'):
     KeyError
         If the scheme of the the given path is not recognized.
     """
+    if isinstance(path, bytes):
+        path = path.decode('utf-8')
     spath = pathstr(path)
     if scheme_sep not in spath:
         scheme = default
@@ -685,10 +694,40 @@ def is_path(p):
     except KeyError:
         return False
     return pt.isfn(p)
+@docwrap
+def like_path(p):
+    """Detects whether an object is either like a `Path` or `CloudPath` object.
+
+    Both `Path` and `CloudPath` object abstractly represent paths, but they do
+    not share a subclass. `like_path` tests whether an object's type is a
+    subclass of any of path types recognized by `pimms` or is a string or bytes
+    object that could be converted into a path. Additional path types can be
+    registered by adding `pimms.pathlib.PathTypeRecord` instances to the
+    `pimms.pathlib.pathtypes` dictionary. The key for such a record should be
+    the string prefix for the path type (such as `'s3'` for an `S3Path` type).
+
+    Parameters
+    ----------
+    p : object
+        The object whose quality as a path-like object is to be assessed.
+
+    Returns
+    -------
+    boolean
+        `True` if `p` has a type that is recognized by `pimms` as a path type
+        or is an object that can be converted into a path type and `False`
+        otherwise.
+    """
+    try:
+        pt = pathtype(p)
+    except KeyError:
+        return False
+    return pt.likefn(p)
 
 
 # path #########################################################################
 
+@docwrap
 def path(arg0, *args, **kwargs):
     """Convenience function for instantiating `Path` objects.
 
