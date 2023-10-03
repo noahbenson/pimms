@@ -19,6 +19,7 @@ declaring workflows and immutable data-structures with full inheritance support.
 from .doc      import *
 from .util     import *
 from .pathlib  import *
+from .iolib    import *
 from .workflow import *
 # We want the version object from the ._version namespace.
 from ._version import version
@@ -38,20 +39,23 @@ temporarily changed in a local block using `with pimms.default_ureg(ureg): ...`.
 
 # Modules/Reloading ############################################################
 
-submodules = ('pimms.doc._core',
-              'pimms.doc',
-              'pimms.util._core',
-              'pimms.util._numeric',
-              'pimms.util._quantity',
-              'pimms.util',
-              'pimms.pathlib._osf',
-              'pimms.pathlib._cache',
-              'pimms.pathlib._core',
-              'pimms.pathlib',
-              'pimms.workflow._core',
-              'pimms.workflow._plantype',
-              'pimms.workflow',
-              'pimms._version')
+submodules = (
+    'pimms.doc._core',
+    'pimms.doc',
+    'pimms.util._core',
+    'pimms.util._numeric',
+    'pimms.util._quantity',
+    'pimms.util',
+    'pimms.pathlib._osf',
+    'pimms.pathlib._cache',
+    'pimms.pathlib._core',
+    'pimms.pathlib',
+    'pimms.iolib._core',
+    'pimms.iolib',
+    'pimms.workflow._core',
+    'pimms.workflow._plantype',
+    'pimms.workflow',
+    'pimms._version')
 """tuple: a list of all pimms subpackage names in load-order.
 
 `pimms.submodules` is a tuple of strings, each of which is the name of one of
@@ -76,10 +80,9 @@ def reload_pimms():
 # Package Meta-Code ############################################################
 
 __version__ = version.string
-__all__ = [
-    k for k in locals()
-    if k[0] != '_'
-    if k != 'reload_pimms'
-    if k != 'submodules'
-    if ('pimms.' + k) not in submodules
-]
+__all__ = tuple(
+    [k for k in locals()
+     if k[0] != '_'
+     if k != 'reload_pimms'
+     if k != 'submodules'
+     if ('pimms.' + k) not in submodules])
