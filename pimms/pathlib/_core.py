@@ -4,7 +4,7 @@
 
 # Dependencies #################################################################
 
-import os, sys, tarfile, tempfile, platform
+import os, sys, tempfile, platform
 from urllib.parse import urlparse
 from collections  import namedtuple
 from pathlib      import (Path, PurePath)
