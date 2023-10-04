@@ -256,7 +256,7 @@ class OSFClient(Client):
                 raise FileNotFoundError(f"No such directory: {repr(p)}")
             contents = contents[p]
         return contents
-    def __init__(self, project, storage='osfstorage',
+    def __init__(self, project='xxxxx', storage='osfstorage',
                  file_cache_mode=None,
                  local_cache_dir=None,
                  content_type_method=mimetypes.guess_type,
@@ -399,6 +399,10 @@ class OSFPath(CloudPath):
                  file_cache_mode=Ellipsis,
                  mkdir_mode=Ellipsis,
                  pagesize=Ellipsis):
+        # Needed at the top of the init, see the CloudPath __init__ method in
+        # cloudpath.py in cloudpathlib.
+        self._handle = None
+        self.client = OSFClient.get_default_client()
         # First validate the path.
         if isinstance(cloud_path, OSFPath):
             if client is None:
@@ -467,6 +471,7 @@ class OSFPath(CloudPath):
                                    mkdir_mode=mkdir_mode,
                                    pagesize=pagesize)
         else:
+            self.client = OSFClient()
             raise TypeError("OSFPaths require OSFClient objects as clients")
         # At this point we have a cloud path and client that are both valid.
         super().__init__(cloud_path, client=client)

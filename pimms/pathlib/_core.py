@@ -604,8 +604,19 @@ def filepath(p, *args):
     if isinstance(p, CloudPath):
         # If p is a CloudPath, we return a path that represents the cache.
         return CloudCachePath(p)
-    if isinstance(p, (str, bytes, os.PathLike, PurePath)):
+    if isinstance(p, (os.PathLike, PurePath)):
         # If p is a path, str, or os.PathLike, we can just return a copy.
+        return Path(p)
+    elif isinstance(p, str):
+        # We need to make sure that it doesn't start with file:// before we pass
+        # this string along.
+        if p.startswith('file://'):
+            p = p[7:]
+        return Path(p)
+    elif isinstance(p, bytes):
+        # Same as above but with bytes.
+        if p.startswith(b'file://'):
+            p = p[7:]
         return Path(p)
     else:
         # Try to convert it to a pathstr then turn it into a path.
