@@ -77,9 +77,10 @@ class TestPathlibCore(TestCase):
                 ps = ps.replace('/', '\\')
             self.assertEqual(pathstr(p), ps)
         # Adding to the path preserves a reasonable string:
-        self.assertEqual(
-            pathstr(paths[0] / "sshd_config"),
-            "/etc/ssh/sshd_config")
+        correct_path = "/etc/ssh/sshd_config"
+        if isinstance(paths[0], WindowsPath):
+            correct_path = correct_path.replace('/', '\\')
+        self.assertEqual(pathstr(paths[0] / "sshd_config"), correct_path)
         # The path and pathstr functions should fail for non-string inputs.
         with self.assertRaises(TypeError):
             path(10)
