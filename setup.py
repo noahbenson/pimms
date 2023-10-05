@@ -52,7 +52,7 @@ setup(
     packages=['pimms.doc', 'pimms.util', 'pimms.workflow',
               'pimms.pathlib', 'pimms.iolib',
               'pimms',
-              'pimms.test.doc', 'pimms.test.util',
+              'pimms.test.doc', 'pimms.test.pathlib', 'pimms.test.util',
               'pimms.test.workflow', 'pimms.test'],
     package_data={'': ['LICENSE.txt']},
     include_package_data=True,
