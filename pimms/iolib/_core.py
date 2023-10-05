@@ -137,7 +137,7 @@ class Save:
             # format from the ending of the dest_str.
             suff = tuple(dest_path.suffixes)
             while suff:
-                format = self.formats.get(suff)
+                format = self._format_by_suffix.get(suff)
                 if format:
                     break
                 suff = suff[1:]
@@ -512,7 +512,7 @@ class Load:
             # format from the ending of the src_str.
             suff = tuple(src_path.suffixes)
             while suff:
-                format = self.formats.get(suff)
+                format = self._format_by_suffix.get(suff)
                 if format:
                     break
                 suff = suff[1:]
