@@ -11,7 +11,7 @@ the `pimms.pathlib._core` module.
 
 from unittest import TestCase
 from tempfile import TemporaryDirectory
-from pathlib  import Path
+from pathlib  import (Path, WindowsPath)
 
 from cloudpathlib import (CloudPath, AzureBlobPath, S3Path, GSPath)
 
@@ -73,6 +73,8 @@ class TestPathlibCore(TestCase):
             # if ps starts with file:// that will get stripped on a normal path.
             if ps.startswith('file://'):
                 ps = ps[7:]
+            if isinstance(p, WindowsPath):
+                ps = ps.replace('/', '\\')
             self.assertEqual(pathstr(p), ps)
         # Adding to the path preserves a reasonable string:
         self.assertEqual(
