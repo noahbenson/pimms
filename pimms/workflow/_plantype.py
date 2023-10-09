@@ -215,7 +215,8 @@ class planobject(plantype.planobject_base, metaclass=plantype):
         param_str = ", ".join(
             f"{k}={pd[k]}" for k in p.inputs)
         rest_str = ", ".join(
-            f"{k}={pd[k] if pd.is_ready(k) else '<lazy>'}" for k in p.outputs)
+            f"{k}={pd[k] if pd.is_ready(k) else '<lazy>'}"
+            for k in p.outputs if not k.startswith('_'))
         cls = type(self)
         return f"{cls.__name__}({param_str}; {rest_str})"
     def __repr__(self):
