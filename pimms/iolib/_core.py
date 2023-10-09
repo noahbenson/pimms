@@ -9,6 +9,7 @@
 
 import os, sys, io, gzip, numbers
 from collections  import namedtuple
+from pathlib import Path
 
 import numpy as np
 from pcollections import pdict, plist, pset, ldict, lazy
@@ -130,6 +131,12 @@ class Formatter:
             suff = suff[1:]
         # No format found.
         return None
+    @staticmethod
+    def _expandall(p):
+        p = path(p)
+        if isinstance(p, Path):
+            p = Path(os.path.expanduser(os.path.expandvars(os.fspath(p))))
+        return p
     def _call(self, target, format, gzip, /, *args, **kwargs):
         if isinstance(target, io.IOBase):
             target_path = None
@@ -138,6 +145,8 @@ class Formatter:
                 gzip = False
         else:
             target_path = path(target)
+            if isinstance(target_path, Path):
+                target_path = Formatter._expandall(target_path)
             target_stream = None
         if format is None:
             if target_path is None:
@@ -583,8 +592,41 @@ class Load(Formatter):
     """
     stream_mode = 'r'
     def __call__(self, src, format=None, /, gzip=Ellipsis, **kwargs):
+        # There's a special case for loading: if we're given a path, and it
+        # refers to a directory, we load it as a lazy dictionary.
+        if format is None:
+            if not isinstance(src, io.IOBase):
+                p = Formatter._expandall(src)
+                if p.is_dir():
+                    format = 'dir'
+        if format == 'dir':
+            return Load.from_dir(src)
         (loadret, saveret) = self._call(src, format, gzip, **kwargs)
         return loadret
+    @staticmethod
+    def from_dir(src, filter=None):
+        """Loads a nested dictionary structure of a directory.
+
+        `Load.from_dir(path)` returns `path` if `path` refers to a file.
+        Alternatively, if `path` refers to a directory, this function returns a
+        lazy dictionary whose keys are the names of the entries in the directory
+        and whose values are the result of calling `Load.from_dir` on their
+        paths.
+        """
+        src = path(src)
+        if src.is_file():
+            raise NotADirectoryError(src)
+        if filter:
+            d = {
+                p.name: (
+                    lazy(Load.from_dir, p, filter=filter) if p.is_dir() else p)
+                for p in src.iterdir()
+                if filter(p)}
+        else:
+            d = {
+                p.name: (lazy(Load.from_dir, p) if p.is_dir() else p)
+                for p in src.iterdir()}
+        return ldict(d)
 
 # We can go ahead and declare a single global save object for the pimms library.
 # We will later use this object to register various basic format types.
