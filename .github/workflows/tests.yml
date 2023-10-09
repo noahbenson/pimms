@@ -96,7 +96,7 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install --upgrade coverage
           python -m pip install -e ".[d]"
-          python -m pip install pandas yaml
+          python -m pip install pandas pyyaml
           #python -m pip install 'torch>=1.7.1'
           python -m pip install --pre 'torch>=1.7.1' --index-url https://download.pytorch.org/whl/nightly/cpu
       - name: Install pimms
