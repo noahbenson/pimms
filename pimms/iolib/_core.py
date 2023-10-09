@@ -7,9 +7,10 @@
 
 # Dependencies #################################################################
 
-import os, sys, io
+import os, sys, io, gzip, numbers
 from collections  import namedtuple
 
+import numpy as np
 from pcollections import pdict, plist, pset, ldict, lazy
 
 from ..doc        import docwrap
@@ -17,9 +18,315 @@ from ..util       import is_str, is_amap, is_aseq, is_real
 from ..pathlib    import path, is_path, like_path
 
 
+# Format and Formatter #########################################################
+
+# The Format class, an inset class for managing the various stream formats.
+class Format:
+    """Manages the details of a stream format for use with `save` and `load`.
+
+    `Format` objects are typically created with the `save.register` or
+    `load.register` methods.  This class should be handled internally but should
+    not be instantiated outside of the `Save` or `Load` classes.
+
+    `Format` objects can be treated as save functions: the `__call__` method
+    on a `Format` object accepts a stream or path-like object representing
+    the destination to which the format should be written, an object to save
+    in the format, and any optional arguments understood by the type.
+    """
+    def __init__(self, name, function, *suffixes, mode='b', gzip_suffix=None):
+        self.name = name
+        self.function = function
+        self.suffixes = []
+        for suff in suffixes:
+            if is_str(suff):
+                suff = (suff,)
+            elif all(is_str, suff):
+                suff = tuple(suff)
+            else:
+                raise ValueError(f"invalid path suffix: {suff}")
+            self.suffixes.append(suff)
+        if mode != 'b' and mode != 't':
+            raise ValueError("format mode must be 't' or 'b'")
+        self.mode = mode
+        if gzip_suffix is None:
+            gzip_suffix = ()
+        elif is_str(gzip_suffix):
+            gzip_suffix = ((gzip_suffix,),)
+        elif is_aseq(gzip_suffix):
+            if all(is_str(s) for s in gzip_suffix):
+                gzip_suffix = tuple((s,) for s in gzip_suffix)
+            else:
+                g = []
+                for suff in gzip_suffix:
+                    if is_str(suff):
+                        g.append((suff,))
+                    elif is_aseq(suff) and all(is_str(s) for s in suff):
+                        g.append(tuple(suff))
+                    else:
+                        raise ValueError(f"invalid gzip suffix: {suff}")
+                gzip_suffix = tuple(g)
+        else:
+            raise ValueError(f"invalid gzip suffix: {gzip_suffix}")
+        self.gzip_suffix = gzip_suffix
+        # We also want to change the documentation.
+        self.__doc__ = self.function.__doc__
+    def __call__(self, stream, stream_mode, *args, **kwargs):
+        # If dest isn't a stream, we need to open it as a path.
+        if isinstance(stream, io.IOBase):
+            return self.function(stream, *args, **kwargs)
+        else:
+            p = path(stream)
+            with p.open(stream_mode + self.mode) as s:
+                return self.function(s, *args, **kwargs)
+class Formatter:
+    """Base class for the Save and Load classes.
+
+    Handles common operations between saving and loading systems.
+    """
+    # The mode use for opening streams from paths ('r' or 'w' typically).
+    stream_mode = ''
+    # Data/Details of the Save/Load classes.
+    __slots__ = ("formats", "_format_by_suffix")
+    # Constructor.
+    def __init__(self, template=None):
+        self.formats = {}
+        self._format_by_suffix = {}
+        if template is not None:
+            cls = type(self)
+            if isinstance(template, cls):
+                formats = template.formats
+            elif is_amap(template):
+                formats = templates
+            else:
+                raise TypeError(f"template must be a {cls} object or a mapping")
+            for (k,format) in formats.items():
+                if not isinstance(format, Format):
+                    raise TypeError(f"template contains non-format named {k}")
+                self.register(format)
+    def deduce_format(self, arg, ignore_gz=True):
+        """Deduces the file format for a given path or suffix.
+
+        `save.deduce_format(arg)` deduces the format implied by `arg`. The
+        argument may be a path, a string representing a path, or a sequence of
+        strings representing the suffixes of the path. If the final suffix is
+        `.gz` then this suffix is ignored.
+        """
+        if is_str(arg):
+            suffixes = path(arg).suffixes
+        elif is_path(arg):
+            suffixes = arg.suffixes
+        elif is_aseq(arg) and all(is_str(s) for s in arg):
+            suffixes = arg
+        else:
+            raise ValueError(
+                f"deduce_format given invalid argument of type {type(arg)}")
+        suff = tuple(suffixes)
+        if ignore_gz and suff[-1] == '.gz':
+            suff = suff[:-1]
+        while suff:
+            format = self._format_by_suffix.get(suff)
+            if format:
+                return format
+            suff = suff[1:]
+        # No format found.
+        return None
+    def _call(self, target, format, gzip, /, *args, **kwargs):
+        if isinstance(target, io.IOBase):
+            target_path = None
+            target_stream = target
+            if gzip is Ellipsis:
+                gzip = False
+        else:
+            target_path = path(target)
+            target_stream = None
+        if format is None:
+            if target_path is None:
+                raise ValueError("format can't be None when target is a stream")
+            # We can walk through the formats and attempt to deduce the correct
+            # format from the ending of the dest_str.
+            format = self.deduce_format(target_path)
+            if not format:
+                raise ValueError(f"format can't be deduced from path: {target}")
+        # At this point we have a format name or we've raised an error.
+        if is_str(format):
+            fmt = self.formats.get(format)
+            if fmt is None:
+                raise ValueError(f"format not recognized: {format}")
+            else:
+                format = fmt
+        elif not isinstance(format, Format):
+            raise TypeError("format arg must be a format name or Format object")
+        # Now we know the format and thus have a format function; if we were
+        # given a path instead of a stream, we need to open the path for the
+        # formatting function. We also need to handle gzipping--if the format is
+        # a gzip format then gzip will be True at this point.
+        if gzip is Ellipsis:
+            suff = tuple(target_path.suffixes)
+            gzip = (target_path.suffix == '.gz') or suff in format.gzip_suffix
+        if gzip is True:
+            if target_stream:
+                with self._gzip(target_stream, format.mode) as act_stream:
+                    r = format.function(act_stream, *args, **kwargs)
+                    return (r, target_stream)
+            else:
+                with target_path.open(self.stream_mode + 'b') as stream:
+                    with self._gzip(stream, format.mode) as act_stream:
+                        r = format.function(act_stream, *args, **kwargs)
+                        return (r, target_path)
+        elif target_stream:
+            r = format.function(target_stream, *args, **kwargs)
+            return (r, target_stream)
+        else:
+            with target_path.open(self.stream_mode + format.mode) as stream:
+                r = format.function(stream, *args, **kwargs)
+            return (r, target_path)
+    def _gzip(self, stream, mode,
+              compresslevel=9,
+              encoding=None,
+              errors=None,
+              newline=None):
+        return gzip.open(
+            stream,
+            mode=(self.stream_mode + mode),
+            compresslevel=compresslevel,
+            encoding=encoding,
+            errors=errors,
+            newline=newline)
+    def register(self, name, /, *suffixes, mode='b', gzip_suffix=None):
+        """Registers a format type with the `save`/`load` interface.
+
+        The `pimms.save.register` method is intended to be used as a decorator:
+        `@pimms.save.register(format_name, suffix1, suffix2...)` ensures that
+        the function that follows it is registered as a format managed by the
+        `pimms.save` system. The function that is decorated should be written to
+        accept a stream object (though the decorator will ensure that it works
+        when called with a path-like object or a stream). The function's
+        signature must always match `f(output_stream, object_to_save, **opts)`
+        where the `**opts` must be any set of named parameters. The return value
+        of the function is ignored, but it should raise an error if the object
+        cannot be saved.
+
+        The `pimms.load.register` method is identical except that the function
+        that follows is not passed an object to load and instead must return the
+        object that is loaded from the given stream.
+
+        Parameters
+        ----------
+        name : str
+            The name of the format.
+        *suffixes : strings or tuples of strings, optional
+            Any number of suffixes that this format uses. Suffixes must be
+            unique, and an error is raised if a requested suffix is already
+            registered to another format. Each suffix may be a string such as
+            `.tgz` or a tuple such as `('.tar', '.gz')`.
+        mode : 't' or 'b', optional
+            Whether any stream that is opened in order to save the file should
+            be opened in text mode (`'t'`) or binary mode (`'b'`). The default
+            is `'b'`.
+        gzip_suffix : None or str or tuple of str
+            A sequence of suffixes that indicate that the format is additionally
+            encoded using gzip. Files that end with `.gz` are automatically
+            interpreted as gzipped files by the `save` system, but if an
+            additional file ending needs to be specified as a gzip format, such
+            as the suffix `.npz` for gzipped-numpy files (equivalent to
+            `.npy.gz`), then it should be specified in this option. If a single
+            string is given (such as `'.npz'`), then it is interpreted as a
+            single suffix (`[['.npz']]`); if a sequence of strings are given
+            (`['.npz', '.nz']`), then they are interpreted as individual
+            suffixes (`[['.npz'], ['.nz']]`). For compound suffixes, they must
+            be elements of a sequence, e.g. `[['.json', '.gz']]` not `['.json',
+            '.gz']`. Note, however, that `[['.json', '.gz']]` is automatically
+            interpreted as a gzip file by virtue of its `.gz` suffix.
+        """
+        # There are actually two uses: (1) that described in the help above and
+        # (2) save.register(format) where format is already a Format object. In
+        # the latter case we aren't a decorator.
+        if isinstance(name, Format):
+            # We're in case 2, so we register this format specifically.
+            format = name
+            if format.name in self.formats:
+                raise RuntimeError(f"format {format.name} already registered")
+            suffs = tuple(format.suffixes) + format.gzip_suffix
+            for suff in suffs:
+                ex = self._format_by_suffix.get(suff)
+                if ex is not None:
+                    raise RuntimeError(
+                        f"suffix {suff} already mapped to format {ex.name}")
+            # We pass the criteria; go ahead and add this format.
+            self.formats[format.name] = format
+            for suff in suffs:
+                self._format_by_suffix[suff] = format
+            # Return the format itself.
+            return format
+        else:
+            # We're in case 1, so we return a decorator for the function.
+            def _formatter_register_dec(f):
+                if isinstance(f, Format):
+                    f = f.function
+                format = Format(
+                    name, f, *suffixes,
+                    mode=mode,
+                    gzip_suffix=gzip_suffix)
+                return self.register(format)
+            return _formatter_register_dec
+        # That's it for the register function.
+    def unregister(self, name, *, error_on_missing=False):
+        """Unregisters the format with the given name from the save/load system.
+
+        The format with the given name is unregistered from the `pimms.save`
+        system, and the `Format` object that is removed is returned. If the
+        format is not found, then `None` is returned, but no error is raised by
+        default.
+
+        The `pimms.load.unregister` method works identically to the `pimms.save`
+        version.
+
+        Parameters
+        ----------
+        name : str
+            The name of the format to unregister.
+        error_on_missing : boolean, optional
+            Whether to throw a `RuntimeError` if the named format is not found
+            in the save manager. By default this is `False`.
+
+        Returns
+        -------
+        Format or None
+            The format object that is unregistered or `None` if the given name
+            was not a registered format.
+
+        Raises
+        ------
+        RuntimeError
+            If the given name does not map to a format in the save manager and
+            the `error_on_missing` option is `True`.
+        """
+        format = self.formats.get(name)
+        if format is None:
+            if error_on_missing:
+                fnnm = type(self).__name__.lower()
+                raise RuntimeError(
+                    f"format {name} not found in pimms {fnnm} system")
+            else:
+                return None
+        # Actually remove things:
+        for suff in (format.suffixes + format.gzip_suffix):
+            del self._format_by_suffix[suff]
+        del self.formats[name]
+        return format
+    def copy(self):
+        """Returns a copy of the given save manager.
+
+        `pimms.save.copy()` can be used to return a copy of the save manager,
+        for instances where a single save manager is not ideal.
+        """
+        cls = type(self)
+        return cls(self)
+
+
 # Save #########################################################################
 
-class Save:
+class Save(Formatter):
     """Saves a Python object to a stream or path then returns the stream/path.
 
     `pimms.save(path, object, format)` saves the given `object` to the given
@@ -67,204 +374,10 @@ class Save:
         If the format is not recognized or if it cannot be deduced from the
         destination object.
     """
-    # The Format class, an inset class for managing the various stream formats.
-    class Format:
-        """Manages the details of a stream format for use with `pimms.save`.
-
-        `Format` objects are typically created with the `save.register` method.
-        This class should be handled internally but should not be instantiated
-        outside of the `Save` class.
-
-        `Format` objects can be treated as save functions: the `__call__` method
-        on a `Format` object accepts a stream or path-like object representing
-        the destination to which the format should be written, an object to save
-        in the format, and any optional arguments understood by the type.
-        """
-        #__slots__ = ("name", "function", "suffixes", "mode")
-        def __init__(self, name, function, *suffixes, mode='b'):
-            self.name = name
-            self.function = function
-            self.suffixes = []
-            for suff in suffixes:
-                if is_str(suff):
-                    suff = (suff,)
-                elif all(is_str, suff):
-                    suff = tuple(suff)
-                else:
-                    raise ValueError(f"invalid path suffix: {suff}")
-                self.suffixes.append(suff)
-            if mode != 'b' and mode != 't':
-                raise ValueError("format mode must be 't' or 'b'")
-            self.mode = mode
-            # We also want to change the documentation.
-            self.__doc__ = self.function.__doc__
-        def __call__(self, dest, obj, **kwargs):
-            # If dest isn't a stream, we need to open it as a path.
-            if isinstance(dest, io.IOBase):
-                self.function(dest, obj, **kwargs)
-            else:
-                dest = path(dest)
-                with dest.open('w' + self.mode) as stream:
-                    self.function(stream, obj, **kwargs)
-            return dest
-    # Details of the Save class itself.
-    __slots__ = ("formats", "_format_by_suffix")
-    def __init__(self, template=None):
-        self.formats = {}
-        self._format_by_suffix = {}
-        if template is not None:
-            if isinstance(template, Save):
-                formats = template.formats
-            elif is_amap(template):
-                formats = templates
-            else:
-                raise TypeError("templates must be a Save object or a mapping")
-            for (k,format) in formats.items():
-                if not isinstance(format, Save.Format):
-                    raise TypeError(f"template contains non-format named {k}")
-                self.register(format)
-    def __call__(self, dest, obj, format=None, /, **kwargs):
-        if isinstance(dest, io.IOBase):
-            dest_path = None
-            dest_stream = dest
-        else:
-            dest_path = path(dest)
-            dest_stream = None
-        if format is None:
-            if dest_path is None:
-                raise ValueError("format cannot be None when dest is a stream")
-            # We can walk through the formats and attempt to deduce the correct
-            # format from the ending of the dest_str.
-            suff = tuple(dest_path.suffixes)
-            while suff:
-                format = self._format_by_suffix.get(suff)
-                if format:
-                    break
-                suff = suff[1:]
-            else:
-                raise ValueError(f"format cannot be deduced from path: {dest}")
-        # At this point we have a format name or we've raised an error.
-        if is_str(format):
-            fmt = self.formats.get(format)
-            if fmt is None:
-                raise ValueError(f"format not recognized: {format}")
-            else:
-                format = fmt
-        elif not isinstance(format, Save.Format):
-            raise TypeError("format arg must be a format name or Format object")
-        # Now we know the format and thus have a format function; if we were
-        # given a path instead of a stream, we need to open the path for the
-        # formatting function.
-        if dest_stream:
-            format.function(dest_stream, obj, **kwargs)
-            return dest_stream
-        else:
-            with dest_path.open('w' + format.mode) as stream:
-                format.function(stream, obj, **kwargs)
-            return dest_path
-        # That concludes the save function!
-    def register(self, name, /, *suffixes, mode='b'):
-        """Registers a format type with the `pimms.save` interface.
-
-        The `pimms.save.register` method is intended to be used as a decorator:
-        `@pimms.save.register(format_name, suffix1, suffix2...)` ensures that
-        the function that follows it is registered as a format managed by the
-        `pimms.save` system. The function that is decorated should be written to
-        accept a stream object (though the decorator will ensure that it works
-        when called with a path-like object or a stream). The function's
-        signature must always match `f(output_stream, object_to_save, **opts)`
-        where the `**opts` must be any set of named parameters. The return value
-        of the function is ignored, but it should raise an error if the object
-        cannot be saved.
-
-        Parameters
-        ----------
-        name : str
-            The name of the format.
-        *suffixes : strings or tuples of strings, optional
-            Any number of suffixes that this format uses. Suffixes must be
-            unique, and an error is raised if a requested suffix is already
-            registered to another format. Each suffix may be a string such as
-            `.tgz` or a tuple such as `('.tar', '.gz')`.
-        mode : 't' or 'b', optional
-            Whether any stream that is opened in order to save the file should
-            be opened in text mode (`'t'`) or binary mode (`'b'`). The default
-            is `'b'`.
-        """
-        # There are actually two uses: (1) that described in the help above and
-        # (2) save.register(format) where format is already a Format object. In
-        # the latter case we aren't a decorator.
-        if isinstance(name, Save.Format):
-            # We're in case 2, so we register this format specifically.
-            format = name
-            if format.name in self.formats:
-                raise RuntimeError(f"format {format.name} already registered")
-            for suff in format.suffixes:
-                ex = self._format_by_suffix.get(suff)
-                if ex is not None:
-                    raise RuntimeError(
-                        f"suffix {suff} already mapped to format {ex.name}")
-            # We pass the criteria; go ahead and add this format.
-            self.formats[format.name] = format
-            for suff in format.suffixes:
-                self._format_by_suffix[suff] = format
-            # Return the format itself.
-            return format
-        else:
-            # We're in case 1, so we return a decorator for the function.
-            def _save_register_dec(f):
-                if isinstance(f, Save.Format):
-                    f = f.function
-                format = Save.Format(name, f, *suffixes, mode=mode)
-                return self.register(format)
-            return _save_register_dec
-        # That's it for the register function.
-    def unregister(self, name, *, error_on_missing=False):
-        """Unregisters the format with the given name from the save system.
-
-        The format with the given name is unregistered from the `pimms.save`
-        system, and the `Format` object that is removed is returned. If the
-        format is not found, then `None` is returned, but no error is raised by
-        default.
-
-        Parameters
-        ----------
-        name : str
-            The name of the format to unregister.
-        error_on_missing : boolean, optional
-            Whether to throw a `RuntimeError` if the named format is not found
-            in the save manager. By default this is `False`.
-
-        Returns
-        -------
-        Format or None
-            The format object that is unregistered or `None` if the given name
-            was not a registered format.
-
-        Raises
-        ------
-        RuntimeError
-            If the given name does not map to a format in the save manager and
-            the `error_on_missing` option is `True`.
-        """
-        format = self.formats.get(name)
-        if format is None:
-            if error_on_missing:
-                raise RuntimeError(f"format {name} not found in save system")
-            else:
-                return None
-        # Actually remove things:
-        for suff in format.suffixes:
-            del self._format_by_suffix[suff]
-        del self.formats[name]
-        return format
-    def copy(self):
-        """Returns a copy of the given save manager.
-
-        `pimms.save.copy()` can be used to return a copy of the save manager,
-        for instances where a single save manager is not ideal.
-        """
-        return Save(self)
+    stream_mode = 'w'
+    def __call__(self, dest, obj, format=None, /, gzip=Ellipsis, **kwargs):
+        (loadret, saveret) = self._call(dest, format, gzip, obj, **kwargs)
+        return saveret
 
 # We can go ahead and declare a single global save object for the pimms library.
 # We will later use this object to register various basic format types.
@@ -323,15 +436,34 @@ def save_pickle(stream, obj, protocol=None, **kwargs):
     """
     import pickle
     pickle.dump(obj, stream, protocol, **kwargs)
+@save.register('numpy', '.npy', '.np', '.numpy', mode='b', gzip_suffix='.npz')
+def save_numpy(stream, obj, **kwargs):
+    """Saves a numpy object to a destination path or stream.
+
+    All keyword options are forwarded to the `numpy.save` function.
+    """
+    import numpy as np
+    np.save(stream, obj, **kwargs)
 def json_default(obj):
     """Converts an object to a json-formattable object or raises TypeError.
     """
-    if is_str(obj) or is_real(obj) or obj is None:
+    if is_str(obj) or obj is None or obj is True or obj is False:
         return obj
+    elif isinstance(obj, numbers.Integral):
+        return int(obj)
+    elif isinstance(obj, numbers.Real):
+        return float(obj)
     elif is_amap(obj):
         return dict(obj)
     elif is_aseq(obj):
         return list(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
+    #elif is_planobject(obj):
+    #    cls = type(obj)
+    #    return {
+    #        '__plantype__': f'{cls.__module__}.{cls.__name__}',
+    #        '__params__': dict(obj.__plandict__.params)}
     else:
         raise TypeError(type(obj))
 @save.register('json', '.json', mode='t')
@@ -347,8 +479,14 @@ def save_json(stream, obj, /, default=json_default, **kwargs):
 def yaml_prepare(obj):
     """Returns a version of the argument that can be JSON/YAML serialized.
     """
-    if is_str(obj) or is_real(obj) or obj is None:
+    if is_str(obj) or obj is None or obj is True or obj is False:
         return obj
+    elif isinstance(obj, numbers.Integral):
+        return int(obj)
+    elif isinstance(obj, numbers.Real):
+        return float(obj)
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
     elif is_amap(obj):
         r = {}
         for (k,v) in obj.items():
@@ -383,7 +521,7 @@ def save_csv(stream, obj, /, index=False, **kwargs):
     obj = pandas.DataFrame(obj)
     obj.to_csv(stream, index=index, **kwargs)
 @save.register('tsv', '.tsv', mode='t')
-def save_tsv(stream, /, sep="\t", index=False, **kwargs):
+def save_tsv(stream, obj, /, sep="\t", index=False, **kwargs):
     """Saves a pandas DataFrame to a TSV file.
 
     All options are passed along to `pandas.DataFrame.to_csv()`. The option
@@ -397,7 +535,7 @@ def save_tsv(stream, /, sep="\t", index=False, **kwargs):
 
 # Load #########################################################################
 
-class Load:
+class Load(Formatter):
     """Loads a Python object from a stream or path then returns the object.
 
     `pimms.load(path, format)` loads a Python object from the given `path` using
@@ -443,200 +581,10 @@ class Load:
         If the format is not recognized or if it cannot be deduced from the
         source.
     """
-    # The Format class, an inset class for managing the various stream formats.
-    class Format:
-        """Manages the details of a stream format for use with `pimms.load`.
-
-        `Format` objects are typically created with the `load.register` method.
-        This class should be handled internally but should not be instantiated
-        outside of the `Load` class.
-
-        `Format` objects can be treated as load functions: the `__call__` method
-        on a `Format` object accepts a stream or path-like object representing
-        the source from which the format should be read and any optional
-        arguments understood by the type. It returns the read object.
-        """
-        #__slots__ = ("name", "function", "suffixes", "mode")
-        def __init__(self, name, function, *suffixes, mode='b'):
-            self.name = name
-            self.function = function
-            self.suffixes = []
-            for suff in suffixes:
-                if is_str(suff):
-                    suff = (suff,)
-                elif all(is_str, suff):
-                    suff = tuple(suff)
-                else:
-                    raise ValueError(f"invalid path suffix: {suff}")
-                self.suffixes.append(suff)
-            if mode != 'b' and mode != 't':
-                raise ValueError("format mode must be 't' or 'b'")
-            self.mode = mode
-            # We also want to change the documentation.
-            self.__doc__ = self.function.__doc__
-        def __call__(self, source, **kwargs):
-            # If dest isn't a stream, we need to open it as a path.
-            if isinstance(source, io.IOBase):
-                return self.function(source, **kwargs)
-            else:
-                source = path(source)
-                with dest.open('r' + self.mode) as stream:
-                    return self.function(stream, **kwargs)
-    # Details of the Save class itself.
-    __slots__ = ("formats", "_format_by_suffix")
-    def __init__(self, template=None):
-        self.formats = {}
-        self._format_by_suffix = {}
-        if template is not None:
-            if isinstance(template, Save):
-                formats = template.formats
-            elif is_amap(template):
-                formats = templates
-            else:
-                raise TypeError("templates must be a Load object or a mapping")
-            for (k,format) in formats.items():
-                if not isinstance(format, Save.Format):
-                    raise TypeError(f"template contains non-format named {k}")
-                self.register(format)
-    def __call__(self, src, format=None, /, **kwargs):
-        if isinstance(src, io.IOBase):
-            src_path = None
-            src_stream = src
-        else:
-            src_path = path(src)
-            src_stream = None
-        if format is None:
-            if src_path is None:
-                raise ValueError("format cannot be None when src is a stream")
-            # We can walk through the formats and attempt to deduce the correct
-            # format from the ending of the src_str.
-            suff = tuple(src_path.suffixes)
-            while suff:
-                format = self._format_by_suffix.get(suff)
-                if format:
-                    break
-                suff = suff[1:]
-            else:
-                raise ValueError(f"format cannot be deduced from path: {src}")
-        # At this point we have a format name or we've raised an error.
-        if is_str(format):
-            fmt = self.formats.get(format)
-            if fmt is None:
-                raise ValueError(f"format not recognized: {format}")
-            else:
-                format = fmt
-        elif not isinstance(format, Load.Format):
-            raise TypeError("format arg must be a format name or Format object")
-        # Now we know the format and thus have a format function; if we were
-        # given a path instead of a stream, we need to open the path for the
-        # formatting function.
-        if src_stream:
-            return format.function(src_stream, **kwargs)
-        else:
-            with src_path.open('r' + format.mode) as stream:
-                return format.function(stream, **kwargs)
-        # That concludes the load function!
-    def register(self, name, /, *suffixes, mode='b'):
-        """Registers a format type with the `pimms.load` interface.
-
-        The `pimms.load.register` method is intended to be used as a decorator:
-        `@pimms.load.register(format_name, suffix1, suffix2...)` ensures that
-        the function that follows it is registered as a format managed by the
-        `pimms.load` system. The function that is decorated should be written to
-        accept a stream object (though the decorator will ensure that it works
-        when called with a path-like object or a stream). The function's
-        signature must always match `f(input_stream, **opts)` where the `**opts`
-        must be any set of named parameters. The return value of the function is
-        ignored, but it should raise an error if an object cannot be loaded.
-
-        Parameters
-        ----------
-        name : str
-            The name of the format.
-        *suffixes : strings or tuples of strings, optional
-            Any number of suffixes that this format uses. Suffixes must be
-            unique, and an error is raised if a requested suffix is already
-            registered to another format. Each suffix may be a string such as
-            `.tgz` or a tuple such as `('.tar', '.gz')`.
-        mode : 't' or 'b', optional
-            Whether any stream that is opened in order to save the file should
-            be opened in text mode (`'t'`) or binary mode (`'b'`). The default
-            is `'b'`.
-        """
-        # There are actually two uses: (1) that described in the help above and
-        # (2) load.register(format) where format is already a Format object. In
-        # the latter case we aren't a decorator.
-        if isinstance(name, Load.Format):
-            # We're in case 2, so we register this format specifically.
-            format = name
-            if format.name in self.formats:
-                raise RuntimeError(f"format {format.name} already registered")
-            for suff in format.suffixes:
-                ex = self._format_by_suffix.get(suff)
-                if ex is not None:
-                    raise RuntimeError(
-                        f"suffix {suff} already mapped to format {ex.name}")
-            # We pass the criteria; go ahead and add this format.
-            self.formats[format.name] = format
-            for suff in format.suffixes:
-                self._format_by_suffix[suff] = format
-            # Return the format itself.
-            return format
-        else:
-            # We're in case 1, so we return a decorator for the function.
-            def _load_register_dec(f):
-                if isinstance(f, Load.Format):
-                    f = f.function
-                format = Load.Format(name, f, *suffixes, mode=mode)
-                return self.register(format)
-            return _load_register_dec
-        # That's it for the register function.
-    def unregister(self, name, *, error_on_missing=False):
-        """Unregisters the format with the given name from the load system.
-
-        The format with the given name is unregistered from the `pimms.load`
-        system, and the `Format` object that is removed is returned. If the
-        format is not found, then `None` is returned, but no error is raised by
-        default.
-
-        Parameters
-        ----------
-        name : str
-            The name of the format to unregister.
-        error_on_missing : boolean, optional
-            Whether to throw a `RuntimeError` if the named format is not found
-            in the load manager. By default this is `False`.
-
-        Returns
-        -------
-        Format or None
-            The format object that is unregistered or `None` if the given name
-            was not a registered format.
-
-        Raises
-        ------
-        RuntimeError
-            If the given name does not map to a format in the load manager and
-            the `error_on_missing` option is `True`.
-        """
-        format = self.formats.get(name)
-        if format is None:
-            if error_on_missing:
-                raise RuntimeError(f"format {name} not found in load system")
-            else:
-                return None
-        # Actually remove things:
-        for suff in format.suffixes:
-            del self._format_by_suffix[suff]
-        del self.formats[name]
-        return format
-    def copy(self):
-        """Returns a copy of the given load manager.
-
-        `pimms.load.copy()` can be used to return a copy of the load manager,
-        for instances where a single load manager is not ideal.
-        """
-        return Load(self)
+    stream_mode = 'r'
+    def __call__(self, src, format=None, /, gzip=Ellipsis, **kwargs):
+        (loadret, saveret) = self._call(src, format, gzip, **kwargs)
+        return loadret
 
 # We can go ahead and declare a single global save object for the pimms library.
 # We will later use this object to register various basic format types.
@@ -684,6 +632,14 @@ def load_pickle(stream, **kwargs):
     """
     import pickle
     return pickle.load(stream, **kwargs)
+@load.register('numpy', '.npy', '.np', '.numpy', mode='b', gzip_suffix='.npz')
+def load_numpy(stream, **kwargs):
+    """Loads a numpy object from a path or stream and returns the object.
+
+    All keyword options are forwarded to the `numpy.load` function.
+    """
+    import numpy as np
+    return np.load(stream, **kwargs)
 @load.register('json', '.json', mode='t')
 def load_json(stream, /, **kwargs):
     """Loads an object from a JSON stream or path and returns the object.
