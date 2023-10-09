@@ -9,6 +9,7 @@ the `pimms.iolib._core` module.
 
 # Dependencies #################################################################
 
+import gzip
 from io       import StringIO, BytesIO
 from unittest import TestCase
 from tempfile import TemporaryDirectory
@@ -69,3 +70,12 @@ class TestIOLibCore(TestCase):
             lns = load(p / "analysis.m", "text")
             self.assertEqual(len(lns), 94)
             self.assertTrue(all(is_str(ln) for ln in lns))
+            # Gzip objects should also work fine.
+            p_gz = path(tmpdir) / "test.json.gz"
+            save(p_gz, json_example)
+            d = load(p_gz)
+            self.assertEqual(json_example, d)
+            # We should be able to use the gzip module to load this also.
+            with gzip.open(p_gz, 'rt') as fl:
+                d = load(fl, "json")
+            self.assertEqual(json_example, d)
