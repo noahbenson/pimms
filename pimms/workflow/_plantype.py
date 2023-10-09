@@ -74,8 +74,9 @@ class plantype(type):
             if type(pd) is dict:
                 plan = type(self).plan
                 if k not in plan.inputs:
-                    raise ValueError("planobject inputs become immutable after"
-                                     " the __init__ method returns")
+                    raise ValueError(
+                        "only planobject inputs may be set in the __init__"
+                        "method")
                 pd[k] = v
             else:
                 raise TypeError(f"type {type(self)} is immutable")
@@ -130,6 +131,12 @@ class plantype(type):
                                  f" {tuple(params.keys())}")
             pd = plan(params)
             object.__setattr__(self, '__plandict__', pd)
+        # For the pickle module:
+        def __getstate__(self):
+            return dict(self.__plandict__.inputs)
+        def __setstate__(self, inputs):
+            plan = type(self).plan
+            object.__setattr__(self, '__plandict__', plan(inputs))
     def __new__(cls, name, bases, attrs, **kwargs):
         sup = super(plantype, cls)
         # Before we go too far, let's extract the valid args from kwargs.
@@ -171,10 +178,6 @@ class plantype(type):
             attrs['plan'] = plan(initplan, **calcs)
         # (5) Return the type with all the updated attributes.
         return sup.__new__(cls, name, bases, attrs)
-    def __str__(self):
-        return "plantype"
-    def __repr__(self):
-        return "plantype"
 
 # #planobject ##################################################################
 class planobject(plantype.planobject_base, metaclass=plantype):
@@ -209,10 +212,21 @@ class planobject(plantype.planobject_base, metaclass=plantype):
     def __str__(self):
         pd = object.__getattribute__(self, '__plandict__')
         p = pd.plan
-        s = ", ".join([f"{k}={v}" for (k,v) in p.items()])
-        return f"{type(self)}({s})"
+        param_str = ", ".join(
+            f"{k}={pd[k]}" for k in p.inputs)
+        rest_str = ", ".join(
+            f"{k}={pd[k] if pd.is_ready(k) else '<lazy>'}" for k in p.outputs)
+        cls = type(self)
+        return f"{cls.__name__}({param_str}; {rest_str})"
     def __repr__(self):
-        return str(self)
+        pd = object.__getattribute__(self, '__plandict__')
+        p = pd.plan
+        param_str = ", ".join(
+            f"{k}={pd[k]}" for k in p.inputs)
+        rest_str = ", ".join(
+            f"{k}={repr(pd.getlazy(k))}" for k in p.outputs)
+        cls = type(self)
+        return f"{cls.__module__}.{cls.__name__}({param_str}; {rest_str})"
     def __eq__(self, other):
         if type(self) is not type(other): return False
         return self.__plandict__.inputs == other.__plandict__.inputs
@@ -228,6 +242,7 @@ class planobject(plantype.planobject_base, metaclass=plantype):
         obj = object.__new__(cls)
         object.__setattr__(obj, '__plandict__', pd)
         return obj
+
 
 # Utilities ####################################################################
 @docwrap
