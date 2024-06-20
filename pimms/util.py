@@ -512,8 +512,8 @@ _numpy_type_names = {'bool':    (np.bool_,),
                      'real':    (np.floating, np.integer, np.bool_),
                      'complex': (np.number,),
                      'number':  (np.number,),
-                     'string':  ((np.bytes_ if six.PY2 else np.unicode_),),
-                     'unicode': (np.unicode_,),
+                     'string':  ((np.bytes_ if six.PY2 else np.str_),),
+                     'unicode': (np.str_,),
                      'bytes':   (np.bytes_,),
                      'chars':   (np.character,),
                      'object':  (np.object_,),
@@ -576,10 +576,10 @@ _numpy_best_type_names = {'bool':    np.bool_ if six.PY2 else bool,
                           'float':   np.float_ if six.PY2 else float,
                           'floating':np.float_ if six.PY2 else float,
                           'real':    np.float_ if six.PY2 else float,
-                          'complex': np.complex_ if six.PY2 else complex,
-                          'number':  np.complex_ if six.PY2 else complex,
+                          'complex': np.complex128 if six.PY2 else complex,
+                          'number':  np.complex128 if six.PY2 else complex,
                           'string':  np.bytes_ if six.PY2 else str,
-                          'unicode': np.unicode_ if six.PY2 else str,
+                          'unicode': np.str_ if six.PY2 else str,
                           'bytes':   np.bytes_ if six.PY2 else bytes,
                           'chars':   np.dtype('S1'),
                           'object':  np.object_ if six.PY2 else object,
@@ -624,7 +624,7 @@ def numpy_best_type(type_id):
     elif np.issubdtype(type_id, np.generic):
         if   type_id is np.integer:  return _numpy_best_type_names['int']
         elif type_id is np.floating: return _numpy_best_type_names['float']
-        elif type_id is np.cfloat:   return _numpy_best_type_names['complex']
+        elif type_id is np.complex128:   return _numpy_best_type_names['complex']
         elif type_id is np.number:   return _numpy_best_type_names['complex']
         else: return type_id
     elif type_id in six.integer_types:       return _numpy_best_type_names['int']
