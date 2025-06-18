@@ -428,9 +428,8 @@ def imm_is_transient(imm):
     return is_imm(imm) and not _imm_is_persist(imm)
 def class_value(f):
     '''
-    The @class_value decorator,
-    @value is to a @staticmethod, what @class_value is to @classmethod
-which supports a 'cls' first argument equivalent to classmethods.
+    The @class_value decorator. @value is to @staticmethod, as @class_value is to @classmethod:
+    @class value supports a 'cls' first argument, wheras @value does not
     '''
     (args, varargs, kwargs, dflts) = getargspec_py27like(f)
     if varargs is not None or kwargs is not None or dflts:
