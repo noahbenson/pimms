@@ -6,11 +6,11 @@
 # The pimms library is free software: you can redistribute it and/or modify it under the terms of
 # the GNU General Public License as published by the Free Software Foundation, either version 3 of
 # the License, or (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without
 # even the implied warranty of  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 # General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU General Public License along with this program.  If
 # not, see <http://www.gnu.org/licenses/>.
 
@@ -130,7 +130,7 @@ from .util        import (lazy_map, LazyPMap, merge, rmerge, lmerge, lmap, is_lm
                           is_quantity, is_unit, quant, iquant, unit, mag, like_units, units,
                           imm_array, qhashform, qhash, digest, save, load, io_formats, persist,
                           assoc, dissoc, curry, cache_filename, cache_lmap, cache_fn)
-from .immutable   import (immutable, require, value, param, option, is_imm, is_imm_type, imm_copy,
+from .immutable   import (immutable, require, class_value, value, param, option, is_imm, is_imm_type, imm_copy,
                           imm_persist, imm_transient, imm_params, imm_values, imm_dict,
                           imm_is_persistent, imm_is_transient)
 from .calculation import (calc,    plan,    imap,

@@ -53,6 +53,8 @@ def _imm_is_persist(imm):
     return '_pimms_immutable_is_init' not in dd and '_pimms_immutable_is_trans' not in dd
 def _imm_param_data(imm):
     return type(imm)._pimms_immutable_data_['params']
+def _imm_class_value_data(imm):
+    return type(imm)._pimms_immutable_data_['class_values']
 def _imm_value_data(imm):
     return type(imm)._pimms_immutable_data_['values']
 def _imm_check_data(imm):
@@ -291,7 +293,7 @@ def _imm__copy__(self):
     for (k,v) in six.iteritems(sd):
         dd[k] = v
     return dup
-    
+
 def _imm_init_to_trans(imm):
     # changes state from initializing to transient; runs checks along the way
     # if all params are not yet set, this is an error
@@ -424,6 +426,21 @@ def imm_is_transient(imm):
     imm_is_transient(imm) yields True if imm is a transient immutable object, otherwise False.
     '''
     return is_imm(imm) and not _imm_is_persist(imm)
+def class_value(f):
+    '''
+    The @class_value decorator,
+    @value is to a @staticmethod, what @class_value is to @classmethod
+which supports a 'cls' first argument equivalent to classmethods.
+    '''
+    (args, varargs, kwargs, dflts) = getargspec_py27like(f)
+    if varargs is not None or kwargs is not None or dflts:
+        raise ValueError('Values may not accept variable, variadic keyword, or default arguments')
+    f._pimms_immutable_data_ = {}
+    f._pimms_immutable_data_['is_value'] = True
+    f._pimms_immutable_data_['inputs'] = args[1:]
+    f._pimms_immutable_data_['name'] = f.__name__
+    f = classmethod(f)
+    return f
 
 def value(f):
     '''
@@ -443,7 +460,7 @@ def value(f):
 def param(f):
     '''
     The @param decorator, usable in an immutable class (see immutable), specifies that the following
-    function is actually a transformation on an input parameter; the parameter is required, and is 
+    function is actually a transformation on an input parameter; the parameter is required, and is
     set to the value returned by the function decorated by the parameter; i.e., if you decorate the
     function abc with @param, then imm.abc = x will result in imm's abc attribute being set to the
     value of type(imm).abc(x).
@@ -670,7 +687,7 @@ def immutable(cls):
     __new__ to create interesting behavior consistent with immutable data types. The following
     decorators may be used inside of the decorated class to define immutable behavior:
       * @value indicates that the following function is really a value that should be calculated
-        and stored as a value of its arguments. The arguments should not start with self and 
+        and stored as a value of its arguments. The arguments should not start with self and
         should instead be named after other values from which it is calculated. If there are no
         arguments, then the returned value is a constant. Note that self is not an argument to this
         function.
