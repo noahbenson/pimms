@@ -624,7 +624,7 @@ def numpy_best_type(type_id):
     elif np.issubdtype(type_id, np.generic):
         if   type_id is np.integer:  return _numpy_best_type_names['int']
         elif type_id is np.floating: return _numpy_best_type_names['float']
-        elif type_id is np.cfloat:   return _numpy_best_type_names['complex']
+        elif type_id is np.complex128:   return _numpy_best_type_names['complex']
         elif type_id is np.number:   return _numpy_best_type_names['complex']
         else: return type_id
     elif type_id in six.integer_types:       return _numpy_best_type_names['int']
